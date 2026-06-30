@@ -1,3 +1,3 @@
 export default function Page() {
-  return <main className="wrap"><h1>About Salty Cowhide Co.</h1><p className="muted">Safe public storefront content renders without exposing Studio data, private assets, prompts, or provider secrets.</p></main>;
+  return <main><section className="sf-page-hero"><h1>About Salty Cowhide Co.</h1><p>Coastal calm meets western grit through made-to-order apparel and accessories.</p></section><section className="sf-card-grid"><article className="sf-card"><h2>Our point of view</h2><p>Premium, laid-back, and rooted in original artwork. Public pages only show approved content.</p></article><article className="sf-card"><h2>Made to order</h2><p>Products are prepared through a review-first workflow before commerce publishing.</p></article><article className="sf-card"><h2>Safe by design</h2><p>Private prompts, trend signals, audit internals, and provider secrets stay out of the storefront.</p></article></section></main>;
 }

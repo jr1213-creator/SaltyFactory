@@ -1,3 +1,19 @@
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], display: "swap" });
+
 export const metadata = { title: "Salty Cowhide Co.", description: "Coastal western print-on-demand goods." };
-export default function Layout({children}:{children:React.ReactNode}){ return <html lang="en"><body><nav className="nav"><a href="/">Salty Cowhide Co.</a><a href="/collections">Collections</a><a href="/drops">Drops</a><a href="/search">Search</a><a href="/cart">Cart</a></nav>{children}</body></html>; }
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body className={inter.className}>
+    <div className="sf-store-announcement">Free shipping on orders $75+ · Made for coastal souls, inspired by the wild.</div>
+    <nav className="sf-store-nav" aria-label="Storefront navigation">
+      <a className="sf-store-logo" href="/">Salty Cowhide</a>
+      <div className="sf-store-links"><a href="/collections">Collections</a><a href="/drops">Drops</a><a href="/about">About</a><a href="/size-guide">Size Guide</a><a href="/faq">FAQ</a></div>
+      <div className="sf-store-actions"><input className="sf-store-search" placeholder="Search products..." aria-label="Search products" /><a href="/cart">Cart</a></div>
+    </nav>
+    {children}
+    <footer className="sf-footer"><strong>Salty Cowhide Co.</strong><span>Secure checkout powered by configured commerce providers. Approved public products only.</span><span>Visa · Mastercard · PayPal</span></footer>
+  </body></html>;
+}

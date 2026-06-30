@@ -187,7 +187,11 @@ importers:
         specifier: workspace:*
         version: link:../config
 
-  packages/auth: {}
+  packages/auth:
+    dependencies:
+      '@saltyfactory/db':
+        specifier: workspace:*
+        version: link:../db
 
   packages/commerce:
     dependencies:

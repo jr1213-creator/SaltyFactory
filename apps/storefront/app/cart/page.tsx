@@ -1,3 +1,3 @@
 export default function Page() {
-  return <main className="wrap"><h1>Cart</h1><p className="muted">Safe public storefront content renders without exposing Studio data, private assets, prompts, or provider secrets.</p></main>;
+  return <main><section className="sf-page-hero"><h1>Cart</h1><p>Your cart is ready when the configured commerce provider is enabled.</p></section><section className="sf-section"><div className="sf-empty"><strong>Your cart is empty</strong><p>Approved public products can be added after storefront commerce is configured.</p><a className="sf-button sf-button-primary" href="/collections">Browse collections</a></div></section></main>;
 }

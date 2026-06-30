@@ -1,1 +1,1 @@
-import { NextResponse } from "next/server"; import { logoutCookie } from "@saltyfactory/auth"; export async function GET(req:Request){ const res=NextResponse.redirect(new URL("/login", req.url)); res.headers.set("Set-Cookie", logoutCookie()); return res; }
+import { NextResponse } from "next/server"; import { supabaseLogoutCookies } from "@saltyfactory/auth"; export async function GET(req:Request){ const res=NextResponse.redirect(new URL("/login", req.url)); for(const cookie of supabaseLogoutCookies()) res.headers.append("Set-Cookie", cookie); return res; }

@@ -1,1 +1,27 @@
-import { NextResponse } from 'next/server'; import { requireStudioUser, getAuditActor } from '@saltyfactory/auth'; import { fixtures, evaluatePublishReviewGates } from '@saltyfactory/domain'; export async function GET(){ await requireStudioUser(); return NextResponse.json({ok:true, route:'generate/submit', auditActor: await getAuditActor(), gates:evaluatePublishReviewGates(fixtures.publishReviewBlocked)}); } export async function POST(){ await requireStudioUser(); return NextResponse.json({ok:true, route:'generate/submit', auditEvent:'created'}); }
+import { NextResponse } from "next/server";
+import { requireProviderMutationPermission, requireReviewerOrAbove } from "@saltyfactory/auth";
+import { evaluatePublishReviewGates, fixtures } from "@saltyfactory/domain";
+import { providerDisabledApiResponse, studioAuthErrorResponse } from "../../_auth";
+
+export async function GET(req: Request) {
+  try {
+    const user = await requireReviewerOrAbove(req);
+    return NextResponse.json({
+      ok: true,
+      route: "generate/submit",
+      auditActor: { actor_type: "human", actor_id: user.id },
+      gates: evaluatePublishReviewGates(fixtures.publishReviewBlocked)
+    });
+  } catch (error) {
+    return studioAuthErrorResponse(error);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    await requireProviderMutationPermission(req);
+    return providerDisabledApiResponse("Generation submit is blocked until an approved provider connection and queue handler are configured.");
+  } catch (error) {
+    return studioAuthErrorResponse(error);
+  }
+}

@@ -151,6 +151,10 @@ Private factory data must never appear publicly.
 
 Studio must be protected.
 
+Studio auth standard:
+
+Production Studio auth must use Supabase Auth with email verification / magic-link minimum. Do not implement custom password auth, custom password hashes, email-only authentication, env-only authentication, or custom signed Studio session cookies as production auth. Supabase Auth owns identity; Studio access also requires server-side workspace/role authorization through the SaaS membership model.
+
 Required behavior:
 
 - `/studio/*` unauthenticated browser navigation redirects to `/login`

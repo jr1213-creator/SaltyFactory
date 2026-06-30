@@ -1,3 +1,3 @@
 export default function Page() {
-  return <main className="wrap"><h1>FAQ</h1><p className="muted">Safe public storefront content renders without exposing Studio data, private assets, prompts, or provider secrets.</p></main>;
+  return <main><section className="sf-page-hero"><h1>FAQ</h1><p>Helpful answers for made-to-order coastal western goods.</p></section><section className="sf-card-grid">{["When will my order ship?","How do returns work?","Are products made to order?","Where do designs come from?"].map((q)=><article className="sf-card" key={q}><h2>{q}</h2><p>Final storefront policies should be verified before launch. This public page never exposes Studio data.</p></article>)}</section></main>;
 }
