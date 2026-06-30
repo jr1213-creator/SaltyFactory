@@ -51,6 +51,12 @@ export interface ProductDraftRepositoryContract extends BaseRepositoryContract {
   listApprovedForStorefront(workspaceId: string): Promise<Array<Record<string, unknown>>>;
 }
 
+export interface SiteAuditRepositoryContract extends BaseRepositoryContract {
+  findings: BaseRepositoryContract;
+  latest(workspaceId: string): Promise<WorkspaceRow | null>;
+  createRun(row: WorkspaceRow, findings?: WorkspaceRow[], audit?: WorkspaceRow): Promise<WorkspaceRow>;
+}
+
 export interface RepositoryBundle {
   readonly adapter: RepositoryAdapterKind;
   audit: BaseRepositoryContract & { write(event: AuditEvent | WorkspaceRow): Promise<WorkspaceRow> };
@@ -69,6 +75,7 @@ export interface RepositoryBundle {
   variant: BaseRepositoryContract & { listByDraft(workspaceId: string, productDraftId: string): Promise<WorkspaceRow[]> };
   margin: BaseRepositoryContract & { listBlocked(workspaceId: string): Promise<WorkspaceRow[]> };
   publish: PublishReviewRepositoryContract;
+  siteAudit: SiteAuditRepositoryContract;
   shopify: BaseRepositoryContract;
   printify: BaseRepositoryContract;
   fulfillment: BaseRepositoryContract & { listByOrder(workspaceId: string, orderId: string): Promise<WorkspaceRow[]> };

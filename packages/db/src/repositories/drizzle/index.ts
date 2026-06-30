@@ -35,6 +35,8 @@ const tableExportByDbName: Record<string, TableName> = {
   product_variants: "productVariants",
   price_margin_checks: "priceMarginChecks",
   publish_reviews: "publishReviews",
+  site_audit_runs: "siteAuditRuns",
+  site_audit_findings: "siteAuditFindings",
   shopify_product_refs: "shopifyProductRefs",
   printify_product_refs: "printifyProductRefs",
   fulfillment_events: "fulfillmentEvents",
@@ -234,6 +236,24 @@ export class DrizzlePublishReviewRepository extends DrizzleBaseRepository<Publis
   }
 }
 
+export class DrizzleSiteAuditRepository extends DrizzleBaseRepository {
+  readonly findings: DrizzleBaseRepository;
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    super("site_audit_runs", db, audit);
+    this.findings = new DrizzleBaseRepository("site_audit_findings", this.db, this.audit);
+  }
+  async latest(workspaceId: string) {
+    const rows = await this.listByWorkspace(workspaceId);
+    return rows.sort((a, b) => String(b.audited_at ?? b.auditedAt ?? b.created_at ?? "").localeCompare(String(a.audited_at ?? a.auditedAt ?? a.created_at ?? "")))[0] ?? null;
+  }
+  async createRun(row: WorkspaceRow, findings: WorkspaceRow[] = [], audit?: WorkspaceRow) {
+    const created = await this.create(row, audit);
+    const workspaceId = workspaceOf(row);
+    for (const finding of findings) await this.findings.create({ ...finding, audit_run_id: created.id, auditRunId: created.id, workspace_id: workspaceId, workspaceId });
+    return created;
+  }
+}
+
 export class DrizzleShopifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("shopify_product_refs", db, audit); } }
 export class DrizzlePrintifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("printify_product_refs", db, audit); } }
 export class DrizzleFulfillmentEventRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("fulfillment_events", db, audit); } async listByOrder(workspaceId: string, orderId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => row.shopify_order_id === orderId || row.printify_order_id === orderId); } }
@@ -310,6 +330,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     variant: new DrizzleProductVariantRepository(db, writer),
     margin: new DrizzlePriceMarginCheckRepository(db, writer),
     publish: new DrizzlePublishReviewRepository(db, writer),
+    siteAudit: new DrizzleSiteAuditRepository(db, writer),
     shopify: new DrizzleShopifyProductRefRepository(db, writer),
     printify: new DrizzlePrintifyProductRefRepository(db, writer),
     fulfillment: new DrizzleFulfillmentEventRepository(db, writer),

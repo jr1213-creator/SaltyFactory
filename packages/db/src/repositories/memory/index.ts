@@ -268,6 +268,24 @@ export class PublishReviewRepository extends BaseRepository<PublishReview & Work
   }
 }
 
+export class SiteAuditRepository extends BaseRepository {
+  readonly findings: BaseRepository;
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    super("site_audit_runs", store, audit);
+    this.findings = new BaseRepository("site_audit_findings", this.store, this.audit);
+  }
+  async latest(workspaceId: string) {
+    const rows = await this.listByWorkspace(workspaceId);
+    return rows.sort((a, b) => String(b.audited_at ?? b.auditedAt ?? b.created_at ?? "").localeCompare(String(a.audited_at ?? a.auditedAt ?? a.created_at ?? "")))[0] ?? null;
+  }
+  async createRun(row: WorkspaceRow, findings: WorkspaceRow[] = [], audit?: WorkspaceRow) {
+    const created = await this.create(row, audit);
+    const workspaceId = workspaceOf(row);
+    for (const finding of findings) await this.findings.create({ ...finding, audit_run_id: created.id, auditRunId: created.id, workspace_id: workspaceId, workspaceId });
+    return created;
+  }
+}
+
 export class ShopifyProductRefRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("shopify_product_refs", store, audit); }
 }
@@ -338,6 +356,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     variant: new ProductVariantRepository(store, writer),
     margin: new PriceMarginCheckRepository(store, writer),
     publish: new PublishReviewRepository(store, writer),
+    siteAudit: new SiteAuditRepository(store, writer),
     shopify: new ShopifyProductRefRepository(store, writer),
     printify: new PrintifyProductRefRepository(store, writer),
     fulfillment: new FulfillmentEventRepository(store, writer),

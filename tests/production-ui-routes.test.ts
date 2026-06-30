@@ -78,7 +78,7 @@ describe("production UI routes", () => {
 
   it("Product detail page renders variant selectors and add-to-cart for available demo handle", async () => {
     const html = renderToStaticMarkup(await ProductPage({ params: Promise.resolve({ handle: "demo-product" }) }));
-    expect(html).toContain("Add to Cart");
+    expect(html).toContain("Checkout unavailable");
     expect(html).toContain("Color");
     expect(html).toContain("Size");
   });

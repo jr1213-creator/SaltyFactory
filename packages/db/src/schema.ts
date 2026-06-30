@@ -202,6 +202,55 @@ export const providerConnectionStatus = pgTable("provider_connection_status", {
   workspaceIdx: index("provider_connection_status_workspace_idx").on(table.workspaceId)
 }));
 
+export const siteAuditRuns = pgTable("site_audit_runs", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  websiteUrl: text("website_url").notNull(),
+  sitemapUrl: text("sitemap_url"),
+  brandName: text("brand_name"),
+  targetKeywords: jsonb("target_keywords").$type<string[]>().notNull().default([]),
+  competitorUrls: jsonb("competitor_urls").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("completed"),
+  overallScore: integer("overall_score").notNull().default(0),
+  seoScore: integer("seo_score").notNull().default(0),
+  aeoScore: integer("aeo_score").notNull().default(0),
+  geoScore: integer("geo_score").notNull().default(0),
+  structuredDataScore: integer("structured_data_score").notNull().default(0),
+  crawlabilityScore: integer("crawlability_score").notNull().default(0),
+  productSchemaScore: integer("product_schema_score").notNull().default(0),
+  contentQualityScore: integer("content_quality_score").notNull().default(0),
+  conversionReadinessScore: integer("conversion_readiness_score").notNull().default(0),
+  indicators: jsonb("indicators").$type<Record<string, unknown>>().notNull().default({}),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull().default({}),
+  recommendedFixes: jsonb("recommended_fixes").$type<string[]>().notNull().default([]),
+  priorityActions: jsonb("priority_actions").$type<string[]>().notNull().default([]),
+  errorCode: text("error_code"),
+  errorMessage: text("error_message"),
+  auditedAt: timestamp("audited_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceIdx: index("site_audit_runs_workspace_idx").on(table.workspaceId),
+  auditedAtIdx: index("site_audit_runs_audited_at_idx").on(table.workspaceId, table.auditedAt),
+  statusIdx: index("site_audit_runs_status_idx").on(table.status)
+}));
+
+export const siteAuditFindings = pgTable("site_audit_findings", {
+  id,
+  ...ownership(),
+  auditRunId: text("audit_run_id").notNull().references(() => siteAuditRuns.id),
+  severity: text("severity").notNull(),
+  area: text("area").notNull(),
+  message: text("message").notNull(),
+  evidence: text("evidence"),
+  status: text("status").notNull().default("open"),
+  createdBy: text("created_by").references(() => users.id),
+  metadata
+}, (table) => ({
+  runIdx: index("site_audit_findings_run_idx").on(table.auditRunId),
+  workspaceIdx: index("site_audit_findings_workspace_idx").on(table.workspaceId),
+  severityIdx: index("site_audit_findings_severity_idx").on(table.severity)
+}));
+
 export const workspaceFeatureFlags = pgTable("workspace_feature_flags", {
   id,
   ...ownership(),
@@ -1037,6 +1086,8 @@ export const tables = {
   storefrontPages,
   connectedStores,
   providerConnectionStatus,
+  siteAuditRuns,
+  siteAuditFindings,
   plans,
   subscriptions,
   billingEvents,

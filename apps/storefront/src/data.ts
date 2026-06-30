@@ -5,11 +5,17 @@ import { createRepositories } from "@saltyfactory/db";
 const workspaceId = process.env.STOREFRONT_WORKSPACE_ID || "wks_default";
 
 export async function getProducts() {
-  const providers = createCommerceProviders(parseEnv());
+  const config = parseEnv();
+  const providers = createCommerceProviders(config);
   const result = await providers.storefront.getProducts();
   if (result.ok && Array.isArray(result.data) && result.data.length) return result.data;
   if (!process.env.DATABASE_URL && process.env.REPOSITORY_ADAPTER !== "memory") return [];
-  return createRepositories().draft.listApprovedForStorefront(workspaceId);
+  try {
+    return await createRepositories().draft.listApprovedForStorefront(workspaceId);
+  } catch (error) {
+    if (config.APP_ENV === "production") throw error;
+    return [];
+  }
 }
 
 export async function getProduct(handle: string) {
