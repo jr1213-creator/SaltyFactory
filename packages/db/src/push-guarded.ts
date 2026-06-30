@@ -1,0 +1,1 @@
+if(process.env.APP_ENV==="production")throw new Error("db:push:guarded is disabled in production; use migrations"); console.log("guarded push available for non-production only")

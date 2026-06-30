@@ -1,0 +1,1 @@
+console.log(JSON.stringify({mode:"production-minimal",productDrafts:0,fakeOrders:0,customerPii:false}))

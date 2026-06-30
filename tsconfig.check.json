@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.base.json","compilerOptions":{"noEmit":true,"rootDir":".","composite":false},"include":["packages/**/*.ts","packages/**/*.tsx","apps/**/*.ts","apps/**/*.tsx","scripts/**/*.ts","tests/**/*.ts"],"exclude":["node_modules",".next","dist"]}

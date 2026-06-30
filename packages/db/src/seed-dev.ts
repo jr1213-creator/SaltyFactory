@@ -1,0 +1,1 @@
+console.log(JSON.stringify({mode:"development",created:"blocked sample pipeline",liveProducts:false}))

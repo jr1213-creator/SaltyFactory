@@ -1,0 +1,1 @@
+const nextConfig = { transpilePackages: ['@saltyfactory/domain','@saltyfactory/config','@saltyfactory/commerce','@saltyfactory/auth','@saltyfactory/ui','@saltyfactory/risk','@saltyfactory/ai-free','@saltyfactory/image-pipeline','@saltyfactory/db','@saltyfactory/queue'] }; export default nextConfig;

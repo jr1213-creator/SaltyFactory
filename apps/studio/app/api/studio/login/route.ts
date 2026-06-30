@@ -1,0 +1,1 @@
+import { NextResponse } from "next/server"; import { loginCookie } from "@saltyfactory/auth"; export async function POST(req:Request){ const fd=await req.formData(); const email=String(fd.get("email")||""); const res=NextResponse.redirect(new URL("/studio", req.url)); res.headers.set("Set-Cookie", loginCookie(email)); return res; }

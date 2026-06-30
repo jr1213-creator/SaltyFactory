@@ -1,0 +1,59 @@
+{
+    "compilerOptions":  {
+                            "target":  "ES2022",
+                            "lib":  [
+                                        "ES2022",
+                                        "DOM"
+                                    ],
+                            "module":  "ESNext",
+                            "moduleResolution":  "Bundler",
+                            "jsx":  "react-jsx",
+                            "strict":  true,
+                            "noUncheckedIndexedAccess":  true,
+                            "exactOptionalPropertyTypes":  true,
+                            "esModuleInterop":  true,
+                            "skipLibCheck":  true,
+                            "resolveJsonModule":  true,
+                            "allowSyntheticDefaultImports":  true,
+                            "baseUrl":  ".",
+                            "paths":  {
+                                          "@saltyfactory/domain":  [
+                                                                       "packages/domain/src/index.ts"
+                                                                   ],
+                                          "@saltyfactory/config":  [
+                                                                       "packages/config/src/index.ts"
+                                                                   ],
+                                          "@saltyfactory/db":  [
+                                                                   "packages/db/src/index.ts"
+                                                               ],
+                                          "@saltyfactory/storage":  [
+                                                                        "packages/storage/src/index.ts"
+                                                                    ],
+                                          "@saltyfactory/commerce":  [
+                                                                         "packages/commerce/src/index.ts"
+                                                                     ],
+                                          "@saltyfactory/ai-free":  [
+                                                                        "packages/ai-free/src/index.ts"
+                                                                    ],
+                                          "@saltyfactory/image-pipeline":  [
+                                                                               "packages/image-pipeline/src/index.ts"
+                                                                           ],
+                                          "@saltyfactory/risk":  [
+                                                                     "packages/risk/src/index.ts"
+                                                                 ],
+                                          "@saltyfactory/queue":  [
+                                                                      "packages/queue/src/index.ts"
+                                                                  ],
+                                          "@saltyfactory/auth":  [
+                                                                     "packages/auth/src/index.ts"
+                                                                 ],
+                                          "@saltyfactory/ui":  [
+                                                                   "packages/ui/src/index.tsx"
+                                                               ]
+                                      },
+                            "types":  [
+                                          "node"
+                                      ],
+                            "ignoreDeprecations":  "6.0"
+                        }
+}

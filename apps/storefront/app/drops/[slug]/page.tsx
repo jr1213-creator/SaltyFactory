@@ -1,0 +1,1 @@
+export default async function Page({params}:{params:Promise<{slug:string}>}){ const {slug}=await params; return <main className="wrap"><h1>{slug} Drop</h1><p>Drop details publish only after human approval.</p></main>; }

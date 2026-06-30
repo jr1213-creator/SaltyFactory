@@ -1,0 +1,1 @@
+if(!process.env.DATABASE_URL){console.error("DATABASE_URL is missing. Configure managed Postgres/Supabase Postgres before running db:health.");process.exit(1)} console.log("database health check configured")

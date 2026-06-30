@@ -1,0 +1,11 @@
+import { describe, expect, it } from "vitest";
+import { StorageProviderDisabled, LocalDevStorageProvider } from "@saltyfactory/storage";
+import { createFreeTextProvider, createFreeImageProvider } from "@saltyfactory/ai-free";
+import { parseEnv } from "@saltyfactory/config";
+import { tables, createRepositories } from "@saltyfactory/db";
+import { reviewPhraseRisk } from "@saltyfactory/risk";
+import { DatabaseBackedQueue } from "@saltyfactory/queue";
+import { runWorkerOnce } from "../apps/worker/src/index";
+describe("providers and storage",()=>{ it("disabled providers do not call network",async()=>{ const c=parseEnv({NEXT_PUBLIC_STOREFRONT_BASE_URL:"https://saltycowhide.com"}); expect((await createFreeTextProvider(c).generatePhrases("brief", 3)).ok).toBe(false); expect((await createFreeImageProvider(c).generateImage("prompt", "negative", {})).ok).toBe(false); }); it("private asset cannot produce public URL",()=>{ const s=new StorageProviderDisabled(); expect((s as any).createPublicApprovedUrl("private/a.png",false).ok).toBe(false); const local=new LocalDevStorageProvider(); expect(local.createPublicApprovedUrl("approved/a.png",true).ok).toBe(true); }); });
+describe("db repositories and risk",()=>{ it("exports all tables and repositories",()=>{ expect(Object.keys(tables)).toContain("auditEvents"); const repos=createRepositories(); expect(repos.audit.write).toBeTypeOf("function"); }); it("flags high-risk terms",()=>{ expect(reviewPhraseRisk("phrase_01","Taylor Swift cowboys Disney").status).toBe("auto_flagged"); }); });
+describe("worker",()=>{ it("run once exits with no jobs",async()=>{ await expect(runWorkerOnce()).resolves.toMatchObject({ok:true,processed:0}); }); it("retryable failures increment retry",async()=>{ const q=new DatabaseBackedQueue(); const j=await q.enqueue({id:"genjob_test",type:"generation",max_retries:3,payload:{prompt:"x"}}); await q.markFailed(j.id,"rate_limited",true); expect((await q.claimQueuedJob())?.retry_count).toBe(1); }); });
