@@ -16,6 +16,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().optional().default(""),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional().default(""),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
+  CREDENTIAL_STORAGE_ENABLED: asBool(false),
+  CREDENTIAL_ENCRYPTION_KEY: z.string().optional().default(""),
   SUPABASE_PRIVATE_ASSETS_BUCKET: z.string().default("saltyfactory-private-assets"),
   SUPABASE_PUBLIC_ASSETS_BUCKET: z.string().default("saltyfactory-public-assets"),
   STUDIO_AUTH_ENABLED: asBool(true),
@@ -48,6 +50,9 @@ const envSchema = z.object({
   GBP_ENABLED: asBool(false),
   GBP_ACCOUNT_ID: z.string().optional().default(""),
   GBP_LOCATION_ID: z.string().optional().default(""),
+  GOOGLE_CLIENT_ID: z.string().optional().default(""),
+  GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().optional().default(""),
   LIVE_PUBLISHING_ENABLED: asBool(false),
   WEBHOOK_SECRET_SHOPIFY: z.string().optional().default(""),
   WEBHOOK_SECRET_PRINTIFY: z.string().optional().default(""),
@@ -109,6 +114,7 @@ export function validateProductionReadiness(config = parseEnv()) {
     if (!has(config.DATABASE_URL)) failures.push("DATABASE_URL required for production managed Postgres");
     if (config.REPOSITORY_ADAPTER === "memory") failures.push("In-memory repositories are forbidden in production");
     if (!has(config.SUPABASE_URL) || !has(config.SUPABASE_SERVICE_ROLE_KEY)) failures.push("Supabase URL and service role key required server-side");
+    if (config.CREDENTIAL_STORAGE_ENABLED && !has(config.CREDENTIAL_ENCRYPTION_KEY)) failures.push("CREDENTIAL_ENCRYPTION_KEY required when encrypted credential storage is enabled");
     if (!has(config.NEXT_PUBLIC_SUPABASE_URL) && !has(config.SUPABASE_URL)) failures.push("Supabase Auth URL required for Studio auth");
     if (!has(config.NEXT_PUBLIC_SUPABASE_ANON_KEY) && !has(config.SUPABASE_ANON_KEY)) failures.push("Supabase anon key required for Studio auth");
   }

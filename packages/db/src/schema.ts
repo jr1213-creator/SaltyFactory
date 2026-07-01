@@ -202,6 +202,46 @@ export const providerConnectionStatus = pgTable("provider_connection_status", {
   workspaceIdx: index("provider_connection_status_workspace_idx").on(table.workspaceId)
 }));
 
+export const encryptedCredentials = pgTable("encrypted_credentials", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  providerKey: text("provider_key").notNull(),
+  providerConnectionId: text("provider_connection_id").references(() => workspaceProviderConnections.id),
+  credentialRef: text("credential_ref").notNull(),
+  encryptedPayload: jsonb("encrypted_payload").$type<Record<string, unknown>>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  status: text("status").notNull().default("active")
+}, (table) => ({
+  refUnique: uniqueIndex("encrypted_credentials_ref_unique").on(table.workspaceId, table.credentialRef),
+  providerIdx: index("encrypted_credentials_provider_idx").on(table.workspaceId, table.providerKey),
+  connectionIdx: index("encrypted_credentials_connection_idx").on(table.providerConnectionId)
+}));
+
+export const integrationSyncRuns = pgTable("integration_sync_runs", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  providerKey: text("provider_key").notNull(),
+  providerConnectionId: text("provider_connection_id").references(() => workspaceProviderConnections.id),
+  syncType: text("sync_type").notNull(),
+  status: text("status").notNull().default("queued"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  recordsRead: integer("records_read").notNull().default(0),
+  recordsWritten: integer("records_written").notNull().default(0),
+  lastCursor: text("last_cursor"),
+  errorCode: text("error_code"),
+  sanitizedErrorMessage: text("sanitized_error_message"),
+  setupRequired: jsonb("setup_required").$type<string[]>().notNull().default([]),
+  resultSummary: jsonb("result_summary").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  providerIdx: index("integration_sync_runs_provider_idx").on(table.workspaceId, table.providerKey),
+  statusIdx: index("integration_sync_runs_status_idx").on(table.workspaceId, table.status),
+  connectionIdx: index("integration_sync_runs_connection_idx").on(table.providerConnectionId)
+}));
+
 export const siteAuditRuns = pgTable("site_audit_runs", {
   id,
   ...ownership(),
@@ -1086,6 +1126,8 @@ export const tables = {
   storefrontPages,
   connectedStores,
   providerConnectionStatus,
+  encryptedCredentials,
+  integrationSyncRuns,
   siteAuditRuns,
   siteAuditFindings,
   plans,

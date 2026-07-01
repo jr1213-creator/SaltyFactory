@@ -286,6 +286,45 @@ export class SiteAuditRepository extends BaseRepository {
   }
 }
 
+export class IntegrationRepository extends BaseRepository {
+  readonly credentials: BaseRepository;
+  readonly syncRuns: BaseRepository;
+  readonly statuses: BaseRepository;
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    super("workspace_provider_connections", store, audit);
+    this.credentials = new BaseRepository("encrypted_credentials", this.store, this.audit);
+    this.syncRuns = new BaseRepository("integration_sync_runs", this.store, this.audit);
+    this.statuses = new BaseRepository("provider_connection_status", this.store, this.audit);
+  }
+  async createProviderConnection(row: WorkspaceRow, audit?: WorkspaceRow) { return this.create(row, audit); }
+  async updateProviderConnectionStatus(workspaceId: string, providerKey: string, patch: WorkspaceRow, audit?: WorkspaceRow) {
+    const row = await this.getProviderConnectionForWorkspace(workspaceId, providerKey);
+    if (!row) return this.create({ ...patch, id: `conn_${Date.now()}`, workspace_id: workspaceId, provider_type: providerKey, provider_name: providerKey, enabled: false, status: String(patch.status ?? "not_configured") }, audit);
+    return this.update(row.id, patch, audit);
+  }
+  async listProviderConnectionsForWorkspace(workspaceId: string) { return this.listByWorkspace(workspaceId); }
+  async getProviderConnectionForWorkspace(workspaceId: string, providerKey: string) {
+    return (await this.listByWorkspace(workspaceId)).find((row) =>
+      row.provider_key === providerKey || row.providerKey === providerKey || row.provider_type === providerKey || row.providerType === providerKey
+    ) ?? null;
+  }
+  async saveEncryptedCredential(row: WorkspaceRow, audit?: WorkspaceRow) { return this.credentials.create(row, audit); }
+  async getCredentialForServerUseOnly(workspaceId: string, credentialRef: string) {
+    return (await this.credentials.listByWorkspace(workspaceId)).find((row) => row.credential_ref === credentialRef || row.credentialRef === credentialRef) ?? null;
+  }
+  async deleteCredential(workspaceId: string, credentialRef: string, actorId = "system") {
+    const row = await this.getCredentialForServerUseOnly(workspaceId, credentialRef);
+    return row ? this.credentials.update(row.id, { status: "revoked", revoked_at: now(), revokedAt: now(), updated_by: actorId, updatedBy: actorId }) : null;
+  }
+  async createIntegrationSyncRun(row: WorkspaceRow, audit?: WorkspaceRow) { return this.syncRuns.create(row, audit); }
+  async updateIntegrationSyncRun(id: string, patch: WorkspaceRow, audit?: WorkspaceRow) { return this.syncRuns.update(id, patch, audit); }
+  async listIntegrationSyncRuns(workspaceId: string, providerKey?: string) {
+    const rows = await this.syncRuns.listByWorkspace(workspaceId);
+    return providerKey ? rows.filter((row) => row.provider_key === providerKey || row.providerKey === providerKey) : rows;
+  }
+  async writeIntegrationAuditEvent(event: WorkspaceRow | AuditEvent) { await this.createAuditEvent(event); }
+}
+
 export class ShopifyProductRefRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("shopify_product_refs", store, audit); }
 }
@@ -357,6 +396,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     margin: new PriceMarginCheckRepository(store, writer),
     publish: new PublishReviewRepository(store, writer),
     siteAudit: new SiteAuditRepository(store, writer),
+    integration: new IntegrationRepository(store, writer),
     shopify: new ShopifyProductRefRepository(store, writer),
     printify: new PrintifyProductRefRepository(store, writer),
     fulfillment: new FulfillmentEventRepository(store, writer),

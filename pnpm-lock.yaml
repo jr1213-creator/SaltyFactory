@@ -14,6 +14,9 @@ importers:
       '@saltyfactory/integrations':
         specifier: workspace:*
         version: link:packages/integrations
+      '@saltyfactory/security':
+        specifier: workspace:*
+        version: link:packages/security
       '@saltyfactory/site-audit':
         specifier: workspace:*
         version: link:packages/site-audit
@@ -147,6 +150,9 @@ importers:
       '@saltyfactory/risk':
         specifier: workspace:*
         version: link:../../packages/risk
+      '@saltyfactory/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@saltyfactory/site-audit':
         specifier: workspace:*
         version: link:../../packages/site-audit
@@ -198,6 +204,9 @@ importers:
       '@saltyfactory/config':
         specifier: workspace:*
         version: link:../config
+      '@saltyfactory/db':
+        specifier: workspace:*
+        version: link:../db
 
   packages/auth:
     dependencies:
@@ -231,6 +240,12 @@ importers:
       '@saltyfactory/config':
         specifier: workspace:*
         version: link:../config
+      '@saltyfactory/db':
+        specifier: workspace:*
+        version: link:../db
+      '@saltyfactory/security':
+        specifier: workspace:*
+        version: link:../security
 
   packages/queue: {}
 
@@ -239,6 +254,8 @@ importers:
       '@saltyfactory/domain':
         specifier: workspace:*
         version: link:../domain
+
+  packages/security: {}
 
   packages/site-audit: {}
 

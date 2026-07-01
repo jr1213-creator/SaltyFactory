@@ -57,6 +57,23 @@ export interface SiteAuditRepositoryContract extends BaseRepositoryContract {
   createRun(row: WorkspaceRow, findings?: WorkspaceRow[], audit?: WorkspaceRow): Promise<WorkspaceRow>;
 }
 
+export interface IntegrationRepositoryContract extends BaseRepositoryContract {
+  credentials: BaseRepositoryContract;
+  syncRuns: BaseRepositoryContract;
+  statuses: BaseRepositoryContract;
+  createProviderConnection(row: WorkspaceRow, audit?: WorkspaceRow): Promise<WorkspaceRow>;
+  updateProviderConnectionStatus(workspaceId: string, providerKey: string, patch: WorkspaceRow, audit?: WorkspaceRow): Promise<WorkspaceRow>;
+  listProviderConnectionsForWorkspace(workspaceId: string): Promise<WorkspaceRow[]>;
+  getProviderConnectionForWorkspace(workspaceId: string, providerKey: string): Promise<WorkspaceRow | null>;
+  saveEncryptedCredential(row: WorkspaceRow, audit?: WorkspaceRow): Promise<WorkspaceRow>;
+  getCredentialForServerUseOnly(workspaceId: string, credentialRef: string): Promise<WorkspaceRow | null>;
+  deleteCredential(workspaceId: string, credentialRef: string, actorId?: string): Promise<WorkspaceRow | null>;
+  createIntegrationSyncRun(row: WorkspaceRow, audit?: WorkspaceRow): Promise<WorkspaceRow>;
+  updateIntegrationSyncRun(id: string, patch: WorkspaceRow, audit?: WorkspaceRow): Promise<WorkspaceRow>;
+  listIntegrationSyncRuns(workspaceId: string, providerKey?: string): Promise<WorkspaceRow[]>;
+  writeIntegrationAuditEvent(event: WorkspaceRow | AuditEvent): Promise<void>;
+}
+
 export interface RepositoryBundle {
   readonly adapter: RepositoryAdapterKind;
   audit: BaseRepositoryContract & { write(event: AuditEvent | WorkspaceRow): Promise<WorkspaceRow> };
@@ -76,6 +93,7 @@ export interface RepositoryBundle {
   margin: BaseRepositoryContract & { listBlocked(workspaceId: string): Promise<WorkspaceRow[]> };
   publish: PublishReviewRepositoryContract;
   siteAudit: SiteAuditRepositoryContract;
+  integration: IntegrationRepositoryContract;
   shopify: BaseRepositoryContract;
   printify: BaseRepositoryContract;
   fulfillment: BaseRepositoryContract & { listByOrder(workspaceId: string, orderId: string): Promise<WorkspaceRow[]> };

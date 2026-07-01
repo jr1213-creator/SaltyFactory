@@ -9,6 +9,8 @@
     "build": "tsc --noEmit -p ../../tsconfig.check.json"
   },
   "dependencies": {
-    "@saltyfactory/config": "workspace:*"
+    "@saltyfactory/config": "workspace:*",
+    "@saltyfactory/db": "workspace:*",
+    "@saltyfactory/security": "workspace:*"
   }
 }

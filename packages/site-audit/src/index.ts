@@ -53,7 +53,7 @@ function score(parts: boolean[]) {
   return Math.round((parts.filter(Boolean).length / Math.max(parts.length, 1)) * 100);
 }
 
-export { assertPublicAuditUrl, SafeFetchError };
+export { assertPublicAuditUrl, safeFetchText, SafeFetchError };
 
 function stripHtml(value: string) {
   return value.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");

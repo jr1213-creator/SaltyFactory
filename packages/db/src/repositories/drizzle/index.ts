@@ -37,6 +37,10 @@ const tableExportByDbName: Record<string, TableName> = {
   publish_reviews: "publishReviews",
   site_audit_runs: "siteAuditRuns",
   site_audit_findings: "siteAuditFindings",
+  encrypted_credentials: "encryptedCredentials",
+  integration_sync_runs: "integrationSyncRuns",
+  provider_connection_status: "providerConnectionStatus",
+  workspace_provider_connections: "workspaceProviderConnections",
   shopify_product_refs: "shopifyProductRefs",
   printify_product_refs: "printifyProductRefs",
   fulfillment_events: "fulfillmentEvents",
@@ -254,6 +258,45 @@ export class DrizzleSiteAuditRepository extends DrizzleBaseRepository {
   }
 }
 
+export class DrizzleIntegrationRepository extends DrizzleBaseRepository {
+  readonly credentials: DrizzleBaseRepository;
+  readonly syncRuns: DrizzleBaseRepository;
+  readonly statuses: DrizzleBaseRepository;
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    super("workspace_provider_connections", db, audit);
+    this.credentials = new DrizzleBaseRepository("encrypted_credentials", this.db, this.audit);
+    this.syncRuns = new DrizzleBaseRepository("integration_sync_runs", this.db, this.audit);
+    this.statuses = new DrizzleBaseRepository("provider_connection_status", this.db, this.audit);
+  }
+  async createProviderConnection(row: WorkspaceRow, audit?: WorkspaceRow) { return this.create(row, audit); }
+  async updateProviderConnectionStatus(workspaceId: string, providerKey: string, patch: WorkspaceRow, audit?: WorkspaceRow) {
+    const row = await this.getProviderConnectionForWorkspace(workspaceId, providerKey);
+    if (!row) return this.create({ ...patch, id: `conn_${Date.now()}`, workspace_id: workspaceId, provider_type: providerKey, provider_name: providerKey, enabled: false, status: String(patch.status ?? "not_configured") }, audit);
+    return this.update(row.id, patch, audit);
+  }
+  async listProviderConnectionsForWorkspace(workspaceId: string) { return this.listByWorkspace(workspaceId); }
+  async getProviderConnectionForWorkspace(workspaceId: string, providerKey: string) {
+    return (await this.listByWorkspace(workspaceId)).find((row) =>
+      row.provider_key === providerKey || row.providerKey === providerKey || row.provider_type === providerKey || row.providerType === providerKey
+    ) ?? null;
+  }
+  async saveEncryptedCredential(row: WorkspaceRow, audit?: WorkspaceRow) { return this.credentials.create(row, audit); }
+  async getCredentialForServerUseOnly(workspaceId: string, credentialRef: string) {
+    return (await this.credentials.listByWorkspace(workspaceId)).find((row) => row.credential_ref === credentialRef || row.credentialRef === credentialRef) ?? null;
+  }
+  async deleteCredential(workspaceId: string, credentialRef: string, actorId = "system") {
+    const row = await this.getCredentialForServerUseOnly(workspaceId, credentialRef);
+    return row ? this.credentials.update(row.id, { status: "revoked", revoked_at: now(), revokedAt: now(), updated_by: actorId, updatedBy: actorId }) : null;
+  }
+  async createIntegrationSyncRun(row: WorkspaceRow, audit?: WorkspaceRow) { return this.syncRuns.create(row, audit); }
+  async updateIntegrationSyncRun(id: string, patch: WorkspaceRow, audit?: WorkspaceRow) { return this.syncRuns.update(id, patch, audit); }
+  async listIntegrationSyncRuns(workspaceId: string, providerKey?: string) {
+    const rows = await this.syncRuns.listByWorkspace(workspaceId);
+    return providerKey ? rows.filter((row) => row.provider_key === providerKey || row.providerKey === providerKey) : rows;
+  }
+  async writeIntegrationAuditEvent(event: WorkspaceRow | AuditEvent) { await this.createAuditEvent(event); }
+}
+
 export class DrizzleShopifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("shopify_product_refs", db, audit); } }
 export class DrizzlePrintifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("printify_product_refs", db, audit); } }
 export class DrizzleFulfillmentEventRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("fulfillment_events", db, audit); } async listByOrder(workspaceId: string, orderId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => row.shopify_order_id === orderId || row.printify_order_id === orderId); } }
@@ -331,6 +374,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     margin: new DrizzlePriceMarginCheckRepository(db, writer),
     publish: new DrizzlePublishReviewRepository(db, writer),
     siteAudit: new DrizzleSiteAuditRepository(db, writer),
+    integration: new DrizzleIntegrationRepository(db, writer),
     shopify: new DrizzleShopifyProductRefRepository(db, writer),
     printify: new DrizzlePrintifyProductRefRepository(db, writer),
     fulfillment: new DrizzleFulfillmentEventRepository(db, writer),
