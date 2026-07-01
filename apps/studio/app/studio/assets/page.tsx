@@ -1,11 +1,12 @@
 import { ApprovalGateList, Card, EmptyState, FilterBar, MetricCard, PageHeader, ProductCard, ProductGrid, ProgressRing, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
+import { AssetWorkflowClient } from "./AssetWorkflowClient";
 
 export default async function Page() {
   const { assets, jobs, mockups } = await getStudioLists();
   return <>
     <PageHeader title="Generation Jobs & Assets" description="Manage generated designs, mockups, and print-ready files from concept to production.">
-      <button className="sf-button sf-button-secondary">Export</button><button className="sf-button sf-button-primary">New Generation</button>
+      <StatusBadge status="Manual upload enabled" tone="info" />
     </PageHeader>
     <FilterBar><select><option>All statuses</option></select><select><option>All products</option></select><select><option>All quality scores</option></select><select><option>All AI employees</option></select></FilterBar>
     <div className="sf-grid sf-grid-4">
@@ -16,6 +17,7 @@ export default async function Page() {
     </div>
     <div className="sf-split-pane" style={{ marginTop: 18 }}>
       <div className="sf-grid">
+        <AssetWorkflowClient initialAssets={assets as any[]} />
         <div className="sf-tabs"><span>Generated Art</span><span>Mockups</span><span>Print Files</span></div>
         {assets.length ? <ProductGrid>{assets.slice(0, 9).map((asset: any) => <ProductCard key={asset.id} title={asset.file_path ?? asset.id} price={asset.qa_status ?? "pending"} badge="Asset" />)}</ProductGrid> : <EmptyState title="No generated assets" description="Generation jobs will appear here after an approved brief is sent to a configured provider." />}
       </div>

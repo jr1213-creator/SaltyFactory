@@ -1,4 +1,5 @@
 import { AiEmployeeCard, DataTable, PageHeader, ProviderStatusCard } from "@saltyfactory/ui";
+import { AiEmployeeWorkflowClient } from "./AiEmployeeWorkflowClient";
 
 const employees = [
   ["Trend Analyst", "Market & trend intelligence", "Disabled"],
@@ -17,6 +18,7 @@ export default function Page() {
       <ProviderStatusCard title="Human review requirement" status="Always required" tone="success" description="AI employee outputs cannot publish without review gates." />
       <ProviderStatusCard title="Provider execution" status="Disabled by default" tone="warning" description="No AI provider calls run until credentials and feature flags are configured." />
     </div>
+    <AiEmployeeWorkflowClient />
     <section className="sf-card" style={{ marginTop: 18 }}><h2>Permissions</h2><DataTable columns={["Employee", "Can create drafts", "Can approve", "Can publish"]} rows={employees.map(([name]) => [name, "Draft only after review", "No", "No"])} /></section>
   </>;
 }

@@ -16,10 +16,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const qaResult = evaluateAssetQaFromMetadata({
       width: Number(asset.width || 0),
       height: Number(asset.height || 0),
-      format: String(asset.mime_type || asset.mimeType || asset.file_path || "").split(".").pop() || "png",
+      format: String(asset.extension || asset.mime_type || asset.mimeType || asset.file_path || "").split(".").pop() || "png",
       hasAlpha: Boolean(asset.transparent_background || asset.transparentBackground),
       density: Number(asset.dpi || 0),
-      fileSizeBytes: Number(asset.file_size_bytes || asset.fileSizeBytes || 0)
+      fileSizeBytes: Number(asset.file_size_bytes || asset.fileSizeBytes || 0),
+      filename: String(asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? "")
     });
     const qa = await repos.qa.create({
       id: `qa_${Date.now()}`,
@@ -28,6 +29,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       checks: qaResult.checks,
       status: qaResult.status,
       blocked_reasons: qaResult.blocked_reasons,
+      warnings: qaResult.warnings,
+      evidence: qaResult.evidence,
       approved_for_product_draft: qaResult.approved_for_product_draft,
       reviewed_by: user.id,
       reviewed_at: new Date().toISOString(),

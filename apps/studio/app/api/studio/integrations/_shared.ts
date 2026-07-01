@@ -99,8 +99,8 @@ export async function handleManualCredentialConnect(req: Request, provider: Inte
     const config = parseEnv();
     if (!config.CREDENTIAL_ENCRYPTION_KEY) return setupResponse(provider, "Encrypted credential storage is not configured.", ["CREDENTIAL_ENCRYPTION_KEY"], 503);
     const repos = createRepositories();
-    const connection = await upsertProviderConnection({ repos, workspaceId, actorId: user.id, state: { ...state, status: "configured" }, credentialSecret: token, encryptionKey: config.CREDENTIAL_ENCRYPTION_KEY });
-    return NextResponse.json({ ok: true, status: "configured", provider: state.key, connection: { id: connection.id, workspace_id: workspaceId, provider: state.key, credential_ref: connection.secret_ref ? "[stored]" : null } });
+    const connection = await upsertProviderConnection({ repos, workspaceId, actorId: user.id, state: { ...state, status: "configured_not_verified" }, credentialSecret: token, encryptionKey: config.CREDENTIAL_ENCRYPTION_KEY });
+    return NextResponse.json({ ok: true, status: "configured_not_verified", provider: state.key, message: "Credential was stored encrypted. Live provider validation is still required before this connection is marked connected.", connection: { id: connection.id, workspace_id: workspaceId, provider: state.key, credential_ref: connection.secret_ref ? "[stored]" : null } });
   } catch (error) {
     return NextResponse.json({ ok: false, status: "error", message: sanitizeProviderError(error) }, { status: 500 });
   }

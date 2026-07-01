@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     await requireWorkspaceMember(req);
     return NextResponse.json({
       ok: true,
-      status: "success",
+      status: "retrieved",
       integrations: getIntegrationStates(parseEnv()).map(safeIntegrationStateForClient)
     });
   } catch (error) {

@@ -136,6 +136,24 @@ export function requireWorkspaceAccess(
 }
 
 export function toPublicStorefrontProjection(row: WorkspaceRow) {
+  const projection = (row.public_projection ?? row.publicProjection) as Record<string, unknown> | undefined;
+  if (projection && projection.status === "published") {
+    return {
+      id: projection.id ?? row.id,
+      handle: projection.handle ?? row.public_handle ?? row.publicHandle,
+      title: projection.title ?? row.title,
+      description: projection.description ?? row.description,
+      product_type: projection.product_type ?? projection.productType ?? row.product_type ?? row.productType,
+      collection: projection.collection ?? row.collection,
+      tags: projection.tags ?? [],
+      images: projection.images ?? [],
+      variants: projection.variants ?? [],
+      price: projection.price,
+      seo_title: projection.seo_title ?? projection.seoTitle,
+      seo_description: projection.seo_description ?? projection.seoDescription,
+      schema: projection.schema
+    };
+  }
   return {
     id: row.id,
     handle: row.public_handle ?? row.publicHandle,

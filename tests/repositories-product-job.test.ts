@@ -13,8 +13,10 @@ describe("repositories product and job flows", () => {
 
   it("storefront projection excludes private factory data", async () => {
     const repos = createRepositories();
-    await repos.draft.create({ id: "draft_a", workspace_id: workspaceA, status: "published", title: "Tee", description: "Desc", public_handle: "tee", generation_prompt: "private" });
+    await repos.draft.create({ id: "draft_private", workspace_id: workspaceA, status: "approved_internal_ready", title: "Private Tee", description: "Desc", public_handle: "private-tee", generation_prompt: "private" });
+    await repos.draft.create({ id: "draft_a", workspace_id: workspaceA, status: "approved_internal_ready", title: "Tee", description: "Desc", public_handle: "tee", generation_prompt: "private", public_projection: { status: "published", title: "Tee", description: "Desc", handle: "tee", tags: ["western"], images: [], variants: [] } });
     const projection = await repos.draft.listApprovedForStorefront(workspaceA);
+    expect(projection).toHaveLength(1);
     expect(projection[0]).not.toHaveProperty("generation_prompt");
     expect(projection[0]).toMatchObject({ title: "Tee", handle: "tee" });
   });

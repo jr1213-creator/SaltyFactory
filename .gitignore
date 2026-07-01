@@ -4,6 +4,8 @@ dist
 build
 coverage
 .turbo
+.saltyfactory-private
+**/.saltyfactory-private
 
 .env
 .env.local

@@ -1,5 +1,5 @@
 import { createDrizzleRepositories } from "./drizzle";
-import { createMemoryRepositories } from "./memory";
+import { createMemoryRepositories, createRepositoryStore } from "./memory";
 import { createDb } from "../client";
 import type { RepositoryBundle, RepositoryRuntimeConfig } from "./contracts";
 
@@ -8,6 +8,7 @@ export type RepositorySelection =
   | { adapter: "drizzle"; reason: "database_url_configured" };
 
 const truthy = (value: string | undefined) => Boolean(value && value.trim().length > 0);
+const runtimeMemoryStore = createRepositoryStore();
 
 export function selectRepositoryAdapter(config: RepositoryRuntimeConfig = process.env): RepositorySelection {
   const nodeEnv = config.NODE_ENV ?? "development";
@@ -38,7 +39,10 @@ export function assertProductionRepositoryConfig(config: RepositoryRuntimeConfig
 
 export function createRuntimeRepositories(config: RepositoryRuntimeConfig = process.env): RepositoryBundle {
   const selected = selectRepositoryAdapter(config);
-  return selected.adapter === "memory" ? createMemoryRepositories() as RepositoryBundle : createDrizzleRepositories(createDb(config.DATABASE_URL));
+  if (selected.adapter === "memory") {
+    return createMemoryRepositories(selected.reason === "test_mode" ? undefined : runtimeMemoryStore) as RepositoryBundle;
+  }
+  return createDrizzleRepositories(createDb(config.DATABASE_URL));
 }
 
 export const createRepositories = createRuntimeRepositories;

@@ -11,6 +11,7 @@ import { POST as printifySync } from "../apps/studio/app/api/studio/integrations
 import { POST as printifyTest } from "../apps/studio/app/api/studio/integrations/[provider]/test/route";
 import { POST as createPublishReview } from "../apps/studio/app/api/studio/publish-reviews/route";
 import { evaluatePublishReadiness } from "../apps/studio/app/api/studio/publish-reviews/_readiness";
+import { validateProductDraft } from "../apps/studio/app/api/studio/drafts/_validation";
 
 const originalEnv = { ...process.env };
 const workspaceId = "wks_default";
@@ -153,6 +154,19 @@ describe("POD image QA pipeline", () => {
     expect(result.status).toBe("passed");
     expect(result.approved_for_product_draft).toBe(true);
   });
+
+  it("marks optional unavailable checks as not applicable instead of fake pass", () => {
+    const result = evaluateAssetQaFromMetadata({
+      width: 4500,
+      height: 5400,
+      density: 300,
+      format: "png",
+      fileSizeBytes: 4000000,
+      hasAlpha: true
+    });
+    expect((result.checks.safe_margin_ok as any).status).toBe("not_applicable");
+    expect((result.checks.text_legibility as any).status).toBe("not_applicable");
+  });
 });
 
 describe("deterministic AI employee workflows", () => {
@@ -218,6 +232,18 @@ describe("provider adapters stay honest", () => {
     await expect(providers.gsc.test()).resolves.toMatchObject({ ok: false, status: "configured_not_verified" });
     await expect(providers.googleBusinessProfile.test()).resolves.toMatchObject({ ok: false, status: "configured_not_verified" });
   });
+
+  it("reports configured local provider state as configured_not_verified", () => {
+    const states = getIntegrationStates(parseEnv({
+      SHOPIFY_ADMIN_ENABLED: "true",
+      SHOPIFY_STORE_DOMAIN: "saltycowhide.myshopify.com",
+      SHOPIFY_ADMIN_TOKEN: "configured",
+      GOOGLE_CLIENT_ID: "client",
+      GOOGLE_CLIENT_SECRET: "secret"
+    }));
+    expect(states.find((state) => state.key === "shopify")?.status).toBe("configured_not_verified");
+    expect(states.find((state) => state.key === "google_oauth")?.status).toBe("configured_not_verified");
+  });
 });
 
 describe("publish review computed readiness", () => {
@@ -262,5 +288,36 @@ describe("publish review computed readiness", () => {
     expect(readiness.gates.margin_checks_passed).toBe(false);
     expect(readiness.gates.risk_checks_passed).toBe(false);
     expect(readiness.blockingReasons).toContain("missing_product_draft");
+  });
+
+  it("allows internal-only readiness only after persisted asset, QA, margin, risk, and human approval evidence", async () => {
+    const repos = createMemoryRepositories();
+    await repos.asset.create({ id: "asset_ready", workspace_id: workspaceId, qa_status: "passed", approved_for_mockup: true, width: 4500, height: 5400, mime_type: "image/png", visibility: "private" });
+    await repos.qa.create({ id: "qa_ready", workspace_id: workspaceId, asset_id: "asset_ready", status: "passed", approved_for_product_draft: true, checks: {}, blocked_reasons: [] });
+    await repos.draft.create({
+      id: "draft_ready",
+      workspace_id: workspaceId,
+      title: "Coastal Ranch Tee",
+      description: "Original approved artwork on a made-to-order tee.",
+      tags: ["coastal", "western"],
+      collection: "Studio Drafts",
+      asset_id: "asset_ready",
+      status: "draft",
+      metadata: { provider_target: "internal_only", mockups_required: false, price: 32, estimated_cogs: 12, estimated_shipping: 5, seo_title: "Coastal Ranch Tee", seo_description: "Original coastal western tee." }
+    });
+    const validation = await validateProductDraft({ repos, workspaceId, draftId: "draft_ready", actorId: actor.id });
+    expect(validation.valid).toBe(true);
+    const readiness = await evaluatePublishReadiness({ repos, workspaceId, draftId: "draft_ready", reviewId: "pubrev_ready", humanApproved: true });
+    expect(readiness.evaluation.allowed).toBe(true);
+    expect(readiness.gates.printify_variants_valid).toBe(true);
+    expect(readiness.gates.shopify_collection_assigned).toBe(true);
+  });
+
+  it("does not expose internal approved drafts to storefront without explicit public projection", async () => {
+    const repos = createMemoryRepositories();
+    await repos.draft.create({ id: "draft_internal", workspace_id: workspaceId, title: "Internal", description: "Private", status: "approved_internal_ready", approval_status: "approved" });
+    expect(await repos.draft.listApprovedForStorefront(workspaceId)).toEqual([]);
+    await repos.draft.update("draft_internal", { public_projection: { status: "published", title: "Public", handle: "public", description: "Safe public description", tags: [], images: [], variants: [] } });
+    expect(await repos.draft.listApprovedForStorefront(workspaceId)).toMatchObject([{ title: "Public", handle: "public" }]);
   });
 });

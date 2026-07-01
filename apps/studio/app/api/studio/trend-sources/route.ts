@@ -8,7 +8,9 @@ const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 export async function GET(req: Request) {
   try {
     await requireReviewerOrAbove(req, workspaceId);
-    return NextResponse.json({ ok: true, sources: await createRepositories().trend.listByWorkspace(workspaceId) });
+    const sources = (await createRepositories().integration.listProviderConnectionsForWorkspace(workspaceId))
+      .filter((row) => row.provider_type === "trend_source" || row.providerType === "trend_source");
+    return NextResponse.json({ ok: true, sources });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

@@ -25,8 +25,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } as any);
       return NextResponse.json({ ok: false, status: "blocked", message: "Publish review cannot be approved until persisted server-side evidence passes every gate.", blockingReasons: readiness.blockingReasons, evaluation: readiness.evaluation }, { status: 409 });
     }
-    const approved = await repos.publish.markReviewed(id, user.id, readiness.gates, ["Human approval recorded from computed server-side gates. Provider sync remains disabled until explicit guarded action."]);
-    return NextResponse.json({ ok: true, status: "approved_for_provider_readiness", review: approved, evaluation: readiness.evaluation });
+    const approved = await repos.publish.update(id, {
+      gates: readiness.gates,
+      all_gates_passed: true,
+      shopify_publish_allowed: false,
+      printify_sync_allowed: false,
+      status: "approved_internal_ready",
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+      notes: ["Human approval recorded from computed server-side gates. Shopify/Printify sync remains blocked until a real connected provider path is explicitly executed."],
+      updated_by: user.id
+    } as any);
+    return NextResponse.json({ ok: true, status: "approved_internal_ready", review: approved, evaluation: readiness.evaluation, providerSync: "blocked_until_real_provider_flow" });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

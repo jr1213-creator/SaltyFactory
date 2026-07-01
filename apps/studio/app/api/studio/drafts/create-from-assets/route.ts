@@ -17,6 +17,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, status: "blocked", message: "Product drafts require an approved private asset.", blockingReasons: ["asset_not_approved"] }, { status: 409 });
     }
     const draftId = String(body.id || `draft_${Date.now()}`);
+    const providerTarget = ["internal_only", "shopify_draft", "printify_draft"].includes(String(body.provider_target || body.providerTarget))
+      ? String(body.provider_target || body.providerTarget)
+      : "internal_only";
+    const price = Number(body.price || 0);
+    const estimatedCogs = Number(body.estimated_cogs || body.estimatedCogs || 0);
+    const estimatedShipping = Number(body.estimated_shipping || body.estimatedShipping || 0);
     const draft = await repos.draft.create({
       id: draftId,
       workspace_id: workspaceId,
@@ -29,10 +35,25 @@ export async function POST(req: Request) {
       asset_id: assetId,
       mockup_ids: Array.isArray(body.mockup_ids) ? body.mockup_ids : [],
       variant_ids: Array.isArray(body.variant_ids) ? body.variant_ids : [],
+      public_handle: String(body.handle || body.title || draftId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || draftId,
       shopify_status: "not_published",
       printify_status: "not_synced",
       approval_status: "pending",
+      validation_status: "pending",
       status: "draft",
+      blocking_reasons: [],
+      warnings: [],
+      metadata: {
+        price,
+        estimated_cogs: estimatedCogs,
+        estimated_shipping: estimatedShipping,
+        provider_target: providerTarget,
+        seo_title: String(body.seo_title || body.seoTitle || body.title || ""),
+        seo_description: String(body.seo_description || body.seoDescription || body.description || ""),
+        aeo_answer_block: String(body.aeo_answer_block || body.aeoAnswerBlock || ""),
+        geo_summary_block: String(body.geo_summary_block || body.geoSummaryBlock || ""),
+        mockups_required: providerTarget !== "internal_only"
+      },
       created_by: user.id,
       updated_by: user.id
     });

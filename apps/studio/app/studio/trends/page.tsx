@@ -1,5 +1,6 @@
 import { AiEmployeeCard, BarList, ChartCard, DataTable, EmptyState, FilterBar, LineChartCard, MetricCard, PageHeader, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
+import { TrendSourcesClient } from "./TrendSourcesClient";
 
 export default async function Page() {
   const { trends, clusters, phrases } = await getStudioLists();
@@ -23,9 +24,10 @@ export default async function Page() {
     </div>
     <div className="sf-layout-rail" style={{ marginTop: 18 }}>
       <div className="sf-grid">
+        <TrendSourcesClient />
         <LineChartCard title="Trend velocity" />
         <ChartCard title="Trend sources"><DataTable columns={["Source", "Signals", "Freshness", "Top topic"]} rows={trends.length ? trends.slice(0, 6).map((trend: any) => [trend.source_id ?? trend.sourceId ?? "Manual", trend.keyword ?? trend.id, <StatusBadge key="fresh" status={trend.status ?? "new"} tone="primary" />, trend.category ?? "fashion_pod"]) : [["No sources", "0", <StatusBadge key="empty" status="Empty" />, "Connect sources or import manually"]]} /></ChartCard>
-        <ChartCard title="Top trend clusters"><BarList items={[{ label: "Coastal Cowgirl", value: "Demo insight", percent: 92 }, { label: "Rodeo Beach", value: "Demo insight", percent: 84 }, { label: "Sunset Ranch", value: "Demo insight", percent: 76 }]} /></ChartCard>
+        <ChartCard title="Top trend clusters">{clusters.length ? <BarList items={clusters.slice(0, 5).map((cluster: any) => ({ label: cluster.name ?? cluster.id, value: cluster.status ?? "review", percent: Number(cluster.confidence ?? cluster.relevance_score ?? 0) * 100 }))} /> : <EmptyState title="No trend clusters" description="Ingest allowed sources first, then create clusters from stored signals." />}</ChartCard>
       </div>
       <div className="sf-grid">
         <AiEmployeeCard name="AI Trend Analyst" role="Recommendations disabled until provider configured" status="Disabled" tasks="0" />

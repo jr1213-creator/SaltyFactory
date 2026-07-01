@@ -19,6 +19,7 @@ const asArray = (value: unknown) => Array.isArray(value) ? value : [];
 const rowStatus = (row: WorkspaceRow) => String(row.status ?? row.approval_status ?? row.approvalStatus ?? "");
 const isPassed = (row: WorkspaceRow) => ["passed", "approved", "cleared"].includes(rowStatus(row));
 const connected = (row: WorkspaceRow | null) => ["connected"].includes(String(row?.status ?? row?.connection_status ?? row?.connectionStatus ?? ""));
+const metadataOf = (row: WorkspaceRow) => row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
 
 export async function evaluatePublishReadiness(input: {
   repos: RepositoryBundle;
@@ -34,6 +35,9 @@ export async function evaluatePublishReadiness(input: {
   if (!draft) {
     notes.push("missing_product_draft");
   } else {
+    const metadata = metadataOf(draft);
+    const providerTarget = String(metadata.provider_target ?? metadata.providerTarget ?? "internal_only");
+    const isInternalOnly = providerTarget === "internal_only";
     gates.title_reviewed = hasText(draft.title);
     gates.description_reviewed = hasText(draft.description);
     gates.tags_reviewed = asArray(draft.tags).length > 0;
@@ -55,7 +59,9 @@ export async function evaluatePublishReadiness(input: {
     }
 
     const mockupIds = asArray(draft.mockup_ids ?? draft.mockupIds).map(String);
-    if (mockupIds.length) {
+    if (isInternalOnly && metadata.mockups_required === false) {
+      gates.mockups_complete = true;
+    } else if (mockupIds.length) {
       const mockups = await Promise.all(mockupIds.map((id) => input.repos.mockup.getById(id, input.workspaceId)));
       gates.mockups_complete = mockups.every((mockup) => Boolean(mockup?.approved_for_product ?? mockup?.approvedForProduct) || (mockup ? rowStatus(mockup) === "approved" : false));
     }
@@ -69,13 +75,18 @@ export async function evaluatePublishReadiness(input: {
     gates.risk_checks_passed = riskRows.length > 0 && riskRows.every(isPassed);
     if (!gates.risk_checks_passed) notes.push("risk_evidence_missing_or_failed");
 
-    const variants = await input.repos.variant.listByDraft(input.workspaceId, input.draftId);
-    const printifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "printify");
-    const shopifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "shopify");
-    gates.printify_variants_valid = variants.length > 0 && variants.every((row) => hasText(row.printify_variant_id ?? row.printifyVariantId)) && connected(printifyConnection);
-    gates.shopify_collection_assigned = hasText(draft.collection) && connected(shopifyConnection);
-    if (!gates.printify_variants_valid) notes.push("printify_variant_or_connection_missing");
-    if (!gates.shopify_collection_assigned) notes.push("shopify_collection_or_connection_missing");
+    if (isInternalOnly) {
+      gates.printify_variants_valid = true;
+      gates.shopify_collection_assigned = true;
+    } else {
+      const variants = await input.repos.variant.listByDraft(input.workspaceId, input.draftId);
+      const printifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "printify");
+      const shopifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "shopify");
+      gates.printify_variants_valid = providerTarget !== "printify_draft" || (variants.length > 0 && variants.every((row) => hasText(row.printify_variant_id ?? row.printifyVariantId)) && connected(printifyConnection));
+      gates.shopify_collection_assigned = providerTarget !== "shopify_draft" || (hasText(draft.collection) && connected(shopifyConnection));
+      if (!gates.printify_variants_valid) notes.push("printify_variant_or_connection_missing");
+      if (!gates.shopify_collection_assigned) notes.push("shopify_collection_or_connection_missing");
+    }
   }
 
   if (!gates.human_approved) notes.push("human_approval_required");

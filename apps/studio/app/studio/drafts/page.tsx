@@ -1,5 +1,6 @@
 import { ApprovalGateList, Card, EmptyState, PageHeader, PriceMarginPanel, ProductImageGallery, ProgressRing, StructuredDataPreview, ValidationChecklist, VariantSelector } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
+import { DraftWorkflowClient } from "./DraftWorkflowClient";
 
 export default async function Page() {
   const { drafts } = await getStudioLists();
@@ -10,6 +11,7 @@ export default async function Page() {
     </PageHeader>
     <div className="sf-workspace-grid">
       <div className="sf-grid">
+        <DraftWorkflowClient initialDrafts={drafts as any[]} />
         <Card><h2>Product Information</h2><form className="sf-form-grid"><label>Product title<input defaultValue={draft.title ?? ""} placeholder="Untitled draft" /></label><label>Collection<select><option>{draft.collection ?? "Choose collection"}</option></select></label><label>Tags<input defaultValue={(draft.tags ?? []).join(", ")} placeholder="western, coastal, original" /></label></form></Card>
         <PriceMarginPanel />
         <Card><h2>Variants</h2><VariantSelector label="Sizes" options={["S","M","L","XL","2XL"]} /><VariantSelector label="Colors" options={["Sand","Ivory","Navy"]} /></Card>
