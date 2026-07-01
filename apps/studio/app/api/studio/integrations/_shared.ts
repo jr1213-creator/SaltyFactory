@@ -38,7 +38,7 @@ export async function handleProviderStatus(req: Request, provider: IntegrationKe
     const state = getProviderState(provider);
     if (!state) return setupResponse(provider, "Unknown provider.", [], 404);
     const persisted = await repos.integration.getProviderConnectionForWorkspace(workspaceId, state.key);
-    return NextResponse.json({ ok: true, status: "success", provider: state.key, integration: safeIntegrationStateForClient(state), connection: persisted ? { ...persisted, secret_ref: persisted.secret_ref ? "[stored]" : null, secretRef: persisted.secretRef ? "[stored]" : null } : null });
+    return NextResponse.json({ ok: true, status: "retrieved", provider: state.key, integration: safeIntegrationStateForClient(state), connection: persisted ? { ...persisted, secret_ref: persisted.secret_ref ? "[stored]" : null, secretRef: persisted.secretRef ? "[stored]" : null } : null });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

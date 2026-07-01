@@ -109,7 +109,6 @@ export class ConfiguredReadOnlyProvider {
   async test(): Promise<IntegrationResult<{ status: IntegrationStatus }>> {
     if (this.state.status === "disabled") return disabled("provider_disabled", `${this.state.label} is disabled.`, this.state.setupRequired);
     if (["missing_credentials", "not_configured", "unsupported"].includes(this.state.status)) return disabled(this.state.status as any, `${this.state.label} is not ready.`, this.state.setupRequired);
-    if (this.state.status === "connected") return { ok: true, status: "success", data: { status: this.state.status } };
     return disabled("configured_not_verified", "Provider configuration is present but no live provider validation adapter is implemented.", this.state.setupRequired);
   }
   async sync(): Promise<IntegrationResult<never>> {
