@@ -141,7 +141,7 @@ export function ProductImageGallery({ title = "Coastal Cowboy Tee" }: { title?: 
 export const ProductMockupPreview = ProductArt;
 
 export function VariantSelector({ label, options }: { label: string; options: string[] }) {
-  return <fieldset className="sf-variants"><legend>{label}</legend>{options.map((option, index) => <button type="button" className={index === 0 ? "is-selected" : ""} key={option}>{option}</button>)}</fieldset>;
+  return <fieldset className="sf-variants"><legend>{label}</legend>{options.map((option, index) => <button type="button" disabled title="Variant selection is disabled until checkout is configured." className={index === 0 ? "is-selected" : ""} key={option}>{option}</button>)}</fieldset>;
 }
 
 export function PriceMarginPanel() {
@@ -152,10 +152,10 @@ export function StructuredDataPreview({ title = "Product JSON-LD" }: { title?: s
   return <pre className="sf-code">{`{\n  "@type": "Product",\n  "name": "${title}",\n  "availability": "review_required"\n}`}</pre>;
 }
 
-export const SearchCommand = () => <label className="sf-search"><span>Search</span><input placeholder="Search anything..." aria-label="Search anything" /></label>;
-export const NotificationBell = () => <button className="sf-icon-button" aria-label="Notifications">○<span>2</span></button>;
-export const UserMenu = () => <button className="sf-user-menu" aria-label="User menu"><span className="sf-avatar">A</span><span>Alex Salty<small>Studio Owner</small></span></button>;
-export const WorkspaceSwitcher = () => <button className="sf-workspace-switcher">Salty Cowhide <span>⌄</span></button>;
+export const SearchCommand = () => <label className="sf-search" title="Search is disabled until a workspace search index is configured."><span>Search</span><input placeholder="Search disabled" aria-label="Search disabled" disabled /></label>;
+export const NotificationBell = () => <button className="sf-icon-button" aria-label="Notifications disabled" disabled title="Notifications are not configured yet.">○<span>0</span></button>;
+export const UserMenu = () => <button className="sf-user-menu" aria-label="User menu disabled" disabled title="User menu actions are not configured yet."><span className="sf-avatar">A</span><span>Studio Owner<small>Authenticated session</small></span></button>;
+export const WorkspaceSwitcher = () => <button className="sf-workspace-switcher" disabled title="Single workspace is active in this local Studio session.">Salty Cowhide <span>⌄</span></button>;
 
 export function ActionBar({ children }: Props) {
   return <div className="sf-action-bar">{children}</div>;

@@ -34,27 +34,37 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
 
   async function createManualBrief() {
     setBusy(true);
-    const data = await postJson("/api/studio/design-briefs", {
-      title,
-      phrase_text: phrase,
-      product_type: "tee",
-      art_direction: artDirection,
-      background_requirement: "transparent"
-    });
-    setResult(data);
-    await refresh();
-    if (data.brief?.id) setSelectedBriefId(data.brief.id);
-    setBusy(false);
+    try {
+      const data = await postJson("/api/studio/design-briefs", {
+        title,
+        phrase_text: phrase,
+        product_type: "tee",
+        art_direction: artDirection,
+        background_requirement: "transparent"
+      });
+      setResult(data);
+      await refresh();
+      if (data.brief?.id) setSelectedBriefId(data.brief.id);
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to create brief." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function run(action: "approve" | "reject" | "generation") {
     if (!selectedBriefId) return;
     setBusy(true);
-    const suffix = action === "generation" ? "send-to-generation" : action;
-    const data = await postJson(`/api/studio/design-briefs/${selectedBriefId}/${suffix}`);
-    setResult(data);
-    await refresh();
-    setBusy(false);
+    try {
+      const suffix = action === "generation" ? "send-to-generation" : action;
+      const data = await postJson(`/api/studio/design-briefs/${selectedBriefId}/${suffix}`);
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update brief." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>

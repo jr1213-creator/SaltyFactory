@@ -23,13 +23,18 @@ export function AiEmployeeWorkflowClient() {
 
   async function run() {
     setBusy(true);
-    const response = await fetch("/api/studio/ai-employees", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ employee_role: role })
-    });
-    setResult(await response.json());
-    setBusy(false);
+    try {
+      const response = await fetch("/api/studio/ai-employees", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ employee_role: role })
+      });
+      setResult(await response.json());
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to run employee." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="sf-card" style={{ marginTop: 18 }}>

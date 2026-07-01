@@ -22,12 +22,17 @@ export function PublishWorkflowClient({ initialReviews }: { initialReviews: Revi
   async function run(action: "evaluate" | "approve" | "changes" | "reject") {
     if (!selectedReviewId) return;
     setBusy(true);
-    const suffix = action === "changes" ? "request-changes" : action;
-    const response = await fetch(`/api/studio/publish-reviews/${selectedReviewId}/${suffix}`, { method: "POST" });
-    const data = await response.json();
-    setResult(data);
-    await refresh();
-    setBusy(false);
+    try {
+      const suffix = action === "changes" ? "request-changes" : action;
+      const response = await fetch(`/api/studio/publish-reviews/${selectedReviewId}/${suffix}`, { method: "POST" });
+      const data = await response.json();
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update publish review." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>

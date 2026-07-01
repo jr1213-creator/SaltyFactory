@@ -2,14 +2,15 @@ import { DataTable, EmptyState, PageHeader, StatusBadge } from "@saltyfactory/ui
 import { getStudioLists } from "../data";
 import { MockupWorkflowClient } from "./MockupWorkflowClient";
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams?: Promise<{ asset_id?: string }> } = {}) {
+  const params = await searchParams;
   const { assets, mockups } = await getStudioLists();
   const approvedAssets = assets.filter((asset: any) => asset.approved_for_mockup || asset.approvedForMockup);
   return <>
     <PageHeader title="Mockups" description="Create private internal previews from approved art before product draft and publish review.">
       <StatusBadge status={`${approvedAssets.length} approved assets`} tone={approvedAssets.length ? "success" : "warning"} />
     </PageHeader>
-    <MockupWorkflowClient initialAssets={assets as any[]} initialMockups={mockups as any[]} />
+    <MockupWorkflowClient initialAssets={assets as any[]} initialMockups={mockups as any[]} initialAssetId={params?.asset_id} />
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Mockup Records</h2>
       {mockups.length ? <DataTable columns={["Mockup", "Status", "Approved", "Asset"]} rows={mockups.map((mockup: any) => [

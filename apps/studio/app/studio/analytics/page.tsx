@@ -3,7 +3,7 @@ import { AiEmployeeCard, BarList, ChartCard, DataTable, LineChartCard, MetricCar
 export default function Page() {
   return <>
     <PageHeader title="Analytics & AI Employees" description="Revenue, search, campaign, and AI employee panels stay disabled until live providers are connected.">
-      <button className="sf-button sf-button-secondary">Customize</button><button className="sf-button sf-button-primary">Export Report</button>
+      <button className="sf-button sf-button-secondary" disabled title="Analytics customization is disabled until real provider data is imported.">Customize</button><button className="sf-button sf-button-primary" disabled title="Analytics export is disabled until real provider data is imported.">Export Report</button>
     </PageHeader>
     <div className="sf-grid sf-grid-4">
       <MetricCard title="Revenue" value="Not connected" delta="Shopify disabled" tone="warning" />

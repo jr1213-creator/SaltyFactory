@@ -68,19 +68,29 @@ export default function DesignsPage() {
 
   async function createSuggestions() {
     setBusy(true);
-    const data = await postJson("/api/studio/design-suggestions/create", { topic });
-    setResult(data);
-    await refresh();
-    setBusy(false);
+    try {
+      const data = await postJson("/api/studio/design-suggestions/create", { topic });
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to create suggestions." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runAction(id: string, action: "approve" | "reject" | "brief") {
     setBusy(true);
-    const suffix = action === "brief" ? "create-brief" : action;
-    const data = await postJson(`/api/studio/design-suggestions/${id}/${suffix}`);
-    setResult(data);
-    await refresh();
-    setBusy(false);
+    try {
+      const suffix = action === "brief" ? "create-brief" : action;
+      const data = await postJson(`/api/studio/design-suggestions/${id}/${suffix}`);
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update suggestion." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <>

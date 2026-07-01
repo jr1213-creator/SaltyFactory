@@ -9,23 +9,33 @@ export function TrendSourcesClient() {
 
   async function createSource(formData: FormData) {
     setBusy(true);
-    const response = await fetch("/api/studio/trend-sources", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: formData.get("name"), source_url: formData.get("source_url"), source_type: "public_url" })
-    });
-    const data = await response.json();
-    setResult(data);
-    if (data.source?.id) setSourceId(data.source.id);
-    setBusy(false);
+    try {
+      const response = await fetch("/api/studio/trend-sources", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: formData.get("name"), source_url: formData.get("source_url"), source_type: "public_url" })
+      });
+      const data = await response.json();
+      setResult(data);
+      if (data.source?.id) setSourceId(data.source.id);
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to create trend source." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function ingest() {
     if (!sourceId) return;
     setBusy(true);
-    const response = await fetch(`/api/studio/trend-sources/${sourceId}/ingest`, { method: "POST" });
-    setResult(await response.json());
-    setBusy(false);
+    try {
+      const response = await fetch(`/api/studio/trend-sources/${sourceId}/ingest`, { method: "POST" });
+      setResult(await response.json());
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to ingest trend source." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="sf-card">

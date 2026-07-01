@@ -6,15 +6,15 @@ export default async function Page() {
   const { trends, clusters, phrases } = await getStudioLists();
   return <>
     <PageHeader title="Trend Intelligence" description="Discover emerging POD opportunities before they move into production.">
-      <a className="sf-button sf-button-secondary" href="/studio/trends">Export Report</a>
+      <button className="sf-button sf-button-secondary" disabled title="Trend export is disabled until persisted reporting support is implemented.">Export Disabled</button>
       <a className="sf-button sf-button-primary" href="/studio/briefs">Create Brief</a>
     </PageHeader>
     <FilterBar>
-      <select aria-label="Timeframe"><option>Last 30 days</option></select>
-      <select aria-label="Source"><option>All sources</option></select>
-      <select aria-label="Niche"><option>All niches</option></select>
-      <select aria-label="Score"><option>All scores</option></select>
-      <button className="sf-button sf-button-ghost">More filters</button>
+      <select aria-label="Timeframe" disabled title="Trend filters are disabled until persisted filtering is wired."><option>Last 30 days</option></select>
+      <select aria-label="Source" disabled title="Trend filters are disabled until persisted filtering is wired."><option>All sources</option></select>
+      <select aria-label="Niche" disabled title="Trend filters are disabled until persisted filtering is wired."><option>All niches</option></select>
+      <select aria-label="Score" disabled title="Trend filters are disabled until persisted filtering is wired."><option>All scores</option></select>
+      <button className="sf-button sf-button-ghost" disabled title="Additional trend filters are not implemented.">More filters</button>
     </FilterBar>
     <div className="sf-grid sf-grid-4">
       <MetricCard title="Signals captured" value={String(trends.length)} delta="Repository backed" icon="⌁" />

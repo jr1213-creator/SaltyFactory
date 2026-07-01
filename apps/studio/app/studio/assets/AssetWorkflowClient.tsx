@@ -37,25 +37,35 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
 
   async function upload(formData: FormData) {
     setBusy(true);
-    const data = await fetch("/api/studio/assets/upload", { method: "POST", body: formData }).then((res) => res.json());
-    setResult(data);
-    await refreshAssets();
-    if (data.asset?.id) setSelectedAssetId(data.asset.id);
-    setBusy(false);
+    try {
+      const data = await fetch("/api/studio/assets/upload", { method: "POST", body: formData }).then((res) => res.json());
+      setResult(data);
+      await refreshAssets();
+      if (data.asset?.id) setSelectedAssetId(data.asset.id);
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to upload private asset." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runAction(action: "qa" | "approve" | "reject") {
     if (!selectedAssetId) return;
     setBusy(true);
-    const routes = {
-      qa: `/api/studio/assets/${selectedAssetId}/run-qa`,
-      approve: `/api/studio/assets/${selectedAssetId}/approve`,
-      reject: `/api/studio/assets/${selectedAssetId}/reject`
-    };
-    const data = await postJson(routes[action]);
-    setResult(data);
-    await refreshAssets();
-    setBusy(false);
+    try {
+      const routes = {
+        qa: `/api/studio/assets/${selectedAssetId}/run-qa`,
+        approve: `/api/studio/assets/${selectedAssetId}/approve`,
+        reject: `/api/studio/assets/${selectedAssetId}/reject`
+      };
+      const data = await postJson(routes[action]);
+      setResult(data);
+      await refreshAssets();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update asset." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
@@ -71,8 +81,8 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
         <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => runAction("qa")}>Run QA</button>
         <button className="sf-button sf-button-primary" disabled={!selected || busy || selected?.qa_status !== "passed"} onClick={() => runAction("approve")}>Approve Asset</button>
         <button className="sf-button sf-button-danger" disabled={!selected || busy} onClick={() => runAction("reject")}>Reject</button>
-        {selectedApprovedForMockup
-          ? <a className="sf-button sf-button-secondary" href="/studio/mockups">Go to Mockups</a>
+        {selected && selectedApprovedForMockup
+          ? <a className="sf-button sf-button-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(selected.id))}`}>Go to Mockups</a>
           : <button className="sf-button sf-button-secondary" disabled>Go to Mockups</button>}
       </div>
     </div>

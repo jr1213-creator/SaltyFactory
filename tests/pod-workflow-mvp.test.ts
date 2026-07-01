@@ -69,6 +69,32 @@ describe("POD prompt package MVP", () => {
     });
     expect(pkg.blockers).toContain("prompt_injection_detected");
   });
+
+  it("blocks protected brand and celebrity terms before generation", () => {
+    const pkg = buildPromptPackageFromBrief({
+      id: "brief_03",
+      title: "Taylor Swift Nike beach rodeo tee",
+      generation_prompt: "Original western badge concept"
+    });
+    expect(pkg.blockers).toContain("hard_risk_terms_detected");
+    expect(pkg.safe_to_generate).toBe(false);
+    expect(pkg.safety_metadata.hardRiskTerms).toEqual(expect.arrayContaining(["Nike", "Taylor Swift"]));
+    expect(pkg.detected_terms).toEqual(expect.arrayContaining([
+      expect.objectContaining({ category: "protected_brand", term: "Nike", severity: "blocker" }),
+      expect.objectContaining({ category: "celebrity_or_public_figure", term: "Taylor Swift", severity: "blocker" })
+    ]));
+  });
+
+  it("keeps generic POD descriptors and configured workspace brand terms as warnings", () => {
+    const pkg = buildPromptPackageFromBrief({
+      id: "brief_04",
+      title: "Salty Cowhide beach rodeo social club",
+      generation_prompt: "Original coastal western badge"
+    }, { allowedBrandTerms: ["Salty Cowhide"] });
+    expect(pkg.blockers).toEqual([]);
+    expect(pkg.safe_to_approve).toBe(true);
+    expect(pkg.warnings).toEqual(expect.arrayContaining(["workspace_brand:Salty Cowhide", "generic_pod_descriptor:beach rodeo"]));
+  });
 });
 
 describe("image generation provider resolver", () => {

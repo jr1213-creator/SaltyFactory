@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 
 type Draft = Record<string, any>;
 
-export function DraftWorkflowClient({ initialDrafts }: { initialDrafts: Draft[] }) {
+export function DraftWorkflowClient({ initialDrafts, initialDraftId }: { initialDrafts: Draft[]; initialDraftId?: string | undefined }) {
   const [drafts, setDrafts] = useState(initialDrafts);
-  const [selectedDraftId, setSelectedDraftId] = useState(initialDrafts[0]?.id ?? "");
+  const initialSelectedDraftId = initialDrafts.some((draft) => draft.id === initialDraftId) ? initialDraftId : initialDrafts[0]?.id;
+  const [selectedDraftId, setSelectedDraftId] = useState(initialSelectedDraftId ?? "");
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const selected = useMemo(() => drafts.find((draft) => draft.id === selectedDraftId), [drafts, selectedDraftId]);
@@ -22,21 +23,26 @@ export function DraftWorkflowClient({ initialDrafts }: { initialDrafts: Draft[] 
   async function run(action: "validate" | "review" | "projection") {
     if (!selectedDraftId) return;
     setBusy(true);
-    const url = action === "validate"
-      ? `/api/studio/drafts/${selectedDraftId}/validate`
-      : action === "review"
-        ? "/api/studio/publish-reviews"
-        : `/api/studio/drafts/${selectedDraftId}/create-public-projection`;
-    const init: RequestInit = { method: "POST" };
-    if (action === "review") {
-      init.headers = { "content-type": "application/json" };
-      init.body = JSON.stringify({ product_draft_id: selectedDraftId });
+    try {
+      const url = action === "validate"
+        ? `/api/studio/drafts/${selectedDraftId}/validate`
+        : action === "review"
+          ? "/api/studio/publish-reviews"
+          : `/api/studio/drafts/${selectedDraftId}/create-public-projection`;
+      const init: RequestInit = { method: "POST" };
+      if (action === "review") {
+        init.headers = { "content-type": "application/json" };
+        init.body = JSON.stringify({ product_draft_id: selectedDraftId });
+      }
+      const response = await fetch(url, init);
+      const data = await response.json();
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update draft." });
+    } finally {
+      setBusy(false);
     }
-    const response = await fetch(url, init);
-    const data = await response.json();
-    setResult(data);
-    await refresh();
-    setBusy(false);
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>

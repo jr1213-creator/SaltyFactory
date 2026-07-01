@@ -10,9 +10,14 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
 
   async function call(provider: string, action: "status" | "test" | "sync") {
     setBusyProvider(`${provider}:${action}`);
-    const response = await fetch(`/api/studio/integrations/${provider}/${action}`, { method: action === "status" ? "GET" : "POST" });
-    setResult(await response.json());
-    setBusyProvider("");
+    try {
+      const response = await fetch(`/api/studio/integrations/${provider}/${action}`, { method: action === "status" ? "GET" : "POST" });
+      setResult(await response.json());
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to run provider action." });
+    } finally {
+      setBusyProvider("");
+    }
   }
 
   return <section className="sf-card" style={{ marginTop: 18 }}>

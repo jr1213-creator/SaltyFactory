@@ -9,7 +9,12 @@ export default async function Page() {
       <StatusBadge status="Manual upload enabled" tone="info" />
     </PageHeader>
     <SchemaSetupState message={setupMessage} />
-    <FilterBar><select><option>All statuses</option></select><select><option>All products</option></select><select><option>All quality scores</option></select><select><option>All AI employees</option></select></FilterBar>
+    <FilterBar>
+      <select disabled title="Asset filtering is disabled until persisted filter support is wired."><option>All statuses</option></select>
+      <select disabled title="Asset filtering is disabled until persisted filter support is wired."><option>All products</option></select>
+      <select disabled title="Asset filtering is disabled until persisted filter support is wired."><option>All quality scores</option></select>
+      <select disabled title="Asset filtering is disabled until persisted filter support is wired."><option>All AI employees</option></select>
+    </FilterBar>
     <div className="sf-grid sf-grid-4">
       <MetricCard title="Jobs in queue" value={String(jobs.filter((j:any)=>j.status==="queued").length)} icon="□" />
       <MetricCard title="Assets approved" value={String(assets.filter((a:any)=>a.approved_for_mockup || a.approvedForMockup).length)} tone="success" icon="✓" />
@@ -22,7 +27,7 @@ export default async function Page() {
         <div className="sf-tabs"><span>Generated Art</span><span>Mockups</span><span>Print Files</span></div>
         {assets.length ? <ProductGrid>{assets.slice(0, 9).map((asset: any) => <ProductCard key={asset.id} title={asset.file_path ?? asset.id} price={asset.qa_status ?? "pending"} badge="Asset" />)}</ProductGrid> : <EmptyState title="No generated assets" description="Generation jobs will appear here after an approved brief is sent to a configured provider." />}
       </div>
-      <Card><h2>Asset QA & Quality Check</h2><ProgressRing value={92} label="Quality" /><ApprovalGateList gates={[{ label: "Resolution", passed: true, detail: "Print-size validation" }, { label: "Safe zone", passed: true }, { label: "Trademark scan", passed: false, detail: "Requires human review" }, { label: "Transparency/rembg", passed: true }, { label: "Upscale status", passed: true }]} /><button className="sf-button sf-button-secondary">View Full Report</button> <button className="sf-button sf-button-primary">Approve Asset</button><p className="sf-muted">Approval remains manual and gate-backed.</p></Card>
+      <Card><h2>Asset QA & Quality Check</h2><ProgressRing value={92} label="Quality" /><ApprovalGateList gates={[{ label: "Resolution", passed: true, detail: "Print-size validation" }, { label: "Safe zone", passed: true }, { label: "Trademark scan", passed: false, detail: "Requires human review" }, { label: "Transparency/rembg", passed: true }, { label: "Upscale status", passed: true }]} /><button className="sf-button sf-button-secondary" disabled title="Select an asset and run persisted QA in the workflow panel to view its report.">View Full Report</button> <button className="sf-button sf-button-primary" disabled title="Use the Manual POD Asset Workflow after persisted QA passes.">Approve Asset</button><p className="sf-muted">Approval remains manual and gate-backed in the workflow panel.</p></Card>
     </div>
   </>;
 }

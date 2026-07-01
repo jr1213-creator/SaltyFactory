@@ -14,9 +14,10 @@ async function postJson(url: string, body?: Record<string, unknown>) {
   return response.json();
 }
 
-export function MockupWorkflowClient({ initialAssets, initialMockups }: { initialAssets: Row[]; initialMockups: Row[] }) {
+export function MockupWorkflowClient({ initialAssets, initialMockups, initialAssetId }: { initialAssets: Row[]; initialMockups: Row[]; initialAssetId?: string | undefined }) {
   const approvedAssets = initialAssets.filter((asset) => asset.approved_for_mockup || asset.approvedForMockup);
-  const [assetId, setAssetId] = useState(approvedAssets[0]?.id ?? "");
+  const initialApprovedAssetId = approvedAssets.some((asset) => asset.id === initialAssetId) ? initialAssetId : approvedAssets[0]?.id;
+  const [assetId, setAssetId] = useState(initialApprovedAssetId ?? "");
   const [productType, setProductType] = useState("tee_front");
   const [mockups, setMockups] = useState(initialMockups);
   const [selectedMockupId, setSelectedMockupId] = useState(initialMockups[0]?.id ?? "");
@@ -34,40 +35,58 @@ export function MockupWorkflowClient({ initialAssets, initialMockups }: { initia
 
   async function generate() {
     setBusy(true);
-    const data = await postJson("/api/studio/mockups/generate", { asset_id: assetId, product_type: productType });
-    setResult(data);
-    await refresh();
-    if (data.mockup?.id) setSelectedMockupId(data.mockup.id);
-    setBusy(false);
+    try {
+      const data = await postJson("/api/studio/mockups/generate", { asset_id: assetId, product_type: productType });
+      setResult(data);
+      await refresh();
+      if (data.mockup?.id) setSelectedMockupId(data.mockup.id);
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to generate mockup." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function review(action: "approve" | "reject") {
     if (!selectedMockupId) return;
     setBusy(true);
-    const data = await postJson(`/api/studio/mockups/${selectedMockupId}/${action}`);
-    setResult(data);
-    await refresh();
-    setBusy(false);
+    try {
+      const data = await postJson(`/api/studio/mockups/${selectedMockupId}/${action}`);
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to update mockup." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createDraft() {
     if (!selected) return;
     setBusy(true);
-    const data = await postJson("/api/studio/drafts/create-from-assets", {
-      asset_id: selected.asset_id ?? selected.assetId,
-      mockup_ids: [selected.id],
-      title: "Internal POD Product Draft",
-      description: "Private product draft created from approved source art and internal mockup. Human review required before public projection.",
-      tags: ["pod", "internal-review"],
-      product_type: productType.replace("_front", ""),
-      collection: "Studio Drafts",
-      price: 32,
-      estimated_cogs: 12,
-      estimated_shipping: 5,
-      provider_target: "internal_only"
-    });
-    setResult(data);
-    setBusy(false);
+    try {
+      const data = await postJson("/api/studio/drafts/create-from-assets", {
+        asset_id: selected.asset_id ?? selected.assetId,
+        mockup_ids: [selected.id],
+        title: "Internal POD Product Draft",
+        description: "Private product draft created from approved source art and internal mockup. Human review required before public projection.",
+        tags: ["pod", "internal-review"],
+        product_type: productType.replace("_front", ""),
+        collection: "Studio Drafts",
+        price: 32,
+        estimated_cogs: 12,
+        estimated_shipping: 5,
+        provider_target: "internal_only"
+      });
+      setResult(data);
+      if (data.ok && data.draft?.id && typeof window !== "undefined") {
+        window.location.href = `/studio/drafts?draft_id=${encodeURIComponent(String(data.draft.id))}`;
+      }
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to create draft." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
