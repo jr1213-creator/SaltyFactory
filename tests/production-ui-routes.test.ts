@@ -27,11 +27,11 @@ describe("production UI routes", () => {
     expect(html).toContain("AI Trend Analyst");
   });
 
-  it("Brief builder renders form and live preview regions", async () => {
+  it("Brief builder renders repository-backed workflow regions", async () => {
     const html = renderToStaticMarkup(await BriefsPage());
-    expect(html).toContain("Brief Essentials");
-    expect(html).toContain("AI Brief Pack");
-    expect(html).toContain("Live Preview");
+    expect(html).toContain("Repository-backed Brief Workflow");
+    expect(html).toContain("Create Manual Brief");
+    expect(html).toContain("Brief Records");
   });
 
   it("Assets page renders QA panel", async () => {

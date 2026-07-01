@@ -1,14 +1,17 @@
 export const dynamic = "force-dynamic";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireStudioUser, SUPABASE_ACCESS_COOKIE, SUPABASE_REFRESH_COOKIE } from "@saltyfactory/auth";
+import { requireStudioUser } from "@saltyfactory/auth";
 import { NotificationBell, ProgressBar, SearchCommand, UserMenu, WorkspaceSwitcher } from "@saltyfactory/ui";
 
 const links = [
   ["Dashboard", "/studio"],
+  ["Designs", "/studio/designs"],
   ["Trends", "/studio/trends"],
   ["Briefs", "/studio/briefs"],
+  ["Generation", "/studio/generation"],
   ["Assets", "/studio/assets"],
+  ["Mockups", "/studio/mockups"],
   ["Products", "/studio/drafts"],
   ["Publish Review", "/studio/publish"],
   ["Analytics", "/studio/analytics"],
@@ -21,11 +24,11 @@ const links = [
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   try {
     const jar = await cookies();
-    const accessToken = jar.get(SUPABASE_ACCESS_COOKIE)?.value || "";
-    const refreshToken = jar.get(SUPABASE_REFRESH_COOKIE)?.value || "";
-    await requireStudioUser(`${SUPABASE_ACCESS_COOKIE}=${accessToken}; ${SUPABASE_REFRESH_COOKIE}=${refreshToken}`);
+    const cookieHeader = jar.getAll().map(({ name, value }) => `${name}=${encodeURIComponent(value)}`).join("; ");
+    await requireStudioUser(cookieHeader);
   } catch (error) {
     if (error instanceof Error && error.message === "unauthenticated") redirect("/login");
+    if (error instanceof Error && error.message === "forbidden") redirect("/login?error=missing_membership");
     throw error;
   }
 

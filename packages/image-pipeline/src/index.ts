@@ -130,3 +130,6 @@ export function blockMockupIfQaFailed(qa: { status: string }) {
 export function blockDraftIfPrintQaFailed(qa: { approved_for_product_draft: boolean }) {
   if (!qa.approved_for_product_draft) throw new Error("product draft blocked because print QA did not pass");
 }
+
+export { buildPromptPackageFromBrief, type PromptBriefInput, type PromptPackage } from "./prompt-builder";
+export { resolveImageGenerationProvider, type ImageGenerationProviderKey, type ImageGenerationProviderState } from "./providers";

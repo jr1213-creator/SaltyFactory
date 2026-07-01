@@ -1,13 +1,14 @@
 import { ApprovalGateList, Card, EmptyState, FilterBar, MetricCard, PageHeader, ProductCard, ProductGrid, ProgressRing, StatusBadge } from "@saltyfactory/ui";
-import { getStudioLists } from "../data";
+import { getStudioLists, SchemaSetupState } from "../data";
 import { AssetWorkflowClient } from "./AssetWorkflowClient";
 
 export default async function Page() {
-  const { assets, jobs, mockups } = await getStudioLists();
+  const { assets, jobs, mockups, setupMessage } = await getStudioLists();
   return <>
     <PageHeader title="Generation Jobs & Assets" description="Manage generated designs, mockups, and print-ready files from concept to production.">
       <StatusBadge status="Manual upload enabled" tone="info" />
     </PageHeader>
+    <SchemaSetupState message={setupMessage} />
     <FilterBar><select><option>All statuses</option></select><select><option>All products</option></select><select><option>All quality scores</option></select><select><option>All AI employees</option></select></FilterBar>
     <div className="sf-grid sf-grid-4">
       <MetricCard title="Jobs in queue" value={String(jobs.filter((j:any)=>j.status==="queued").length)} icon="□" />

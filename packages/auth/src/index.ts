@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { and, eq, or } from "drizzle-orm";
 import { getDb, organizationMembers, users, workspaces } from "@saltyfactory/db";
 
@@ -21,8 +22,8 @@ export type SupabaseIdentity = {
 type AuthInput = Request | Headers | string | undefined | null;
 type SupabaseVerifier = (accessToken: string) => Promise<SupabaseIdentity | null>;
 type WorkspaceAuthorizer = (identity: SupabaseIdentity, workspaceId: string) => Promise<StudioUser | null>;
-type MagicLinkStarter = (email: string, redirectTo: string) => Promise<void>;
-type CodeExchanger = (code: string) => Promise<{ access_token: string; refresh_token: string; expires_in?: number }>;
+type MagicLinkStarter = (email: string, redirectTo: string, cookies?: CookieMethodsServer) => Promise<void>;
+type CodeExchanger = (code: string, cookies?: CookieMethodsServer) => Promise<{ access_token: string; refresh_token: string; expires_in?: number }>;
 
 export const SUPABASE_ACCESS_COOKIE = "sb-access-token";
 export const SUPABASE_REFRESH_COOKIE = "sb-refresh-token";
@@ -62,7 +63,16 @@ function getSupabaseAuthClient() {
   const config = getSupabaseAuthConfigStatus();
   if (!config.ok) throw authError("supabase_auth_not_configured", 503);
   return createClient(publicSupabaseUrl(), publicSupabaseAnonKey(), {
-    auth: { autoRefreshToken: false, persistSession: false }
+    auth: { autoRefreshToken: false, persistSession: false, flowType: "pkce" }
+  });
+}
+
+export function createStudioSupabaseServerClient(cookies: CookieMethodsServer) {
+  const config = getSupabaseAuthConfigStatus();
+  if (!config.ok) throw authError("supabase_auth_not_configured", 503);
+  return createServerClient(publicSupabaseUrl(), publicSupabaseAnonKey(), {
+    auth: { autoRefreshToken: false, flowType: "pkce" },
+    cookies
   });
 }
 
@@ -87,6 +97,19 @@ function readCookie(input: AuthInput, name: string) {
     if (rawName === name) return decodeURIComponent(rawValue.join("="));
   }
   return "";
+}
+
+function parseCookieHeader(input: AuthInput) {
+  const header = cookieHeader(input);
+  if (!header) return [];
+  return header
+    .split(";")
+    .map((part) => {
+      const [rawName, ...rawValue] = part.trim().split("=");
+      if (!rawName) return null;
+      return { name: rawName, value: decodeURIComponent(rawValue.join("=")) };
+    })
+    .filter((item): item is { name: string; value: string } => Boolean(item));
 }
 
 function cookie(name: string, value: string, maxAge: number) {
@@ -114,12 +137,12 @@ export function setCodeExchangerForTests(exchanger: CodeExchanger | null) {
   codeExchangerForTests = exchanger;
 }
 
-export async function startStudioMagicLink(email: string, redirectTo: string) {
+export async function startStudioMagicLink(email: string, redirectTo: string, cookies?: CookieMethodsServer) {
   if (magicLinkStarterForTests) {
-    await magicLinkStarterForTests(email.trim().toLowerCase(), redirectTo);
+    await magicLinkStarterForTests(email.trim().toLowerCase(), redirectTo, cookies);
     return { ok: true };
   }
-  const client = getSupabaseAuthClient();
+  const client = cookies ? createStudioSupabaseServerClient(cookies) : getSupabaseAuthClient();
   const { error } = await client.auth.signInWithOtp({
     email: email.trim().toLowerCase(),
     options: { emailRedirectTo: redirectTo }
@@ -128,9 +151,9 @@ export async function startStudioMagicLink(email: string, redirectTo: string) {
   return { ok: true };
 }
 
-export async function exchangeSupabaseAuthCode(code: string) {
-  if (codeExchangerForTests) return codeExchangerForTests(code);
-  const client = getSupabaseAuthClient();
+export async function exchangeSupabaseAuthCode(code: string, cookies?: CookieMethodsServer) {
+  if (codeExchangerForTests) return codeExchangerForTests(code, cookies);
+  const client = cookies ? createStudioSupabaseServerClient(cookies) : getSupabaseAuthClient();
   const { data, error } = await client.auth.exchangeCodeForSession(code);
   if (error || !data.session?.access_token || !data.session.refresh_token) {
     throw authError("supabase_callback_failed", 401);
@@ -169,22 +192,31 @@ async function verifySupabaseAccessToken(accessToken: string): Promise<SupabaseI
 
 async function getVerifiedSupabaseIdentity(input?: AuthInput): Promise<SupabaseIdentity | null> {
   const accessToken = readCookie(input, SUPABASE_ACCESS_COOKIE);
-  const identity = await verifySupabaseAccessToken(accessToken);
+  const identity = accessToken ? await verifySupabaseAccessToken(accessToken) : await verifySupabaseSsrSession(input);
   if (!identity?.emailVerified) return null;
   return identity;
+}
+
+async function verifySupabaseSsrSession(input?: AuthInput): Promise<SupabaseIdentity | null> {
+  const cookies = parseCookieHeader(input);
+  if (!cookies.length) return null;
+  const client = createStudioSupabaseServerClient({
+    getAll: () => cookies,
+    setAll: () => undefined
+  });
+  const { data, error } = await client.auth.getUser();
+  const user = data.user;
+  if (error || !user?.id || !user.email) return null;
+  return {
+    id: user.id,
+    email: user.email.toLowerCase(),
+    emailVerified: Boolean(user.email_confirmed_at || user.confirmed_at)
+  };
 }
 
 async function authorizeWorkspace(identity: SupabaseIdentity, workspaceId: string): Promise<StudioUser | null> {
   if (authorizerForTests) return authorizerForTests(identity, workspaceId);
   if (!identity.emailVerified) return null;
-
-  if (!isProduction() && !process.env.DATABASE_URL) {
-    const allowed = getAllowedStudioEmails();
-    if (allowed.includes(identity.email.toLowerCase())) {
-      return { id: identity.id, email: identity.email, role: "owner", workspaceId, supabaseUserId: identity.id };
-    }
-    return null;
-  }
 
   const db = getDb();
   const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
@@ -279,6 +311,64 @@ export async function requireDraftMutationPermission(input?: AuthInput, workspac
 export async function getAuditActor(input?: AuthInput) {
   const user = await getStudioUser(input);
   return user ? { actor_type: "human" as const, actor_id: user.id } : null;
+}
+
+export async function getStudioAuthDebug(input?: AuthInput, workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default") {
+  const supabaseConfigured = getSupabaseAuthConfigStatus().ok;
+  let identity: SupabaseIdentity | null = null;
+
+  try {
+    identity = await getVerifiedSupabaseIdentity(input);
+  } catch {
+    return {
+      supabaseConfigured,
+      hasSession: false,
+      userId: null,
+      userEmail: null,
+      workspaceResolved: false,
+      role: null,
+      missingMembership: false,
+      reason: "session_check_failed"
+    };
+  }
+
+  if (!identity) {
+    return {
+      supabaseConfigured,
+      hasSession: false,
+      userId: null,
+      userEmail: null,
+      workspaceResolved: false,
+      role: null,
+      missingMembership: false,
+      reason: supabaseConfigured ? "no_session" : "supabase_not_configured"
+    };
+  }
+
+  try {
+    const user = await authorizeWorkspace(identity, workspaceId);
+    return {
+      supabaseConfigured,
+      hasSession: true,
+      userId: identity.id,
+      userEmail: identity.email,
+      workspaceResolved: Boolean(user),
+      role: user?.role ?? null,
+      missingMembership: !user,
+      reason: user ? "ok" : "missing_membership"
+    };
+  } catch {
+    return {
+      supabaseConfigured,
+      hasSession: true,
+      userId: identity.id,
+      userEmail: identity.email,
+      workspaceResolved: false,
+      role: null,
+      missingMembership: true,
+      reason: process.env.DATABASE_URL ? "membership_check_failed" : "database_not_configured"
+    };
+  }
 }
 
 export async function requireAuditActor(input?: AuthInput) {

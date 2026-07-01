@@ -1,1 +1,2 @@
-console.log("migrations applied")
+export { applyLocalSchema } from "./apply-local";
+import "./apply-local";

@@ -7,6 +7,7 @@ import {
   requirePublishPermission,
   requireReviewerOrAbove,
   requireStudioUser,
+  getStudioAuthDebug,
   setCodeExchangerForTests,
   setMagicLinkStarterForTests,
   setSupabaseUserVerifierForTests,
@@ -63,6 +64,25 @@ describe("studio auth", () => {
     setSupabaseUserVerifierForTests(async () => identity);
     setWorkspaceAuthorizerForTests(async () => null);
     await expect(requireStudioUser(requestWithAccessToken("valid"))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("auth debug distinguishes missing session from missing membership without exposing tokens", async () => {
+    await expect(getStudioAuthDebug()).resolves.toMatchObject({
+      hasSession: false,
+      workspaceResolved: false,
+      reason: expect.stringMatching(/no_session|supabase_not_configured/)
+    });
+
+    setSupabaseUserVerifierForTests(async () => identity);
+    setWorkspaceAuthorizerForTests(async () => null);
+    await expect(getStudioAuthDebug(requestWithAccessToken("valid"))).resolves.toMatchObject({
+      hasSession: true,
+      userId: identity.id,
+      userEmail: identity.email,
+      workspaceResolved: false,
+      missingMembership: true,
+      reason: "missing_membership"
+    });
   });
 
   it("rejects wrong workspace authorization", async () => {

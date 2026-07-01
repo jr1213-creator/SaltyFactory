@@ -1,15 +1,24 @@
-import { exchangeSupabaseAuthCode, supabaseSessionCookies } from "@saltyfactory/auth";
+import { exchangeSupabaseAuthCode } from "@saltyfactory/auth";
+import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
-export async function GET(req: Request) {
+type RouteRequest = Request & { cookies?: { getAll?: () => { name: string; value: string }[] } };
+
+export async function GET(req: RouteRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  if (!code) return NextResponse.redirect(new URL("/login?error=callback_failed", req.url));
+  if (!code) return NextResponse.redirect(new URL("/login?error=missing_code", req.url));
 
   try {
-    const session = await exchangeSupabaseAuthCode(code);
     const response = NextResponse.redirect(new URL("/studio", req.url));
-    for (const cookie of supabaseSessionCookies(session)) response.headers.append("Set-Cookie", cookie);
+    const cookies = {
+      getAll: () => req.cookies?.getAll?.() ?? [],
+      setAll: (cookiesToSet: { name: string; value: string; options: CookieOptions }[], headers: Record<string, string>) => {
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
+      }
+    };
+    await exchangeSupabaseAuthCode(code, cookies);
     return response;
   } catch {
     return NextResponse.redirect(new URL("/login?error=callback_failed", req.url));

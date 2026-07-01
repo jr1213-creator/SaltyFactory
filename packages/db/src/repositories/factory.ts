@@ -42,7 +42,28 @@ export function createRuntimeRepositories(config: RepositoryRuntimeConfig = proc
   if (selected.adapter === "memory") {
     return createMemoryRepositories(selected.reason === "test_mode" ? undefined : runtimeMemoryStore) as RepositoryBundle;
   }
-  return createDrizzleRepositories(createDb(config.DATABASE_URL));
+  return createDrizzleRepositories(createDb(databaseUrlFromConfig(config)));
 }
 
 export const createRepositories = createRuntimeRepositories;
+
+function databaseUrlFromConfig(config: RepositoryRuntimeConfig) {
+  if (config.DIRECT_DATABASE_URL) return config.DIRECT_DATABASE_URL;
+  if (config.DATABASE_URL && (config.SUPABASE_URL || config.NEXT_PUBLIC_SUPABASE_URL)) {
+    try {
+      const pool = new URL(config.DATABASE_URL);
+      const supabaseUrl = config.SUPABASE_URL || config.NEXT_PUBLIC_SUPABASE_URL || "";
+      const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+      if (projectRef) {
+        const direct = new URL(pool.toString());
+        direct.hostname = `db.${projectRef}.supabase.co`;
+        direct.port = "5432";
+        direct.username = "postgres";
+        return direct.toString();
+      }
+    } catch {
+      return config.DATABASE_URL;
+    }
+  }
+  return config.DATABASE_URL;
+}

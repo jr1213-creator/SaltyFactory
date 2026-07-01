@@ -25,6 +25,7 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const selected = useMemo(() => assets.find((asset) => asset.id === selectedAssetId), [assets, selectedAssetId]);
+  const selectedApprovedForMockup = Boolean(selected?.approved_for_mockup || selected?.approvedForMockup);
 
   async function refreshAssets() {
     const data = await fetch("/api/studio/assets/upload").then((res) => res.json());
@@ -43,19 +44,15 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
     setBusy(false);
   }
 
-  async function runAction(action: "qa" | "approve" | "reject" | "draft") {
+  async function runAction(action: "qa" | "approve" | "reject") {
     if (!selectedAssetId) return;
     setBusy(true);
     const routes = {
       qa: `/api/studio/assets/${selectedAssetId}/run-qa`,
       approve: `/api/studio/assets/${selectedAssetId}/approve`,
-      reject: `/api/studio/assets/${selectedAssetId}/reject`,
-      draft: "/api/studio/drafts/create-from-assets"
+      reject: `/api/studio/assets/${selectedAssetId}/reject`
     };
-    const payload = action === "draft"
-      ? { asset_id: selectedAssetId, title: "Manual POD Draft", description: "Private draft created from approved artwork. Edit before public projection.", tags: ["manual", "pod"], product_type: "tee", collection: "Studio Drafts", price: 32, estimated_cogs: 12, estimated_shipping: 5, provider_target: "internal_only" }
-      : undefined;
-    const data = await postJson(routes[action], payload);
+    const data = await postJson(routes[action]);
     setResult(data);
     await refreshAssets();
     setBusy(false);
@@ -74,9 +71,12 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
         <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => runAction("qa")}>Run QA</button>
         <button className="sf-button sf-button-primary" disabled={!selected || busy || selected?.qa_status !== "passed"} onClick={() => runAction("approve")}>Approve Asset</button>
         <button className="sf-button sf-button-danger" disabled={!selected || busy} onClick={() => runAction("reject")}>Reject</button>
-        <button className="sf-button sf-button-secondary" disabled={!selected || busy || !(selected?.approved_for_mockup || selected?.approvedForMockup)} onClick={() => runAction("draft")}>Create Draft</button>
+        {selectedApprovedForMockup
+          ? <a className="sf-button sf-button-secondary" href="/studio/mockups">Go to Mockups</a>
+          : <button className="sf-button sf-button-secondary" disabled>Go to Mockups</button>}
       </div>
     </div>
+    {selected && !selectedApprovedForMockup ? <p className="sf-muted">Create an approved mockup before creating a draft.</p> : null}
     {selected && <div className="sf-muted">Selected asset: {selected.id} · QA {selected.qa_status ?? selected.qaStatus ?? "pending"} · Approval {selected.approval_status ?? selected.approvalStatus ?? "pending"} · Visibility {selected.visibility ?? "private"}</div>}
     <ResultPanel result={result} />
   </section>;

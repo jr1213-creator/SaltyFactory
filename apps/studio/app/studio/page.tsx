@@ -1,6 +1,6 @@
 import { parseEnv } from "@saltyfactory/config";
 import { AiEmployeeCard, BarList, ChartCard, DataTable, EmptyState, LineChartCard, MetricCard, PageHeader, ProviderStatusCard, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
-import { getStudioLists } from "./data";
+import { getStudioLists, SchemaSetupState } from "./data";
 
 export default async function Page() {
   const cfg = parseEnv();
@@ -12,6 +12,7 @@ export default async function Page() {
     <PageHeader title="Studio Dashboard" description="Private POD operating system for trend intelligence, product creation, review, and guarded publishing.">
       <StatusBadge status="Human approval required" tone="warning" />
     </PageHeader>
+    <SchemaSetupState message={lists.setupMessage} />
     <div className="sf-grid sf-grid-4">
       <MetricCard title="Designs in pipeline" value={String(designs)} delta="Repository backed" icon="◆" />
       <MetricCard title="Approved for publish" value={String(approved)} delta="Gate evaluated" tone="success" icon="✓" />

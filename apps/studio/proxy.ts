@@ -5,7 +5,8 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginRoute = pathname === "/api/studio/login";
   const isLogoutRoute = pathname === "/api/studio/logout";
-  let authorized = isLoginRoute || isLogoutRoute;
+  const isAuthDebugRoute = pathname === "/api/studio/auth/debug";
+  let authorized = isLoginRoute || isLogoutRoute || isAuthDebugRoute;
   let authStatus = 401;
 
   if (!authorized) {
@@ -31,7 +32,8 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/studio") && !authorized) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const target = authStatus === 403 ? "/login?error=missing_membership" : "/login";
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
   return NextResponse.next();

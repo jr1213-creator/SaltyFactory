@@ -16,6 +16,22 @@ export async function POST(req: Request) {
     if (!asset.approved_for_mockup && !asset.approvedForMockup) {
       return NextResponse.json({ ok: false, status: "blocked", message: "Product drafts require an approved private asset.", blockingReasons: ["asset_not_approved"] }, { status: 409 });
     }
+    const mockupIds = Array.isArray(body.mockup_ids) ? body.mockup_ids.filter((item: unknown): item is string => typeof item === "string") : [];
+    if (!mockupIds.length) {
+      return NextResponse.json({ ok: false, status: "blocked", message: "Create and approve a mockup before creating a product draft.", blockingReasons: ["approved_mockup_required"] }, { status: 409 });
+    }
+    const approvedMockups = [];
+    for (const mockupId of mockupIds) {
+      const mockup = await repos.mockup.getById(mockupId, workspaceId);
+      if (!mockup || (mockup.approved_for_product !== true && mockup.approvedForProduct !== true)) {
+        return NextResponse.json({ ok: false, status: "blocked", message: "Product drafts can only use approved workspace mockups.", blockingReasons: ["mockup_not_approved"] }, { status: 409 });
+      }
+      const mockupAssetId = String(mockup.asset_id ?? mockup.assetId ?? mockup.source_asset_id ?? mockup.sourceAssetId ?? "");
+      if (mockupAssetId !== assetId) {
+        return NextResponse.json({ ok: false, status: "blocked", message: "Product draft mockups must belong to the selected approved asset.", blockingReasons: ["mockup_asset_mismatch"] }, { status: 409 });
+      }
+      approvedMockups.push(mockupId);
+    }
     const draftId = String(body.id || `draft_${Date.now()}`);
     const providerTarget = ["internal_only", "shopify_draft", "printify_draft"].includes(String(body.provider_target || body.providerTarget))
       ? String(body.provider_target || body.providerTarget)
@@ -33,7 +49,7 @@ export async function POST(req: Request) {
       collection: String(body.collection || "Drafts"),
       tags: Array.isArray(body.tags) ? body.tags : [],
       asset_id: assetId,
-      mockup_ids: Array.isArray(body.mockup_ids) ? body.mockup_ids : [],
+      mockup_ids: approvedMockups,
       variant_ids: Array.isArray(body.variant_ids) ? body.variant_ids : [],
       public_handle: String(body.handle || body.title || draftId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || draftId,
       shopify_status: "not_published",
@@ -52,7 +68,7 @@ export async function POST(req: Request) {
         seo_description: String(body.seo_description || body.seoDescription || body.description || ""),
         aeo_answer_block: String(body.aeo_answer_block || body.aeoAnswerBlock || ""),
         geo_summary_block: String(body.geo_summary_block || body.geoSummaryBlock || ""),
-        mockups_required: providerTarget !== "internal_only"
+        mockups_required: true
       },
       created_by: user.id,
       updated_by: user.id

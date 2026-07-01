@@ -29,6 +29,9 @@ export async function validateProductDraft(input: { repos: RepositoryBundle; wor
   const qaRows = assetId ? (await input.repos.qa.listByWorkspace(input.workspaceId)).filter((row) => row.asset_id === assetId || row.assetId === assetId) : [];
   const qaPassed = qaRows.some((row) => row.status === "passed" && (row.approved_for_product_draft === true || row.approvedForProductDraft === true));
   const assetApproved = Boolean(asset?.approved_for_mockup ?? asset?.approvedForMockup);
+  const mockupIds = array(draft.mockup_ids ?? draft.mockupIds).filter((item): item is string => typeof item === "string");
+  const mockups = mockupIds.length ? await Promise.all(mockupIds.map((id) => input.repos.mockup.getById(id, input.workspaceId))) : [];
+  const approvedMockups = mockups.filter((mockup) => mockup && (mockup.approved_for_product === true || mockup.approvedForProduct === true));
 
   if (!title) blockers.push("missing_title");
   if (!description) blockers.push("missing_description");
@@ -36,6 +39,7 @@ export async function validateProductDraft(input: { repos: RepositoryBundle; wor
   if (!asset) blockers.push("missing_asset");
   if (asset && !assetApproved) blockers.push("asset_not_approved");
   if (asset && !qaPassed) blockers.push("asset_qa_not_passed");
+  if (metadata.mockups_required !== false && !approvedMockups.length) blockers.push("approved_mockup_required");
   if (!price || price <= 0) blockers.push("missing_price");
   if (!cogs || cogs <= 0) warnings.push("estimated_cogs_missing");
   if (price > 0 && cogs > 0 && marginPercent < 0.35) blockers.push("margin_below_threshold");
@@ -51,6 +55,7 @@ export async function validateProductDraft(input: { repos: RepositoryBundle; wor
     tags_present: tags.length > 0,
     approved_asset_present: Boolean(asset && assetApproved),
     qa_passed: qaPassed,
+    approved_mockup_present: approvedMockups.length > 0,
     price_present: price > 0,
     cogs_present: cogs > 0,
     margin_percent: marginPercent,

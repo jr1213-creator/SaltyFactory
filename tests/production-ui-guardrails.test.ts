@@ -13,6 +13,7 @@ import {
 } from "@saltyfactory/auth";
 import { GET as loginGet, POST as loginPost } from "../apps/studio/app/api/studio/login/route";
 import { GET as callbackGet } from "../apps/studio/app/auth/callback/route";
+import { GET as authDebugGet } from "../apps/studio/app/api/studio/auth/debug/route";
 import { POST as approveDraftPost } from "../apps/studio/app/api/studio/drafts/approve/route";
 import { POST as shopifyPublishPost } from "../apps/studio/app/api/studio/publish/shopify/route";
 import { POST as printifyPublishPost } from "../apps/studio/app/api/studio/publish/printify/route";
@@ -99,16 +100,31 @@ describe("production UI guardrails", () => {
     setMagicLinkStarterForTests(async (submittedEmail) => { calls.push(submittedEmail); });
     const response = await loginPost(formRequest(email));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ ok: true, message: "check_email" });
+    await expect(response.json()).resolves.toMatchObject({ ok: true, status: "email_sent" });
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(calls).toEqual([email]);
+  });
+
+  it("Login POST uses /auth/callback and preserves Supabase PKCE cookies", async () => {
+    const redirects: string[] = [];
+    setMagicLinkStarterForTests(async (_submittedEmail, redirectTo, cookies) => {
+      redirects.push(redirectTo);
+      cookies?.setAll?.([
+        { name: "sb-test-auth-token-code-verifier", value: "verifier", options: { path: "/", httpOnly: true, sameSite: "lax" } }
+      ], { "Cache-Control": "private, no-store" });
+    });
+    const response = await loginPost(formRequest(email));
+    expect(response.status).toBe(200);
+    expect(redirects).toEqual(["http://localhost:3001/auth/callback"]);
+    expect(response.headers.get("set-cookie")).toContain("sb-test-auth-token-code-verifier");
+    expect(await response.json()).toEqual({ ok: true, status: "email_sent" });
   });
 
   it("Email-only POST cannot create a custom Studio session", async () => {
     setMagicLinkStarterForTests(async () => undefined);
     const response = await loginPost(formRequest("other@example.com"));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ ok: true, message: "check_email" });
+    await expect(response.json()).resolves.toMatchObject({ ok: true, status: "email_sent" });
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
@@ -119,7 +135,7 @@ describe("production UI guardrails", () => {
     delete process.env.SUPABASE_ANON_KEY;
     const response = await loginPost(formRequest(email));
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: "supabase_auth_not_configured" });
+    await expect(response.json()).resolves.toMatchObject({ ok: false, status: "not_configured" });
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
@@ -143,6 +159,18 @@ describe("production UI guardrails", () => {
     await expect(response.json()).resolves.toMatchObject({ ok: false, status: "unauthorized" });
   });
 
+  it("Studio auth debug is available only outside production and never returns cookies", async () => {
+    const response = await authDebugGet(new Request("http://localhost:3001/api/studio/auth/debug"));
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toMatchObject({ ok: true, hasSession: false });
+    expect(JSON.stringify(payload)).not.toMatch(/cookie|token|service/i);
+
+    process.env.APP_ENV = "production";
+    const productionResponse = await authDebugGet(new Request("http://localhost:3001/api/studio/auth/debug"));
+    expect(productionResponse.status).toBe(404);
+  });
+
   it("Studio login API is public enough to create a session", async () => {
     const response = await proxy(request("/api/studio/login"));
     expect(response.status).toBe(200);
@@ -156,14 +184,29 @@ describe("production UI guardrails", () => {
   });
 
   it("Supabase callback success establishes Supabase cookies", async () => {
-    setCodeExchangerForTests(async () => ({ access_token: "access", refresh_token: "refresh", expires_in: 3600 }));
+    setCodeExchangerForTests(async (_code, cookies) => {
+      cookies?.setAll?.([
+        { name: "sb-test-auth-token", value: "session", options: { path: "/", httpOnly: true, sameSite: "lax" } }
+      ], { "Cache-Control": "private, no-store" });
+      return { access_token: "access", refresh_token: "refresh", expires_in: 3600 };
+    });
     const response = await callbackGet(new Request("http://localhost:3001/auth/callback?code=abc"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("set-cookie")).toContain(SUPABASE_ACCESS_COOKIE);
+    expect(response.headers.get("set-cookie")).toContain("sb-test-auth-token");
+    expect(response.headers.get("location")).toContain("/studio");
   });
 
-  it("Supabase callback failure redirects safely", async () => {
+  it("Supabase callback without code redirects safely", async () => {
     const response = await callbackGet(new Request("http://localhost:3001/auth/callback"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/login?error=missing_code");
+  });
+
+  it("Supabase callback exchange failure redirects safely", async () => {
+    setCodeExchangerForTests(async () => {
+      throw new Error("sensitive provider failure");
+    });
+    const response = await callbackGet(new Request("http://localhost:3001/auth/callback?code=abc"));
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain("/login?error=callback_failed");
   });
