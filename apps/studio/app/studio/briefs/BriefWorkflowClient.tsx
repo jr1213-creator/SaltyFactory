@@ -68,7 +68,7 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
-    <h2>Repository-backed Brief Workflow</h2>
+    <h2>Saved Brief Workflow</h2>
     <div className="sf-form-grid">
       <label>Manual brief title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Phrase or motif<input value={phrase} onChange={(event) => setPhrase(event.target.value)} /></label>

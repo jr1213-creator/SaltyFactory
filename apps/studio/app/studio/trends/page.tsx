@@ -17,7 +17,7 @@ export default async function Page() {
       <button className="sf-button sf-button-ghost" disabled title="Additional trend filters are not implemented.">More filters</button>
     </FilterBar>
     <div className="sf-grid sf-grid-4">
-      <MetricCard title="Signals captured" value={String(trends.length)} delta="Repository backed" icon="⌁" />
+      <MetricCard title="Signals captured" value={String(trends.length)} delta="Saved workspace data" icon="⌁" />
       <MetricCard title="New clusters" value={String(clusters.length)} delta="Awaiting review" tone="info" icon="◎" />
       <MetricCard title="High-opportunity phrases" value={String(phrases.length)} delta="Risk review required" tone="warning" icon="◇" />
       <MetricCard title="Review backlog" value={String(trends.filter((t:any)=>t.status==='new').length)} delta="Human review" tone="warning" icon="!" />

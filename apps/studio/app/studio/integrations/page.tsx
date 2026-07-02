@@ -39,7 +39,7 @@ export default async function Page() {
   const readiness = Math.round((configuredCount / integrations.length) * 100);
   return <>
     <PageHeader title="Integrations & AI Readiness" description="Configure real provider connections and site readiness checks. Disabled providers do not show fake live data.">
-      <a className="sf-button sf-button-secondary" href="/studio/settings/setup">Setup Wizard</a><a className="sf-button sf-button-primary" href="/studio/ai-readiness/audit">Run Site Audit</a>
+      <a className="sf-button sf-button-secondary" href="/studio/settings/setup">Setup Guide</a><a className="sf-button sf-button-primary" href="/studio/ai-readiness/audit">Run Site Audit</a>
     </PageHeader>
     <div className="sf-grid sf-grid-4">
       <AiReadinessScoreCard title="Overall AI Readiness Score" score={readiness} />

@@ -187,19 +187,19 @@ export function scoreChannelCompleteness(channels: Array<Partial<ChannelInput>>)
 }
 
 export const employeeDefinitions = [
-  ["ai_migration_guide", "AI Migration Guide", ["business_profile", "channels"], ["analyze", "recommend", "generate_checklist", "score_readiness"]],
-  ["analytics_analyst", "Analytics Analyst", ["baseline", "google_metrics"], ["analyze", "summarize", "compare_baseline", "recommend"]],
-  ["local_seo_assistant", "Local SEO Assistant", ["business_profile", "google_business_profile"], ["analyze", "recommend", "create_internal_draft"]],
-  ["content_planner", "Content Planner", ["business_profile", "channels"], ["recommend", "create_social_draft", "create_task"]],
-  ["review_summarizer", "Review Summarizer", ["google_business_profile"], ["summarize", "recommend", "create_review_reply_draft"]],
+  ["pod_migration_assistant", "POD Product Builder Assistant", ["pod_candidates"], ["analyze", "create_listing_draft", "generate_checklist"]],
   ["product_listing_assistant", "Product Listing Assistant", ["listing_drafts"], ["create_listing_draft", "flag_issue", "recommend"]],
-  ["pod_migration_assistant", "POD Migration Assistant", ["pod_candidates"], ["analyze", "create_listing_draft", "generate_checklist"]],
   ["design_safety_checker", "Design Safety Checker", ["design_assets"], ["flag_issue", "score_readiness", "recommend"]],
-  ["pricing_margin_assistant", "Pricing / Margin Assistant", ["pricing_inputs"], ["analyze", "recommend", "flag_issue"]],
+  ["pricing_margin_assistant", "Pricing & Margin Assistant", ["pricing_inputs"], ["analyze", "recommend", "flag_issue"]],
+  ["content_planner", "Content Planner", ["business_profile", "channels"], ["recommend", "create_social_draft", "create_task"]],
+  ["analytics_analyst", "Analytics Analyst", ["baseline", "google_metrics"], ["analyze", "summarize", "compare_baseline", "recommend"]],
+  ["ai_migration_guide", "Setup Guide Assistant", ["business_profile", "channels"], ["analyze", "recommend", "generate_checklist", "score_readiness"]],
+  ["local_seo_assistant", "Local SEO Assistant", ["business_profile", "google_business_profile"], ["analyze", "recommend", "create_internal_draft"]],
+  ["review_summarizer", "Review Summarizer", ["google_business_profile"], ["summarize", "recommend", "create_review_reply_draft"]],
   ["social_content_assistant", "Social Content Assistant", ["channels"], ["create_social_draft", "recommend"]],
   ["customer_faq_assistant", "Customer FAQ Assistant", ["business_profile"], ["create_internal_draft", "recommend"]],
   ["campaign_assistant", "Campaign Assistant", ["channels", "listing_drafts"], ["create_social_draft", "create_task", "recommend"]],
-  ["dropshipping_product_assistant", "Dropshipping Product Assistant", ["dropship_candidates"], ["analyze", "create_listing_draft", "flag_issue"]],
+  ["dropshipping_product_assistant", "Accessory Dropshipping Assistant", ["dropship_candidates"], ["analyze", "create_listing_draft", "flag_issue"]],
   ["marketplace_listing_assistant", "Marketplace Listing Assistant", ["channels", "listing_drafts"], ["create_listing_draft", "recommend"]],
   ["operations_checklist_assistant", "Operations Checklist Assistant", ["business_profile"], ["generate_checklist", "create_task", "flag_issue"]]
 ] as const;
@@ -323,7 +323,7 @@ export const listingDraftSchema = z.object({
   mockupIds: z.array(z.string()).optional().default([]),
   approvedMockupIds: z.array(z.string()).optional().default([]),
   price: z.number().min(0).optional(),
-  source: z.enum(["POD migration", "dropshipping", "design workflow", "manual"]).default("manual"),
+  source: z.enum(["POD product builder", "POD migration", "dropshipping", "design workflow", "manual"]).default("manual"),
   safetyStatus: z.enum(["not_checked", "passed", "blocked"]).default("not_checked"),
   marginStatus: z.enum(["not_checked", "passed", "critically_low", "owner_override"]).default("not_checked"),
   ownerApproved: z.boolean().default(false),
@@ -338,7 +338,7 @@ export function validateListingDraft(input: Partial<ListingDraftInput>) {
   if (!draft.description) blockers.push("description_required");
   if (!draft.price || draft.price <= 0) blockers.push("price_required");
   if (!draft.targetChannel) blockers.push("target_channel_required");
-  const isPod = draft.source === "POD migration" || /pod/i.test(draft.productionMethod);
+  const isPod = draft.source === "POD migration" || draft.source === "POD product builder" || /pod/i.test(draft.productionMethod);
   if (isPod && draft.approvedAssetIds.length === 0) blockers.push("approved_asset_required_for_pod");
   if (isPod && draft.approvedMockupIds.length === 0) blockers.push("approved_mockup_required_for_pod");
   if (isPod && /etsy/i.test(draft.targetChannel) && !draft.productionPartnerDisclosure) blockers.push("production_partner_disclosure_required");
@@ -402,8 +402,8 @@ export function buildMigrationRecommendations(input: { businessProfileReady?: bo
     !input.businessProfileReady && { action: "Complete Business Profile", href: "/studio/settings/business-profile", priority: 1 },
     (input.channelScore ?? 0) < 80 && { action: "Add priority social and sales channels", href: "/studio/channels", priority: 2 },
     !input.googleConnected && { action: "Connect Google data sources", href: "/studio/integrations", priority: 3 },
-    !input.baselineExists && { action: "Create baseline snapshot", href: "/studio/baseline", priority: 4 },
-    !input.podCandidates && { action: "Add first POD migration candidate", href: "/studio/pod-migration", priority: 5 }
+    !input.baselineExists && { action: "Create Baseline & Impact snapshot", href: "/studio/baseline", priority: 4 },
+    !input.podCandidates && { action: "Create first POD product idea", href: "/studio/pod-migration", priority: 5 }
   ].filter(Boolean) as Array<{ action: string; href: string; priority: number }>;
   return {
     sourceLabel,
@@ -486,17 +486,21 @@ export function validateGoogleConfiguration(input: { ga4PropertyId?: string; sea
   return { ok: blockers.length === 0, blockers };
 }
 
-export function deriveNextBestActions(input: { businessProfileScore?: number; channelScore?: number; googleStatus?: string; baselineStatus?: string; podCandidates?: number; listingDrafts?: number; storageStatus?: string; shopifyStatus?: string; printifyStatus?: string; pendingMockups?: number }) {
+export function deriveNextBestActions(input: { businessProfileScore?: number; channelScore?: number; googleStatus?: string; baselineStatus?: string; podCandidates?: number; listingDrafts?: number; storageStatus?: string; shopifyStatus?: string; printifyStatus?: string; pendingMockups?: number; assets?: number; mockups?: number; approvedProducts?: number; readyDrafts?: number }) {
+  const commerceConfigured = input.shopifyStatus === "connected" && input.printifyStatus === "connected";
   return [
     (input.businessProfileScore ?? 0) < 90 && { title: "Complete Business Profile", href: "/studio/settings/business-profile", reason: "Business readiness is incomplete." },
+    !commerceConfigured && { title: "Configure Shopify / Printify", href: "/studio/integrations", reason: "Guarded product export needs verified commerce providers." },
+    !input.podCandidates && { title: "Create first product idea", href: "/studio/pod-migration", reason: "No POD product ideas are in the builder yet." },
+    !input.assets && { title: "Upload artwork", href: "/studio/assets", reason: input.storageStatus === "connected" ? "Artwork is required before mockups and product drafts." : "Artwork is required; private storage must be configured for live uploads." },
+    !input.mockups && { title: "Create mockup", href: "/studio/mockups", reason: "Approved mockups are required before POD listing review." },
+    !input.listingDrafts && { title: "Create listing draft", href: "/studio/listing-drafts", reason: "No export-ready listing drafts exist." },
+    { title: "Check margin", href: "/studio/pricing", reason: "Pricing and margin must be reviewed before owner approval." },
+    !input.approvedProducts && { title: "Approve product", href: "/studio/publish", reason: "Owner approval gates must pass before export or sync." },
+    commerceConfigured && (input.readyDrafts ?? input.listingDrafts ?? 0) > 0 && { title: "Export/sync draft", href: "/studio/publish", reason: "Provider sync remains guarded by approval gates." },
+    input.baselineStatus !== "captured" && { title: "Track impact", href: "/studio/baseline", reason: "Baseline & Impact needs a starting snapshot." },
     (input.channelScore ?? 0) < 80 && { title: "Add social and sales channels", href: "/studio/channels", reason: "Channel completeness is below target." },
-    input.googleStatus !== "connected" && { title: "Connect Google", href: "/studio/integrations", reason: "Google data sources are not verified." },
-    input.baselineStatus !== "captured" && { title: "Create baseline", href: "/studio/baseline", reason: "Impact tracking needs a starting snapshot." },
-    !input.podCandidates && { title: "Add POD migration candidate", href: "/studio/pod-migration", reason: "No existing designs are queued for POD migration." },
-    !input.listingDrafts && { title: "Create first listing draft", href: "/studio/listing-drafts", reason: "No export-ready listing drafts exist." },
-    input.storageStatus !== "connected" && { title: "Configure Supabase Storage", href: "/studio/integrations", reason: "Private asset storage is not verified." },
-    input.shopifyStatus !== "connected" && { title: "Configure Shopify", href: "/studio/integrations", reason: "Shopify draft sync is unavailable." },
-    input.printifyStatus !== "connected" && { title: "Configure Printify", href: "/studio/integrations", reason: "Printify draft sync is unavailable." },
+    input.googleStatus !== "connected" && { title: "Connect Google Data", href: "/studio/integrations", reason: "Google data sources are not verified." },
     (input.pendingMockups ?? 0) > 0 && { title: "Approve pending mockups", href: "/studio/mockups", reason: "Mockups are waiting for owner review." }
   ].filter(Boolean) as Array<{ title: string; href: string; reason: string }>;
 }

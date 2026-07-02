@@ -10,7 +10,7 @@ export default async function ListingDraftsPage() {
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
     <div className="sf-grid sf-grid-4">
-      <MetricCard title="Drafts" value={String(lists.listingDraftsV1.length)} delta="Repository backed" />
+      <MetricCard title="Drafts" value={String(lists.listingDraftsV1.length)} delta="Saved workspace data" />
       <MetricCard title="Ready for export" value={String(ready)} delta="Validation passed" tone={ready ? "success" : "warning"} />
       <MetricCard title="Blocked" value={String(lists.listingDraftsV1.length - ready)} delta="Honest blockers" tone={lists.listingDraftsV1.length - ready ? "warning" : "success"} />
       <MetricCard title="Live sync" value="Guarded" delta="Provider + approval gates" />
@@ -19,7 +19,7 @@ export default async function ListingDraftsPage() {
       <h2>Create Listing Draft</h2>
       <form className="sf-grid sf-grid-3" action="/api/studio/listing-drafts" method="post">
         <label>Target channel<select name="targetChannel"><option value="Etsy">Etsy</option><option value="Shopify">Shopify</option><option value="manual">manual</option></select></label>
-        <label>Source<select name="source"><option value="manual">manual</option><option value="POD migration">POD migration</option><option value="dropshipping">dropshipping</option><option value="design workflow">design workflow</option></select></label>
+        <label>Source<select name="source"><option value="manual">manual</option><option value="POD product builder">POD Product Builder</option><option value="dropshipping">Accessory Dropshipping</option><option value="design workflow">design workflow</option></select></label>
         <label>Title<input name="title" required /></label>
         <label>Price<input name="price" type="number" step="0.01" /></label>
         <label>Tags<input name="tags" placeholder="western, coastal" /></label>
@@ -35,4 +35,3 @@ export default async function ListingDraftsPage() {
     <DataTable columns={["Title", "Channel", "Validation", "Approval", "Blockers"]} rows={lists.listingDraftsV1.length ? lists.listingDraftsV1.map((row: any) => [row.title, row.target_channel ?? row.targetChannel, <StatusBadge key={row.id} status={row.validation_status ?? row.validationStatus} />, row.approval_status ?? row.approvalStatus, (row.validation_blockers ?? row.validationBlockers ?? []).join(", ") || "-"]) : [["No listing drafts", "-", "blocked", "draft", "Create a draft"]]} />
   </>;
 }
-

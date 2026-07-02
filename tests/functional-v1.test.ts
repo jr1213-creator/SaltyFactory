@@ -120,8 +120,19 @@ describe("functional complete v1 domain rules", () => {
   });
 
   it("derives dashboard next best actions from honest missing setup", () => {
-    const actions = deriveNextBestActions({ businessProfileScore: 10, channelScore: 10, googleStatus: "not_configured", baselineStatus: "missing", podCandidates: 0, listingDrafts: 0, storageStatus: "not_configured", shopifyStatus: "not_configured", printifyStatus: "not_configured" });
-    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/settings/business-profile", "/studio/channels", "/studio/integrations", "/studio/baseline"]));
+    const actions = deriveNextBestActions({ businessProfileScore: 10, channelScore: 10, googleStatus: "not_configured", baselineStatus: "missing", podCandidates: 0, listingDrafts: 0, storageStatus: "not_configured", shopifyStatus: "not_configured", printifyStatus: "not_configured", assets: 0, mockups: 0, approvedProducts: 0 });
+    expect(actions.slice(0, 9).map((action) => action.title)).toEqual([
+      "Complete Business Profile",
+      "Configure Shopify / Printify",
+      "Create first product idea",
+      "Upload artwork",
+      "Create mockup",
+      "Create listing draft",
+      "Check margin",
+      "Approve product",
+      "Track impact"
+    ]);
+    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/settings/business-profile", "/studio/pod-migration", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/publish", "/studio/baseline"]));
   });
 });
 

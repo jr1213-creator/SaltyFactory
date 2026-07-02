@@ -5,7 +5,7 @@ export default function Page() {
     <PageHeader title="Website AI Readiness Audit" description="Run a server-side safe audit for SEO, AEO, GEO, structured data, crawlability, and proposed AI-readable content signals." />
     <section className="sf-card">
       <h2>Audit API</h2>
-      <p className="sf-muted">POST a public website URL to <code>/api/studio/site-audit/run</code>. The route requires Studio auth, workspace membership, SSRF-safe URL validation, timeout limits, and repository-backed persistence.</p>
+      <p className="sf-muted">POST a public website URL to <code>/api/studio/site-audit/run</code>. The route requires Studio auth, workspace membership, SSRF-safe URL validation, timeout limits, and saved workspace persistence.</p>
       <div className="sf-button-row">
         <StatusBadge status="Protected" tone="success" />
         <StatusBadge status="SSRF guarded" tone="success" />

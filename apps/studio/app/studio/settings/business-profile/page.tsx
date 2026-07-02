@@ -13,7 +13,7 @@ export default async function BusinessProfilePage() {
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
     <div className="sf-grid sf-grid-4">
-      <MetricCard title="Readiness" value={`${readiness.score}%`} delta="Repository backed" tone={readiness.score >= 90 ? "success" : "warning"} />
+      <MetricCard title="Readiness" value={`${readiness.score}%`} delta="Saved workspace data" tone={readiness.score >= 90 ? "success" : "warning"} />
       <MetricCard title="Brand" value={String(profile?.public_brand_name ?? profileJson.publicBrandName ?? "Not set")} delta="Public-facing" />
       <MetricCard title="Model" value={String(profile?.business_type ?? profileJson.businessType ?? "Not set")} delta="Business type" />
       <MetricCard title="Fulfillment" value={String(profile?.fulfillment_model ?? profileJson.fulfillmentModel ?? "Not set")} delta="Workflow routing" />

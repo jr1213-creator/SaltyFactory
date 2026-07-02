@@ -36,7 +36,7 @@ export function PublishWorkflowClient({ initialReviews }: { initialReviews: Revi
   }
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
-    <h2>Repository-backed Review Actions</h2>
+    <h2>Saved Review Actions</h2>
     <label>Review<select value={selectedReviewId} onChange={(event) => setSelectedReviewId(event.target.value)}>{reviews.map((review) => <option key={review.id} value={review.id}>{review.product_draft_id ?? review.productDraftId ?? review.id}</option>)}</select></label>
     {selected ? <p className="sf-muted">{selected.status ?? "pending"} · gates {(selected.all_gates_passed || selected.allGatesPassed) ? "passed" : "blocked"} · provider sync remains separate and disabled until connected.</p> : <p className="sf-muted">Create a publish review from a validated draft first.</p>}
     <div className="sf-action-bar">

@@ -72,7 +72,7 @@ async function readBody(req: Request) {
         data[cleanKey] = [...(Array.isArray(data[cleanKey]) ? data[cleanKey] as string[] : []), text].filter(Boolean);
       } else if (["targetProductTypes", "targetChannels", "shippingRegions", "tags", "seoKeywords", "brandColors", "productCategories", "bannedWords", "trademarkCautionList"].includes(key)) {
         data[key] = text.split(",").map((item) => item.trim()).filter(Boolean);
-      } else if (["ownerPriority", "currentStep", "salePrice", "baseProductCost", "shippingCost", "supplierCost", "deliveryEstimateDays", "brandFitScore", "price"].includes(key)) {
+      } else if (["ownerPriority", "currentStep", "salePrice", "baseProductCost", "shippingCost", "packagingHandlingCost", "platformFeePercent", "paymentFeePercent", "fixedTransactionFee", "adCostEstimate", "discountPercent", "minimumMarginPercent", "supplierCost", "deliveryEstimateDays", "brandFitScore", "price"].includes(key)) {
         data[key] = text === "" ? undefined : Number(text);
       } else if (["includeInAiRecommendations", "ownerApproved", "listingReady", "mockupsApproved", "aiProviderConfigured", "googleConnected", "supportsRulesOnly"].includes(key)) {
         data[key] = text === "on" || text === "true";

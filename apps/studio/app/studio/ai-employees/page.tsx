@@ -7,7 +7,7 @@ export default async function Page() {
   const lists = await getStudioLists();
   const configured = new Map(lists.aiEmployees.map((row: any) => [row.employee_key ?? row.employeeKey, row]));
   return <>
-    <PageHeader title="AI Employees" description="Operational assistants with explicit permissions, setup blockers, activity logs, and human review requirements." />
+    <PageHeader title="AI Employees" description="POD business assistants for product ideas, listings, design safety, pricing, content, analytics, and owner-reviewed next actions." />
     <div className="sf-grid sf-grid-3">{employeeDefinitions.map(([key, name, requiredSources, allowedActions]) => {
       const row = configured.get(key) as any;
       return <AiEmployeeCard key={key} name={name} role={requiredSources.join(", ")} status={row?.status ?? "setup_needed"} tasks={String(allowedActions.length)} description="Drafts and recommendations only." />;
