@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   functionalV1StudioTables,
   migrationStatements,
+  requiredStudioColumnShapes,
   requiredStudioTableColumns,
   requiredStudioTables,
   tablesCreatedByMigration
@@ -68,6 +69,10 @@ describe("local database schema apply", () => {
     ]));
     expect(apply).toContain("Required Studio table columns are missing after schema apply");
     expect(apply).toContain('alter table "audit_events" add column if not exists "updated_at"');
+    expect(requiredStudioColumnShapes["audit_events.id"]).toMatchObject({ udtName: "text" });
+    expect(requiredStudioColumnShapes["audit_events.event_type"]).toMatchObject({ nullableIfPresent: true });
+    expect(apply).toContain('alter table "audit_events" alter column "id" type text using "id"::text');
+    expect(apply).toContain('alter table "audit_events" alter column "event_type" drop not null');
   });
 
   it("detects migration-created tables so applied-journal drift can be repaired", () => {

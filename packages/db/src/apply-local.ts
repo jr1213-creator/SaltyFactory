@@ -53,6 +53,11 @@ export const requiredStudioTableColumns: Record<string, string[]> = {
   ]
 };
 
+export const requiredStudioColumnShapes = {
+  "audit_events.id": { udtName: "text" },
+  "audit_events.event_type": { nullableIfPresent: true }
+} as const;
+
 const requiredColumnRepairStatements: Record<string, string> = {
   "audit_events.id": `alter table "audit_events" add column if not exists "id" text`,
   "audit_events.workspace_id": `alter table "audit_events" add column if not exists "workspace_id" text`,
@@ -68,6 +73,16 @@ const requiredColumnRepairStatements: Record<string, string> = {
   "audit_events.after_state": `alter table "audit_events" add column if not exists "after_state" text`,
   "audit_events.notes": `alter table "audit_events" add column if not exists "notes" text`,
   "audit_events.metadata": `alter table "audit_events" add column if not exists "metadata" jsonb default '{}'::jsonb not null`
+};
+
+const requiredColumnShapeRepairStatements: Record<string, string[]> = {
+  "audit_events.id": [
+    `alter table "audit_events" alter column "id" drop default`,
+    `alter table "audit_events" alter column "id" type text using "id"::text`
+  ],
+  "audit_events.event_type": [
+    `alter table "audit_events" alter column "event_type" drop not null`
+  ]
 };
 
 const envKeysThatMustMatch = [
@@ -173,6 +188,25 @@ async function missingColumns(sql: postgres.Sql, table: string, columns: string[
   return columns.filter((column) => !present.has(column));
 }
 
+type ColumnShape = {
+  table_name: string;
+  column_name: string;
+  data_type: string;
+  udt_name: string;
+  is_nullable: "YES" | "NO";
+};
+
+async function getColumnShapes(sql: postgres.Sql, table: string, columns: string[]) {
+  if (!columns.length) return [];
+  return sql<ColumnShape[]>`
+    select table_name, column_name, data_type, udt_name, is_nullable
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = ${table}
+      and column_name in ${sql(columns)}
+  `;
+}
+
 async function assertRequiredTables(sql: postgres.Sql) {
   const missing = await missingTables(sql, requiredStudioTables);
   if (missing.length) throw new Error(`Required Studio tables are missing after schema apply: ${missing.join(", ")}`);
@@ -199,6 +233,38 @@ async function assertRequiredColumns(sql: postgres.Sql) {
     if (missing.length) missingByTable.push(`${table}: ${missing.join(", ")}`);
   }
   if (missingByTable.length) throw new Error(`Required Studio table columns are missing after schema apply: ${missingByTable.join("; ")}`);
+}
+
+async function repairRequiredColumnShapes(sql: postgres.Sql) {
+  const repaired: { table: string; column: string; issue: string }[] = [];
+  const auditColumns = await getColumnShapes(sql, "audit_events", ["id", "event_type"]);
+  const byName = new Map(auditColumns.map((column) => [column.column_name, column]));
+  const idColumn = byName.get("id");
+  if (idColumn && idColumn.udt_name !== requiredStudioColumnShapes["audit_events.id"].udtName) {
+    const statements = requiredColumnShapeRepairStatements["audit_events.id"] ?? [];
+    for (const statement of statements) await sql.unsafe(statement);
+    repaired.push({ table: "audit_events", column: "id", issue: "type_mismatch" });
+  }
+  const eventTypeColumn = byName.get("event_type");
+  if (eventTypeColumn && eventTypeColumn.is_nullable === "NO") {
+    const statements = requiredColumnShapeRepairStatements["audit_events.event_type"] ?? [];
+    for (const statement of statements) await sql.unsafe(statement);
+    repaired.push({ table: "audit_events", column: "event_type", issue: "not_null_legacy_column" });
+  }
+  return repaired;
+}
+
+async function assertRequiredColumnShapes(sql: postgres.Sql) {
+  const auditColumns = await getColumnShapes(sql, "audit_events", ["id", "event_type"]);
+  const byName = new Map(auditColumns.map((column) => [column.column_name, column]));
+  const idColumn = byName.get("id");
+  if (idColumn && idColumn.udt_name !== requiredStudioColumnShapes["audit_events.id"].udtName) {
+    throw new Error(`Required Studio table column type mismatch after schema apply: audit_events.id`);
+  }
+  const eventTypeColumn = byName.get("event_type");
+  if (eventTypeColumn && eventTypeColumn.is_nullable === "NO") {
+    throw new Error(`Legacy audit_events.event_type must be nullable for Studio audit writes`);
+  }
 }
 
 async function applyMigrationStatements(sql: postgres.Sql, sqlText: string) {
@@ -257,8 +323,12 @@ export async function applyLocalSchema() {
     }
 
     await assertRequiredTables(sql);
-    repairedColumns = await repairRequiredColumns(sql);
+    repairedColumns = [
+      ...await repairRequiredColumns(sql),
+      ...await repairRequiredColumnShapes(sql)
+    ];
     await assertRequiredColumns(sql);
+    await assertRequiredColumnShapes(sql);
     return {
       ok: true,
       applied,
@@ -267,6 +337,7 @@ export async function applyLocalSchema() {
       statementsApplied,
       requiredTablesVerified: requiredStudioTables,
       requiredColumnsVerified: requiredStudioTableColumns,
+      requiredColumnShapesVerified: requiredStudioColumnShapes,
       note: "Foreign-key statements are skipped for local apply so existing Supabase-owned/incompatible tables are preserved."
     };
   } finally {
