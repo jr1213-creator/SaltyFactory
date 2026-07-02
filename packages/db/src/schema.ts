@@ -32,6 +32,13 @@ const optionalActors = () => ({
   metadata
 });
 
+const sharedOwnership = () => ({
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  createdAt,
+  updatedAt
+});
+
 export const users = pgTable("users", {
   id,
   email: text("email").notNull(),
@@ -1880,6 +1887,320 @@ export const crmAvailabilityReadiness = pgTable("crm_availability_readiness", {
   providerIdx: index("crm_availability_readiness_provider_idx").on(table.workspaceId, table.calendarProvider)
 }));
 
+export const providerConnections = pgTable("provider_connections", {
+  id,
+  ...sharedOwnership(),
+  provider: text("provider").notNull(),
+  status: text("status").notNull().default("not_configured"),
+  blockers: jsonb("blockers").$type<string[]>().notNull().default([]),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  sourceRecordId: text("source_record_id"),
+  metadata
+}, (table) => ({
+  providerUnique: uniqueIndex("provider_connections_workspace_provider_unique").on(table.workspaceId, table.provider),
+  statusIdx: index("provider_connections_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const sourceRecords = pgTable("source_records", {
+  id,
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  origin: text("origin").notNull().default("manual"),
+  sourceName: text("source_name").notNull(),
+  sourceLabel: text("source_label").notNull(),
+  sourceUrl: text("source_url"),
+  provider: text("provider"),
+  rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
+  confidence: confidence(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  ownerVerifiedAt: timestamp("owner_verified_at", { withTimezone: true }),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  originIdx: index("source_records_origin_idx").on(table.workspaceId, table.origin),
+  providerIdx: index("source_records_provider_idx").on(table.workspaceId, table.provider)
+}));
+
+export const events = pgTable("events", {
+  id,
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  eventType: text("event_type").notNull(),
+  eventLabel: text("event_label").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id),
+  sourceLabel: text("source_label"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  entityIdx: index("events_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  typeIdx: index("events_type_idx").on(table.workspaceId, table.eventType)
+}));
+
+export const auditLog = pgTable("audit_log", {
+  id,
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  actorId: text("actor_id").references(() => users.id),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  action: text("action").notNull(),
+  before: jsonb("before").$type<Record<string, unknown> | null>(),
+  after: jsonb("after").$type<Record<string, unknown> | null>(),
+  diff: jsonb("diff").$type<Record<string, unknown> | null>(),
+  requestId: text("request_id"),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  entityIdx: index("audit_log_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  actorIdx: index("audit_log_actor_idx").on(table.workspaceId, table.actorId)
+}));
+
+export const approvals = pgTable("approvals", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  approvalType: text("approval_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  requestedBy: text("requested_by").references(() => users.id),
+  decidedBy: text("decided_by").references(() => users.id),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  notes: text("notes"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  entityIdx: index("approvals_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  statusIdx: index("approvals_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const tasks = pgTable("tasks", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("normal"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  assignedTo: text("assigned_to").references(() => users.id),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id),
+  recommendationId: text("recommendation_id")
+}, (table) => ({
+  entityIdx: index("tasks_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  dueIdx: index("tasks_due_status_idx").on(table.workspaceId, table.status, table.dueAt)
+}));
+
+export const notes = pgTable("notes", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  body: text("body").notNull(),
+  noteType: text("note_type").notNull().default("owner_note"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id),
+  createdBy: text("created_by").references(() => users.id)
+}, (table) => ({
+  entityIdx: index("notes_entity_idx").on(table.workspaceId, table.entityType, table.entityId)
+}));
+
+export const recommendations = pgTable("recommendations", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  recommendationType: text("recommendation_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  kind: text("kind").notNull().default("rule_based"),
+  confidence: confidence(),
+  status: text("status").notNull().default("pending"),
+  automationRuleId: text("automation_rule_id"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  entityIdx: index("recommendations_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  statusIdx: index("recommendations_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const readinessScores = pgTable("readiness_scores", {
+  id,
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  scoreType: text("score_type").notNull(),
+  scoreValue: integer("score_value").notNull().default(0),
+  maxScore: integer("max_score").notNull().default(100),
+  status: text("status").notNull().default("setup_needed"),
+  criteria: jsonb("criteria").$type<Array<Record<string, unknown>>>().notNull().default([]),
+  blockers: jsonb("blockers").$type<string[]>().notNull().default([]),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id),
+  calculatedAt: timestamp("calculated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  entityIdx: index("readiness_scores_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  typeIdx: index("readiness_scores_type_idx").on(table.workspaceId, table.scoreType)
+}));
+
+export const exportPackages = pgTable("export_packages", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  packageType: text("package_type").notNull(),
+  title: text("title").notNull(),
+  content: jsonb("content").$type<Record<string, unknown>>().notNull().default({}),
+  version: integer("version").notNull().default(1),
+  status: text("status").notNull().default("draft"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  entityIdx: index("export_packages_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  typeIdx: index("export_packages_type_idx").on(table.workspaceId, table.packageType)
+}));
+
+export const assets = pgTable("assets", {
+  id,
+  ...sharedOwnership(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  assetType: text("asset_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  fileRef: text("file_ref"),
+  spec: jsonb("spec").$type<Record<string, unknown> | null>(),
+  status: text("status").notNull().default("needed"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  entityIdx: index("assets_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  typeIdx: index("assets_type_idx").on(table.workspaceId, table.assetType)
+}));
+
+export const templates = pgTable("templates", {
+  id,
+  workspaceId: text("workspace_id").references(() => workspaces.id),
+  accountId: text("account_id"),
+  verticalPackId: text("vertical_pack_id"),
+  templateType: text("template_type").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  content: jsonb("content").$type<Record<string, unknown>>().notNull().default({}),
+  version: integer("version").notNull().default(1),
+  status: text("status").notNull().default("active"),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  typeIdx: index("templates_type_idx").on(table.workspaceId, table.templateType),
+  nameIdx: index("templates_name_idx").on(table.workspaceId, table.name)
+}));
+
+export const automationRules = pgTable("automation_rules", {
+  id,
+  workspaceId: text("workspace_id").references(() => workspaces.id),
+  accountId: text("account_id"),
+  verticalPackId: text("vertical_pack_id"),
+  name: text("name").notNull(),
+  trigger: text("trigger").notNull(),
+  condition: jsonb("condition").$type<Record<string, unknown>>().notNull().default({}),
+  action: jsonb("action").$type<Record<string, unknown>>().notNull().default({}),
+  active: boolean("active").notNull().default(true),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  triggerIdx: index("automation_rules_trigger_idx").on(table.workspaceId, table.trigger)
+}));
+
+export const segments = pgTable("segments", {
+  id,
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  accountId: text("account_id"),
+  verticalPackId: text("vertical_pack_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  entityType: text("entity_type").notNull().default("customer"),
+  queryDefinition: jsonb("query_definition").$type<Record<string, unknown>>().notNull().default({}),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  entityIdx: index("segments_entity_idx").on(table.workspaceId, table.entityType),
+  nameIdx: index("segments_name_idx").on(table.workspaceId, table.name)
+}));
+
+export const verticalPacks = pgTable("vertical_packs", {
+  id,
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+  status: text("status").notNull().default("active"),
+  createdAt,
+  updatedAt
+}, (table) => ({
+  keyUnique: uniqueIndex("vertical_packs_key_unique").on(table.key)
+}));
+
+export const campaigns = pgTable("campaigns", {
+  id,
+  ...sharedOwnership(),
+  verticalPackId: text("vertical_pack_id").references(() => verticalPacks.id),
+  name: text("name").notNull(),
+  campaignType: text("campaign_type").notNull().default("product_launch"),
+  goal: text("goal").notNull().default("manual_export_ready_campaign"),
+  productRef: text("product_ref"),
+  offerRef: text("offer_ref"),
+  manualOffer: jsonb("manual_offer").$type<Record<string, unknown> | null>(),
+  targetSegmentId: text("target_segment_id").references(() => segments.id),
+  audience: text("audience"),
+  offer: text("offer"),
+  landingUrl: text("landing_url"),
+  status: text("status").notNull().default("draft"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  statusIdx: index("campaigns_status_idx").on(table.workspaceId, table.status),
+  typeIdx: index("campaigns_type_idx").on(table.workspaceId, table.campaignType)
+}));
+
+export const campaignChannels = pgTable("campaign_channels", {
+  id,
+  ...sharedOwnership(),
+  campaignId: text("campaign_id").references(() => campaigns.id),
+  channelType: text("channel_type").notNull(),
+  draftContent: jsonb("draft_content").$type<Record<string, unknown>>().notNull().default({}),
+  status: text("status").notNull().default("draft"),
+  providerConnectionId: text("provider_connection_id").references(() => providerConnections.id),
+  approvalId: text("approval_id").references(() => approvals.id),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  campaignIdx: index("campaign_channels_campaign_idx").on(table.workspaceId, table.campaignId),
+  channelIdx: index("campaign_channels_type_idx").on(table.workspaceId, table.channelType, table.status)
+}));
+
+export const utmLinks = pgTable("utm_links", {
+  id,
+  ...sharedOwnership(),
+  campaignId: text("campaign_id").references(() => campaigns.id),
+  channelId: text("channel_id").references(() => campaignChannels.id),
+  baseUrl: text("base_url").notNull(),
+  source: text("source").notNull(),
+  medium: text("medium").notNull(),
+  campaignName: text("campaign_name").notNull(),
+  term: text("term"),
+  content: text("content"),
+  generatedUrl: text("generated_url").notNull(),
+  status: text("status").notNull().default("draft"),
+  sourceRecordId: text("source_record_id").references(() => sourceRecords.id)
+}, (table) => ({
+  campaignIdx: index("utm_links_campaign_idx").on(table.workspaceId, table.campaignId),
+  statusIdx: index("utm_links_status_idx").on(table.workspaceId, table.status)
+}));
+
 export const tables = {
   users,
   organizations,
@@ -1969,6 +2290,24 @@ export const tables = {
   crmBookingRequests,
   crmConsultations,
   crmAvailabilityReadiness,
+  providerConnections,
+  sourceRecords,
+  events,
+  auditLog,
+  approvals,
+  tasks,
+  notes,
+  recommendations,
+  readinessScores,
+  exportPackages,
+  assets,
+  templates,
+  automationRules,
+  segments,
+  verticalPacks,
+  campaigns,
+  campaignChannels,
+  utmLinks,
   connectedStores,
   providerConnectionStatus,
   encryptedCredentials,

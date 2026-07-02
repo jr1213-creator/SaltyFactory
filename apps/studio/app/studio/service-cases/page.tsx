@@ -10,6 +10,7 @@ export default async function ServiceCasesPage() {
   const openCases = serviceCases.filter((item: any) => String(item.status ?? "open") !== "closed");
   return <>
     <PageHeader eyebrow="Service workflow" title="Service Cases" description="Service case foundation for customer support, custom order issues, fulfillment questions, and resolution notes.">
+      <LinkButton href="/studio/service-cases/new">Create Service Case</LinkButton>
       <LinkButton href="/studio/customer-inbox">Customer Inbox</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
@@ -21,13 +22,14 @@ export default async function ServiceCasesPage() {
     </div>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Service Case Queue</h2>
-      <DataTable columns={["Subject", "Customer", "Priority", "Status", "Channel"]} rows={serviceCases.length ? serviceCases.map((item: any) => [
+      <DataTable columns={["Subject", "Customer", "Priority", "Status", "Channel", "Open"]} rows={serviceCases.length ? serviceCases.map((item: any) => [
         item.subject,
         item.customer_id ?? item.customerId ?? "-",
         <StatusBadge key={`${item.id}-priority`} status={String(item.priority ?? "normal").replace(/_/g, " ")} />,
         String(item.status ?? "open").replace(/_/g, " "),
-        item.channel ?? "manual"
-      ]) : [["No service cases", "Support cases appear after manual entry or inbox integration.", <StatusBadge key="normal" status="normal" />, "empty", "not configured"]]} />
+        item.channel ?? "manual",
+        <a key={item.id} href={`/studio/service-cases/${item.id}`}>Open</a>
+      ]) : [["No service cases", "Support cases appear after manual entry or inbox integration.", <StatusBadge key="normal" status="normal" />, "empty", "not configured", "-"]]} />
     </section>
     <ProviderStatusCard title="Live support inbox" status="not configured" tone="warning" description="No live chat, email, or social inbox is connected in this pass." />
   </>;

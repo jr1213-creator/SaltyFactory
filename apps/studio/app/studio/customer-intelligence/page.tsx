@@ -33,6 +33,19 @@ export default async function CustomerIntelligencePage() {
         ])}
       />
     </section>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Add Manual Event</h2>
+      <p className="sf-muted">Use this for owner-entered or imported customer intelligence events. It does not imply live website tracking.</p>
+      <form className="sf-grid sf-grid-2" action="/api/studio/crm/intelligence" method="post">
+        <input type="hidden" name="next" value="/studio/customer-intelligence" />
+        <label>Event type<select name="event_type" defaultValue="custom_event">{customerEventTypes.map((eventType) => <option key={eventType} value={eventType}>{eventType.replace(/_/g, " ")}</option>)}</select></label>
+        <label>Event name<input name="event_name" defaultValue="Manual customer event" required /></label>
+        <label>Customer ID<input name="customer_id" /></label>
+        <label>Source<select name="source_label" defaultValue="manual_entry"><option value="manual_entry">Manual entry</option><option value="website_event">Website event import</option><option value="campaign">Campaign</option><option value="system_generated">System-generated</option></select></label>
+        <label>Properties JSON<textarea name="properties_json" defaultValue="{}" /></label>
+        <button className="sf-button" type="submit">Save Event</button>
+      </form>
+    </section>
     <div className="sf-grid sf-grid-3" style={{ marginTop: 18 }}>
       <ProviderStatusCard title="Session replay" status="not implemented" tone="warning" description="No session replay is recorded or displayed." />
       <ProviderStatusCard title="Surveys" status="foundation ready" tone="info" description="Survey records exist; public survey delivery is not implemented." />

@@ -161,6 +161,17 @@ for (const path of [
 }
 const socialRoute = studioRoute("social-planner");
 if (/auto.?post|publishTo|createPost/i.test(socialRoute) && !socialRoute.includes("autoPosting: false")) failures.push("Social planner must not expose auto-posting");
+
+for (const file of files.filter((file) => file.replace(/\\/g, "/").includes("apps/studio/app/studio/marketing") || file.replace(/\\/g, "/").includes("apps/studio/app/api/studio/marketing"))) {
+  const content = text(file);
+  if (/googleads\.googleapis\.com|graph\.facebook\.com|pinterest\.com\/v5|sendgrid|mailgun|resend\.emails|postmark|klaviyo/i.test(content)) {
+    failures.push(`${file}: Marketing Command Center must not call live ad/social/email execution APIs in this pass`);
+  }
+  if (/submitFeed|createLiveCampaign|publishPost|sendCampaignEmail|spendBudget|chargeCard/i.test(content)) {
+    failures.push(`${file}: Marketing Command Center must remain manual/export-ready and approval-gated`);
+  }
+}
+
 const storageText = text(join(root, "packages/storage/src/index.ts"));
 if (!storageText.includes("asset_not_approved_for_public_url")) failures.push("Storage adapter must block public URLs for unapproved assets");
 if (/serviceRoleKey[\s\S]{0,300}return .*serviceRoleKey/.test(storageText)) failures.push("Storage adapter must not return service role key");

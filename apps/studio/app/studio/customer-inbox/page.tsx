@@ -12,6 +12,7 @@ export default async function CustomerInboxPage() {
       title="Customer Inbox"
       description="Support conversations, cases, notes, timeline context, and inbox channel readiness. Website chat, email inbox, and social channels are not live integrations in this pass."
     >
+      <LinkButton href="/studio/customer-inbox/new">Create Conversation</LinkButton>
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
@@ -23,13 +24,14 @@ export default async function CustomerInboxPage() {
     </div>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Conversations</h2>
-      <DataTable columns={["Conversation", "Customer", "Channel", "Status", "Source"]} rows={data.conversations.length ? data.conversations.map((conversation: any) => [
+      <DataTable columns={["Conversation", "Customer", "Channel", "Status", "Source", "Open"]} rows={data.conversations.length ? data.conversations.map((conversation: any) => [
         conversation.subject ?? conversation.id,
         conversation.customer_id ?? conversation.customerId ?? "-",
         conversation.channel ?? "manual",
         conversation.status ?? "open",
-        data.sourceLabelFor(conversation.source_label ?? conversation.sourceLabel)
-      ]) : [["No conversations", "Support conversations appear after inbox channels are configured.", "not configured", "empty", "System-generated"]]} />
+        data.sourceLabelFor(conversation.source_label ?? conversation.sourceLabel),
+        <a key={conversation.id} href={`/studio/customer-inbox/${conversation.id}`}>Open</a>
+      ]) : [["No conversations", "Support conversations appear after inbox channels are configured.", "not configured", "empty", "System-generated", "-"]]} />
     </section>
     <div className="sf-grid sf-grid-3" style={{ marginTop: 18 }}>
       <ProviderStatusCard title="Website chat" status="not configured" tone="warning" description="Live website chat is a future/support provider integration." />

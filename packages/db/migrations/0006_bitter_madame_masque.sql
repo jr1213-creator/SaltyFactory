@@ -1,0 +1,1 @@
+ALTER TABLE "readiness_scores" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;

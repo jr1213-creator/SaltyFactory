@@ -15,6 +15,7 @@ export default async function OpportunitiesPage() {
   const activeOpportunities = opportunities.filter((opportunity: any) => !["closed", "lost", "won"].includes(String(opportunity.status ?? "").toLowerCase()));
   return <>
     <PageHeader eyebrow="CRM depth" title="Opportunities" description="Opportunity and pipeline foundation for custom orders, wholesale, boutique, and consultation-driven work.">
+      <LinkButton href="/studio/opportunities/new">Create Opportunity</LinkButton>
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
@@ -26,13 +27,14 @@ export default async function OpportunitiesPage() {
     </div>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Opportunity Pipeline</h2>
-      <DataTable columns={["Opportunity", "Customer/lead", "Stage", "Estimated value", "Next action"]} rows={opportunities.length ? opportunities.map((opportunity: any) => [
+      <DataTable columns={["Opportunity", "Customer/lead", "Stage", "Estimated value", "Next action", "Open"]} rows={opportunities.length ? opportunities.map((opportunity: any) => [
         opportunity.title,
         opportunity.customer_id ?? opportunity.customerId ?? opportunity.lead_id ?? opportunity.leadId ?? "-",
         String(opportunity.stage ?? opportunity.status ?? "new").replace(/_/g, " "),
         money(opportunity.estimated_value ?? opportunity.estimatedValue),
-        opportunity.next_action ?? opportunity.nextAction ?? "Review next action"
-      ]) : [["No opportunities", "Create from leads, customer requests, or manual entry.", "empty", "-", "Set up lead intake"]]} />
+        opportunity.next_action ?? opportunity.nextAction ?? "Review next action",
+        <a key={opportunity.id} href={`/studio/opportunities/${opportunity.id}`}>Open</a>
+      ]) : [["No opportunities", "Create from leads, customer requests, or manual entry.", "empty", "-", "Set up lead intake", "-"]]} />
     </section>
     <ProviderStatusCard title="Revenue claims" status="disabled" tone="warning" description="No opportunity revenue is shown until real opportunity records exist." />
   </>;

@@ -27,6 +27,7 @@ export default async function CustomerCommandCenterPage() {
     >
       <LinkButton href="/studio/customers">Open Customers</LinkButton>
       <LinkButton href="/studio/customer-capture" variant="secondary">Customer Capture</LinkButton>
+      <LinkButton href="/studio/customer-command-center/setup" variant="secondary">Setup Customer Defaults</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
     {summary.emptyState && <EmptyState

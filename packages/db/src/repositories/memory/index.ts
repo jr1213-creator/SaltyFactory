@@ -546,6 +546,49 @@ export class CrmRepository {
   }
 }
 
+export class SharedKernelRepository {
+  readonly providerConnections: BaseRepository;
+  readonly sourceRecords: BaseRepository;
+  readonly events: BaseRepository;
+  readonly auditLog: BaseRepository;
+  readonly approvals: BaseRepository;
+  readonly tasks: BaseRepository;
+  readonly notes: BaseRepository;
+  readonly recommendations: BaseRepository;
+  readonly readinessScores: BaseRepository;
+  readonly exportPackages: BaseRepository;
+  readonly assets: BaseRepository;
+  readonly templates: BaseRepository;
+  readonly automationRules: BaseRepository;
+  readonly segments: BaseRepository;
+  readonly verticalPacks: BaseRepository;
+  readonly campaigns: BaseRepository;
+  readonly campaignChannels: BaseRepository;
+  readonly utmLinks: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.providerConnections = repo("provider_connections");
+    this.sourceRecords = repo("source_records");
+    this.events = repo("events");
+    this.auditLog = repo("audit_log");
+    this.approvals = repo("approvals");
+    this.tasks = repo("tasks");
+    this.notes = repo("notes");
+    this.recommendations = repo("recommendations");
+    this.readinessScores = repo("readiness_scores");
+    this.exportPackages = repo("export_packages");
+    this.assets = repo("assets");
+    this.templates = repo("templates");
+    this.automationRules = repo("automation_rules");
+    this.segments = repo("segments");
+    this.verticalPacks = repo("vertical_packs");
+    this.campaigns = repo("campaigns");
+    this.campaignChannels = repo("campaign_channels");
+    this.utmLinks = repo("utm_links");
+  }
+}
+
 export function createMemoryRepositories(store = createRepositoryStore()) {
   const audit = new AuditEventRepository(store);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -585,7 +628,8 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     marketing: new MarketingRepository(store, writer),
     support: new SupportRepository(store, writer),
     billing: new BillingRepository(store, writer),
-    crm: new CrmRepository(store, writer)
+    crm: new CrmRepository(store, writer),
+    shared: new SharedKernelRepository(store, writer)
   };
 }
 

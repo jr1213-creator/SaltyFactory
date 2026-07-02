@@ -94,6 +94,7 @@ function emptyCustomerCommandCenterState(setupKind = "", setupMessage = "") {
     forms: [] as WorkspaceRow[],
     campaigns: [] as WorkspaceRow[],
     conversations: [] as WorkspaceRow[],
+    conversationMessages: [] as WorkspaceRow[],
     appointmentTypes: [] as WorkspaceRow[],
     bookingRequests: [] as WorkspaceRow[],
     consultations: [] as WorkspaceRow[],
@@ -132,13 +133,14 @@ export async function getCustomerCommandCenterData() {
       customers,
       leads,
       opportunities,
-      tasks,
-      notes,
+      crmTasks,
+      crmNotes,
       timelineEvents,
       persistedSegments,
       forms,
       campaigns,
       conversations,
+      conversationMessages,
       appointmentTypes,
       bookingRequests,
       consultations,
@@ -147,7 +149,10 @@ export async function getCustomerCommandCenterData() {
       serviceCases,
       externalRefs,
       consents,
-      providerConnections
+      providerConnections,
+      sharedTasks,
+      sharedNotes,
+      sharedEvents
     ] = await Promise.all([
       repos.crm.customers.listByWorkspace(studioWorkspaceId),
       repos.crm.leads.listByWorkspace(studioWorkspaceId),
@@ -159,6 +164,7 @@ export async function getCustomerCommandCenterData() {
       repos.crm.forms.listByWorkspace(studioWorkspaceId),
       repos.crm.campaigns.listByWorkspace(studioWorkspaceId),
       repos.crm.conversations.listByWorkspace(studioWorkspaceId),
+      repos.crm.conversationMessages.listByWorkspace(studioWorkspaceId),
       repos.crm.appointmentTypes.listByWorkspace(studioWorkspaceId),
       repos.crm.bookingRequests.listByWorkspace(studioWorkspaceId),
       repos.crm.consultations.listByWorkspace(studioWorkspaceId),
@@ -167,8 +173,14 @@ export async function getCustomerCommandCenterData() {
       repos.crm.serviceCases.listByWorkspace(studioWorkspaceId),
       repos.crm.externalRefs.listByWorkspace(studioWorkspaceId),
       repos.crm.consents.listByWorkspace(studioWorkspaceId),
-      repos.integration.listProviderConnectionsForWorkspace(studioWorkspaceId)
+      repos.integration.listProviderConnectionsForWorkspace(studioWorkspaceId),
+      repos.shared.tasks.listByWorkspace(studioWorkspaceId),
+      repos.shared.notes.listByWorkspace(studioWorkspaceId),
+      repos.shared.events.listByWorkspace(studioWorkspaceId)
     ]);
+    const tasks = [...crmTasks, ...sharedTasks];
+    const notes = [...crmNotes, ...sharedNotes];
+    const allEvents = [...events, ...sharedEvents];
     const shopifyStatus = providerStatus(providerConnections, "shopify");
     const defaultSegments = defaultSegmentRows();
     const persistedSegmentKeys = new Set(persistedSegments.map((segment) => String(segment.key ?? segment.segment_key ?? segment.name ?? segment.id)));
@@ -185,7 +197,7 @@ export async function getCustomerCommandCenterData() {
       campaigns,
       conversations,
       consultations,
-      events,
+      events: allEvents,
       shopifyStatus
     });
     const nextActions = customers.flatMap((customer) => {
@@ -196,7 +208,7 @@ export async function getCustomerCommandCenterData() {
         customer,
         openSupportCases: openCases,
         productInterests: customerInterests,
-        abandonedCartEventsAvailable: events.some((event) => String(event.event_type ?? event.eventType ?? "") === "add_to_cart")
+        abandonedCartEventsAvailable: allEvents.some((event) => String(event.event_type ?? event.eventType ?? "") === "add_to_cart")
       }).map((action) => ({
         id: `next_${customerId}_${action.actionType}`,
         customerId,
@@ -221,10 +233,11 @@ export async function getCustomerCommandCenterData() {
       forms: forms.map(safeCrmRow),
       campaigns: campaigns.map(safeCrmRow),
       conversations: conversations.map(safeCrmRow),
+      conversationMessages: conversationMessages.map(safeCrmRow),
       appointmentTypes: appointmentTypes.map(safeCrmRow),
       bookingRequests: bookingRequests.map(safeCrmRow),
       consultations: consultations.map(safeCrmRow),
-      events: events.map(safeCrmRow),
+      events: allEvents.map(safeCrmRow),
       productInterests: productInterests.map(safeCrmRow),
       externalRefs: externalRefs.map(safeCrmRow),
       consents: consents.map(safeCrmRow),

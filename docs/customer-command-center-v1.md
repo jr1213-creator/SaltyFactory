@@ -5,6 +5,10 @@ SaltyFactory Customer Command Center is the native customer success foundation f
 ## Functional Now
 
 - Protected Studio routes for Customer Command Center, customers, customer profiles, segments, capture, inbox, campaigns, intelligence, scheduling, leads, opportunities, and service cases.
+- Create/edit/detail flows for customers, leads, opportunities, service cases, capture forms, customer campaigns, manual conversations, conversation messages, appointment types, and manual intelligence events.
+- Customer profiles can create notes and follow-up tasks; task completion writes owner-facing events.
+- Non-customer follow-ups use the shared polymorphic task/note/event kernel where the CRM tables are intentionally customer-centered.
+- `/studio/customer-command-center/setup` seeds customer defaults idempotently.
 - Workspace-owned CRM database tables for customer identity, Customer 360, timeline, activity, leads, opportunities, quotations, deals, service cases, conversations, campaigns, forms, consent, events, cohorts, AI insights, automation, imports, sync state, and scheduling readiness.
 - Protected JSON APIs under `/api/studio/customer-command-center/summary` and `/api/studio/crm/*`.
 - Deterministic rule-based next actions labeled as rule-based AI suggestions.
@@ -20,7 +24,8 @@ SaltyFactory Customer Command Center is the native customer success foundation f
 - Website/customer behavior tracking is not implemented unless future real events are ingested.
 - Session replay, surveys, feature flags, experiments, and funnels are readiness foundations only.
 - Calendar sync and provider booking availability are not implemented.
-- Opportunities, quotes, deals, and service cases have schema and page/API foundations, but no fake revenue or support data is created.
+- Quotes and deals are schema/API foundation only in this pass.
+- No fake revenue, order history, support data, email delivery, calendar availability, or customer analytics is created.
 
 ## Rule-Based AI
 

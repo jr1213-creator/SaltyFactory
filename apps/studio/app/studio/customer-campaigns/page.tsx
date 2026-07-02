@@ -16,6 +16,7 @@ export default async function CustomerCampaignsPage() {
       title="Customer Campaigns"
       description="Campaign drafts, target segments, message templates, consent readiness, and provider setup states. No live emails are sent by this module in this pass."
     >
+      <LinkButton href="/studio/customer-campaigns/new">Create Campaign Draft</LinkButton>
       <LinkButton href="/studio/customer-segments">Segments</LinkButton>
       <LinkButton href="/studio/customer-command-center" variant="secondary">Command Center</LinkButton>
     </PageHeader>
@@ -29,13 +30,14 @@ export default async function CustomerCampaignsPage() {
     {data.campaigns.length > 0 && <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Saved Campaign Drafts</h2>
       <DataTable
-        columns={["Campaign", "Goal", "Target segment", "Status", "Consent readiness"]}
+        columns={["Campaign", "Goal", "Target segment", "Status", "Consent readiness", "Open"]}
         rows={data.campaigns.map((campaign: any) => [
           campaignName(campaign),
           campaign.goal ?? "Review campaign goal.",
           campaign.target_segment_id ?? campaign.targetSegmentId ?? "manual selection required",
           <StatusBadge key={campaign.id} status={String(campaign.status ?? "draft").replace(/_/g, " ")} tone="info" />,
-          campaign.consent_required === false || campaign.consentRequired === false ? "Consent not required by record" : "Consent must be confirmed before enrollment."
+          campaign.consent_required === false || campaign.consentRequired === false ? "Consent not required by record" : "Consent must be confirmed before enrollment.",
+          <a key={campaign.id} href={`/studio/customer-campaigns/${campaign.id}`}>Open</a>
         ])}
       />
     </section>}

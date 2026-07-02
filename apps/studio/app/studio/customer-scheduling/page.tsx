@@ -13,6 +13,7 @@ export default async function CustomerSchedulingPage() {
       title="Customer Scheduling"
       description="Appointment types, consultation request queue, availability readiness, booking form readiness, and customer profile linking. Calendar sync is not configured in this pass."
     >
+      <LinkButton href="/studio/customer-scheduling/appointment-types/new">Create Appointment Type</LinkButton>
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />

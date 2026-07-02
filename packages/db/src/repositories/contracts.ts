@@ -114,6 +114,27 @@ export interface CrmRepositoryContract {
   availabilityReadiness: BaseRepositoryContract;
 }
 
+export interface SharedKernelRepositoryContract {
+  providerConnections: BaseRepositoryContract;
+  sourceRecords: BaseRepositoryContract;
+  events: BaseRepositoryContract;
+  auditLog: BaseRepositoryContract;
+  approvals: BaseRepositoryContract;
+  tasks: BaseRepositoryContract;
+  notes: BaseRepositoryContract;
+  recommendations: BaseRepositoryContract;
+  readinessScores: BaseRepositoryContract;
+  exportPackages: BaseRepositoryContract;
+  assets: BaseRepositoryContract;
+  templates: BaseRepositoryContract;
+  automationRules: BaseRepositoryContract;
+  segments: BaseRepositoryContract;
+  verticalPacks: BaseRepositoryContract;
+  campaigns: BaseRepositoryContract;
+  campaignChannels: BaseRepositoryContract;
+  utmLinks: BaseRepositoryContract;
+}
+
 export interface IntegrationRepositoryContract extends BaseRepositoryContract {
   credentials: BaseRepositoryContract;
   syncRuns: BaseRepositoryContract;
@@ -175,6 +196,7 @@ export interface RepositoryBundle {
   support: BaseRepositoryContract & { drafts: BaseRepositoryContract };
   billing: BaseRepositoryContract & { plans: BaseRepositoryContract; events: BaseRepositoryContract; featureLimits: BaseRepositoryContract };
   crm: CrmRepositoryContract;
+  shared: SharedKernelRepositoryContract;
 }
 
 export type RepositoryRuntimeConfig = {

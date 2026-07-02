@@ -120,7 +120,25 @@ const tableExportByDbName: Record<string, TableName> = {
   crm_appointment_types: "crmAppointmentTypes",
   crm_booking_requests: "crmBookingRequests",
   crm_consultations: "crmConsultations",
-  crm_availability_readiness: "crmAvailabilityReadiness"
+  crm_availability_readiness: "crmAvailabilityReadiness",
+  provider_connections: "providerConnections",
+  source_records: "sourceRecords",
+  events: "events",
+  audit_log: "auditLog",
+  approvals: "approvals",
+  tasks: "tasks",
+  notes: "notes",
+  recommendations: "recommendations",
+  readiness_scores: "readinessScores",
+  export_packages: "exportPackages",
+  assets: "assets",
+  templates: "templates",
+  automation_rules: "automationRules",
+  segments: "segments",
+  vertical_packs: "verticalPacks",
+  campaigns: "campaigns",
+  campaign_channels: "campaignChannels",
+  utm_links: "utmLinks"
 };
 
 const camelToSnake = (value: string) => value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -540,6 +558,49 @@ export class DrizzleCrmRepository {
   }
 }
 
+export class DrizzleSharedKernelRepository {
+  readonly providerConnections: DrizzleBaseRepository;
+  readonly sourceRecords: DrizzleBaseRepository;
+  readonly events: DrizzleBaseRepository;
+  readonly auditLog: DrizzleBaseRepository;
+  readonly approvals: DrizzleBaseRepository;
+  readonly tasks: DrizzleBaseRepository;
+  readonly notes: DrizzleBaseRepository;
+  readonly recommendations: DrizzleBaseRepository;
+  readonly readinessScores: DrizzleBaseRepository;
+  readonly exportPackages: DrizzleBaseRepository;
+  readonly assets: DrizzleBaseRepository;
+  readonly templates: DrizzleBaseRepository;
+  readonly automationRules: DrizzleBaseRepository;
+  readonly segments: DrizzleBaseRepository;
+  readonly verticalPacks: DrizzleBaseRepository;
+  readonly campaigns: DrizzleBaseRepository;
+  readonly campaignChannels: DrizzleBaseRepository;
+  readonly utmLinks: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.providerConnections = repo("provider_connections");
+    this.sourceRecords = repo("source_records");
+    this.events = repo("events");
+    this.auditLog = repo("audit_log");
+    this.approvals = repo("approvals");
+    this.tasks = repo("tasks");
+    this.notes = repo("notes");
+    this.recommendations = repo("recommendations");
+    this.readinessScores = repo("readiness_scores");
+    this.exportPackages = repo("export_packages");
+    this.assets = repo("assets");
+    this.templates = repo("templates");
+    this.automationRules = repo("automation_rules");
+    this.segments = repo("segments");
+    this.verticalPacks = repo("vertical_packs");
+    this.campaigns = repo("campaigns");
+    this.campaignChannels = repo("campaign_channels");
+    this.utmLinks = repo("utm_links");
+  }
+}
+
 export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBundle {
   const audit = new DrizzleAuditEventRepository(db);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -579,6 +640,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     marketing: new DrizzleMarketingRepository(db, writer),
     support: new DrizzleSupportRepository(db, writer),
     billing: new DrizzleBillingRepository(db, writer),
-    crm: new DrizzleCrmRepository(db, writer)
+    crm: new DrizzleCrmRepository(db, writer),
+    shared: new DrizzleSharedKernelRepository(db, writer)
   };
 }

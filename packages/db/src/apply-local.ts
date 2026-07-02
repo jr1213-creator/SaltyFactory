@@ -70,6 +70,27 @@ export const customerCommandCenterTables = [
   "crm_availability_readiness"
 ];
 
+export const sharedKernelTables = [
+  "provider_connections",
+  "source_records",
+  "events",
+  "audit_log",
+  "approvals",
+  "tasks",
+  "notes",
+  "recommendations",
+  "readiness_scores",
+  "export_packages",
+  "assets",
+  "templates",
+  "automation_rules",
+  "segments",
+  "vertical_packs",
+  "campaigns",
+  "campaign_channels",
+  "utm_links"
+];
+
 export const requiredStudioTables = [
   "users",
   "organizations",
@@ -89,7 +110,8 @@ export const requiredStudioTables = [
   "site_audit_runs",
   "site_audit_findings",
   ...functionalV1StudioTables,
-  ...customerCommandCenterTables
+  ...customerCommandCenterTables,
+  ...sharedKernelTables
 ];
 
 export const requiredStudioTableColumns: Record<string, string[]> = {

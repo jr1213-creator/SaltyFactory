@@ -21,18 +21,20 @@ export default async function CustomerCaptureFormsPage() {
       title="Customer Capture Forms"
       description="Default forms can be saved and activated later. Internal previews stay server-rendered; public embeds are not exposed in this pass."
     >
+      <LinkButton href="/studio/customer-capture/forms/new">Create Form</LinkButton>
       <LinkButton href="/studio/customer-capture" variant="secondary">Capture Overview</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
     <DataTable
-      columns={["Form", "Fields", "Target segment", "Follow-up task", "Status", "Embed"]}
+      columns={["Form", "Fields", "Target segment", "Follow-up task", "Status", "Embed", "Open"]}
       rows={forms.map((form: any) => [
         form.title,
         fieldsFor(form),
         String(form.target_segment_key ?? form.targetSegmentKey ?? form.key ?? "manual").replace(/_/g, " "),
         form.suggested_follow_up_task ?? form.suggestedFollowUpTask ?? "Create follow-up task",
         <StatusBadge key={form.key ?? form.id} status={form.status ?? "draft"} tone="info" />,
-        form.embed_readiness_status ?? form.embedReadinessStatus ?? "future_integration"
+        form.embed_readiness_status ?? form.embedReadinessStatus ?? "future_integration",
+        <a key={`${form.key ?? form.id}-open`} href={`/studio/customer-capture/forms/${form.id ?? form.key}`}>Open</a>
       ])}
     />
   </>;

@@ -17,6 +17,7 @@ export default async function CustomerCaptureFormDetailPage({ params }: { params
       description="Form configuration foundation. Public embed scripts are not exposed; submissions require explicit form activation and validation."
     >
       <LinkButton href="/studio/customer-capture/forms" variant="secondary">All Forms</LinkButton>
+      {form?.id && <LinkButton href={`/studio/customer-capture/forms/${form.id}/edit`} variant="secondary">Edit Form</LinkButton>}
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
     <section className="sf-card" style={{ marginTop: 18 }}>

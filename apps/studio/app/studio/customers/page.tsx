@@ -9,8 +9,16 @@ function money(value: unknown) {
   return `$${parsed.toFixed(2)}`;
 }
 
-export default async function CustomersPage() {
+export default async function CustomersPage({ searchParams }: { searchParams?: Promise<{ q?: string; status?: string }> } = {}) {
   const data = await getCustomerCommandCenterData();
+  const filters = (await (searchParams ?? Promise.resolve({}))) as { q?: string; status?: string };
+  const q = String(filters.q ?? "").toLowerCase();
+  const status = String(filters.status ?? "");
+  const customers = data.customers.filter((customer: any) => {
+    const haystack = `${customer.name ?? ""} ${customer.email ?? ""} ${customer.phone ?? ""} ${customer.location ?? ""}`.toLowerCase();
+    const statusValue = String(customer.lifecycle_stage ?? customer.lifecycleStage ?? customer.status ?? "");
+    return (!q || haystack.includes(q)) && (!status || statusValue === status);
+  });
   return <>
     <PageHeader
       eyebrow="Customer 360"
@@ -18,6 +26,7 @@ export default async function CustomersPage() {
       description="Workspace-owned customer profiles with source labels, consent, next actions, and readiness for future Shopify customer/order sync."
     >
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
+      <LinkButton href="/studio/customers/new" variant="secondary">Create Customer</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
     <div className="sf-grid sf-grid-4">
@@ -33,9 +42,14 @@ export default async function CustomersPage() {
     />}
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Customer List</h2>
+      <form className="sf-grid sf-grid-3" method="get" style={{ marginBottom: 14 }}>
+        <label>Search<input name="q" defaultValue={filters.q ?? ""} placeholder="Name, email, phone, location" /></label>
+        <label>Status<select name="status" defaultValue={status}><option value="">Any</option><option value="lead">Lead</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+        <button className="sf-button" type="submit">Filter Customers</button>
+      </form>
       <DataTable
         columns={["Name", "Email", "Phone", "Location", "Source", "Lifecycle", "LTV", "AOV", "Orders", "Consent", "Next action", "Open"]}
-        rows={data.customers.length ? data.customers.map((customer: any) => [
+        rows={customers.length ? customers.map((customer: any) => [
           customer.name ?? "Unnamed customer",
           customer.email ?? "-",
           customer.phone ?? "-",
@@ -48,7 +62,7 @@ export default async function CustomersPage() {
           <StatusBadge key={`${customer.id}-consent`} status={String(customer.marketing_consent_status ?? customer.marketingConsentStatus ?? "unknown").replace(/_/g, " ")} tone={String(customer.marketing_consent_status ?? customer.marketingConsentStatus) === "granted" ? "success" : "warning"} />,
           customer.next_action ?? customer.nextAction ?? "Run next-action rules",
           <a key={`${customer.id}-open`} href={`/studio/customers/${customer.id}`}>Open</a>
-        ]) : [["No customers", "-", "-", "-", "System-generated", "-", "$0.00", "$0.00", "0", "unknown", "Set up data capture", "-"]]}
+        ]) : [["No matching customers", "-", "-", "-", "System-generated", "-", "$0.00", "$0.00", "0", "unknown", "Create or import customers", "-"]]}
       />
     </section>
   </>;

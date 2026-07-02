@@ -59,9 +59,20 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     id: "marketing",
     label: "Marketing",
     links: [
+      ["Marketing Command Center", "/studio/marketing-command-center"],
+      ["Campaigns", "/studio/marketing-campaigns"],
+      ["Pinterest Pin Factory", "/studio/marketing/pinterest"],
+      ["Social Draft Queue", "/studio/marketing/social"],
+      ["Email Draft Studio", "/studio/marketing/email"],
+      ["Ads Hub", "/studio/marketing/ads"],
+      ["Search Visibility", "/studio/marketing/search-visibility"],
+      ["Campaign Assets", "/studio/marketing/assets"],
+      ["Tracking / UTMs", "/studio/marketing/tracking"],
+      ["Research Board", "/studio/marketing/research"],
       ["Social Planner", "/studio/social-planner"],
       ["Channels", "/studio/channels"],
-      ["Trends", "/studio/trends"]
+      ["Trends", "/studio/trends"],
+      ["Marketing Setup", "/studio/marketing/setup"]
     ]
   },
   {
@@ -80,6 +91,7 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
       ["Business Profile", "/studio/settings/business-profile"],
       ["Integrations", "/studio/integrations"],
       ["Setup Guide", "/studio/migration-guide"],
+      ["Vertical Pack", "/studio/settings/vertical-pack"],
       ["Settings", "/studio/settings"],
       ["Billing", "/studio/billing"]
     ]

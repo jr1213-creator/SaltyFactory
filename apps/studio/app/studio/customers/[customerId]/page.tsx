@@ -30,6 +30,7 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       description="Customer source, consent, timeline, notes, tasks, product interests, and rule-based next actions. Provider-backed sections stay honest until real integrations sync."
     >
       <LinkButton href="/studio/customers" variant="secondary">All Customers</LinkButton>
+      <LinkButton href={`/studio/customers/${customerId}/edit`} variant="secondary">Edit Customer</LinkButton>
       <LinkButton href="/studio/customer-command-center">Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
@@ -78,13 +79,38 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
 
         <section className="sf-card">
           <h2>Notes & Follow-up Tasks</h2>
-          <DataTable columns={["Type", "Title", "Status", "Source"]} rows={[
-            ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel)]),
-            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel)])
+          <DataTable columns={["Type", "Title", "Status", "Source", "Action"]} rows={[
+            ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel), "-"]),
+            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="sf-button sf-button-secondary" type="submit">Complete</button></form>])
           ].length ? [
-            ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel)]),
-            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel)])
-          ] : [["None yet", "Create a note or follow-up task from the API/UI foundation.", "-", "System-generated"]]} />
+            ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel), "-"]),
+            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="sf-button sf-button-secondary" type="submit">Complete</button></form>])
+          ] : [["None yet", "Create a note or follow-up task from the API/UI foundation.", "-", "System-generated", "-"]]} />
+        </section>
+        <section className="sf-card">
+          <h2>Create Note</h2>
+          <form className="sf-grid" action="/api/studio/crm/notes" method="post">
+            <input type="hidden" name="next" value={`/studio/customers/${customerId}`} />
+            <input type="hidden" name="customer_id" value={customerId} />
+            <input type="hidden" name="source_label" value="admin_created_note" />
+            <label>Title<input name="title" defaultValue="Customer note" required /></label>
+            <label>Note<textarea name="body" required /></label>
+            <button className="sf-button" type="submit">Save Note</button>
+          </form>
+        </section>
+        <section className="sf-card">
+          <h2>Create Follow-up Task</h2>
+          <form className="sf-grid sf-grid-2" action="/api/studio/crm/tasks" method="post">
+            <input type="hidden" name="next" value={`/studio/customers/${customerId}`} />
+            <input type="hidden" name="customer_id" value={customerId} />
+            <input type="hidden" name="source_label" value="manual_entry" />
+            <label>Title<input name="title" defaultValue="Follow up with customer" required /></label>
+            <label>Priority<select name="priority" defaultValue="normal"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+            <label>Status<select name="status" defaultValue="open"><option value="open">Open</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></label>
+            <label>Due at<input name="due_at" type="datetime-local" /></label>
+            <label>Description<textarea name="description" /></label>
+            <button className="sf-button" type="submit">Create Task</button>
+          </form>
         </section>
       </div>
 

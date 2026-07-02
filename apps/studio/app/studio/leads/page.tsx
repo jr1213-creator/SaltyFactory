@@ -9,6 +9,7 @@ export default async function LeadsPage() {
   return <>
     <PageHeader eyebrow="CRM depth" title="Leads" description="Lead intake foundation for wholesale, custom work, product interest, and high-intent follow-up.">
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
+      <LinkButton href="/studio/leads/new" variant="secondary">Create Lead</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
     <div className="sf-grid sf-grid-4">
@@ -19,15 +20,16 @@ export default async function LeadsPage() {
     </div>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Lead Records</h2>
-      <DataTable columns={["Name", "Email", "Company", "Interest", "Value", "Status", "Consent"]} rows={data.leads.length ? data.leads.map((lead: any) => [
+      <DataTable columns={["Name", "Email", "Company", "Interest", "Value", "Status", "Consent", "Open"]} rows={data.leads.length ? data.leads.map((lead: any) => [
         lead.name,
         lead.email ?? "-",
         lead.company ?? "-",
         lead.interest ?? "-",
         lead.estimated_value ?? lead.estimatedValue ?? "-",
         <StatusBadge key={lead.id} status={String(lead.status ?? "new").replace(/_/g, " ")} />,
-        lead.consent_status ?? lead.consentStatus ?? "unknown"
-      ]) : [["No leads", "Use capture forms or imports to add leads.", "-", "-", "-", "empty", "unknown"]]} />
+        lead.consent_status ?? lead.consentStatus ?? "unknown",
+        <a key={`${lead.id}-open`} href={`/studio/leads/${lead.id}`}>Open</a>
+      ]) : [["No leads", "Use capture forms or imports to add leads.", "-", "-", "-", "empty", "unknown", "-"]]} />
     </section>
   </>;
 }

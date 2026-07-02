@@ -22,6 +22,22 @@ import CustomerInboxPage from "../apps/studio/app/studio/customer-inbox/page";
 import CustomerCampaignsPage from "../apps/studio/app/studio/customer-campaigns/page";
 import CustomerIntelligencePage from "../apps/studio/app/studio/customer-intelligence/page";
 import CustomerSchedulingPage from "../apps/studio/app/studio/customer-scheduling/page";
+import MarketingCommandCenterPage from "../apps/studio/app/studio/marketing-command-center/page";
+import MarketingCampaignsPage from "../apps/studio/app/studio/marketing-campaigns/page";
+import LaunchCampaignWorkflowPage from "../apps/studio/app/studio/marketing-command-center/launch-campaign/page";
+import PinterestPinFactoryPage from "../apps/studio/app/studio/marketing/pinterest/page";
+import SocialDraftQueuePage from "../apps/studio/app/studio/marketing/social/page";
+import EmailDraftStudioPage from "../apps/studio/app/studio/marketing/email/page";
+import AdsHubPage from "../apps/studio/app/studio/marketing/ads/page";
+import GoogleAdsDraftStudioPage from "../apps/studio/app/studio/marketing/ads/google/page";
+import MetaAdsDraftStudioPage from "../apps/studio/app/studio/marketing/ads/meta/page";
+import SearchVisibilityPage from "../apps/studio/app/studio/marketing/search-visibility/page";
+import CampaignAssetStudioPage from "../apps/studio/app/studio/marketing/assets/page";
+import MarketingTrackingPage from "../apps/studio/app/studio/marketing/tracking/page";
+import VoiceOfMarketResearchPage from "../apps/studio/app/studio/marketing/research/page";
+import MarketingApprovalsPage from "../apps/studio/app/studio/marketing/approvals/page";
+import MarketingSetupPage from "../apps/studio/app/studio/marketing/setup/page";
+import VerticalPackSettingsPage from "../apps/studio/app/studio/settings/vertical-pack/page";
 import LeadsPage from "../apps/studio/app/studio/leads/page";
 import OpportunitiesPage from "../apps/studio/app/studio/opportunities/page";
 import ServiceCasesPage from "../apps/studio/app/studio/service-cases/page";
@@ -50,6 +66,9 @@ describe("production UI routes", () => {
     expect(source).toContain('label: "Customer"');
     expect(source).toContain('["Customer Command Center", "/studio/customer-command-center"]');
     expect(source).toContain('["Customer Intelligence", "/studio/customer-intelligence"]');
+    expect(source).toContain('["Marketing Command Center", "/studio/marketing-command-center"]');
+    expect(source).toContain('["Pinterest Pin Factory", "/studio/marketing/pinterest"]');
+    expect(source).toContain('["Search Visibility", "/studio/marketing/search-visibility"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
     expect(source).toContain('label: "Expansion"');
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
@@ -68,7 +87,7 @@ describe("production UI routes", () => {
   it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
     expect(parseStoredStudioNavSections(JSON.stringify(["operations", "bad-id"]))).toEqual(["operations"]);
     expect(resolveExpandedStudioNavSections({ pathname: "/studio/channels", storedValue: JSON.stringify(["operations"]) }).sort()).toEqual(["marketing", "operations"]);
-    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Business Profile", "Integrations", "Setup Guide", "Settings", "Billing"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Business Profile", "Integrations", "Setup Guide", "Vertical Pack", "Settings", "Billing"]);
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain("aria-expanded");
     expect(source).toContain("aria-controls");
@@ -94,6 +113,19 @@ describe("production UI routes", () => {
       "/studio/customer-campaigns",
       "/studio/customer-intelligence",
       "/studio/customer-scheduling",
+      "/studio/marketing-command-center",
+      "/studio/marketing-campaigns",
+      "/studio/marketing/pinterest",
+      "/studio/marketing/social",
+      "/studio/marketing/email",
+      "/studio/marketing/ads",
+      "/studio/marketing/ads/google",
+      "/studio/marketing/ads/meta",
+      "/studio/marketing/search-visibility",
+      "/studio/marketing/assets",
+      "/studio/marketing/tracking",
+      "/studio/marketing/research",
+      "/studio/marketing/setup",
       "/studio/products",
       "/studio/integrations",
       "/studio/drafts",
@@ -104,6 +136,7 @@ describe("production UI routes", () => {
       "/studio/account-center",
       "/studio/settings/business-profile",
       "/studio/migration-guide",
+      "/studio/settings/vertical-pack",
       "/studio/settings",
       "/studio/billing",
       "/studio/dropshipping"
@@ -198,6 +231,62 @@ describe("production UI routes", () => {
     expect(serviceCasesSource).toContain("data.serviceCases");
     expect(serviceCasesSource).not.toContain('MetricCard title="Cases" value="0"');
     expect(schedulingSource).toContain("data.bookingRequests.length");
+  });
+
+  it("Marketing Command Center pages render manual/export-ready workflows without live execution claims", async () => {
+    const commandHtml = renderToStaticMarkup(await MarketingCommandCenterPage());
+    const campaignsHtml = renderToStaticMarkup(await MarketingCampaignsPage());
+    const launchHtml = renderToStaticMarkup(await LaunchCampaignWorkflowPage());
+    const pinterestHtml = renderToStaticMarkup(await PinterestPinFactoryPage());
+    const socialHtml = renderToStaticMarkup(await SocialDraftQueuePage());
+    const emailHtml = renderToStaticMarkup(await EmailDraftStudioPage());
+    const adsHtml = renderToStaticMarkup(await AdsHubPage());
+    const googleHtml = renderToStaticMarkup(await GoogleAdsDraftStudioPage());
+    const metaHtml = renderToStaticMarkup(await MetaAdsDraftStudioPage());
+    const searchHtml = renderToStaticMarkup(await SearchVisibilityPage());
+    const assetsHtml = renderToStaticMarkup(await CampaignAssetStudioPage());
+    const trackingHtml = renderToStaticMarkup(await MarketingTrackingPage());
+    const researchHtml = renderToStaticMarkup(await VoiceOfMarketResearchPage());
+    const approvalsHtml = renderToStaticMarkup(await MarketingApprovalsPage());
+    const setupHtml = renderToStaticMarkup(await MarketingSetupPage());
+    const verticalHtml = renderToStaticMarkup(await VerticalPackSettingsPage());
+    const combined = [commandHtml, campaignsHtml, launchHtml, pinterestHtml, socialHtml, emailHtml, adsHtml, googleHtml, metaHtml, searchHtml, assetsHtml, trackingHtml, researchHtml, approvalsHtml, setupHtml, verticalHtml].join("\n");
+
+    expect(commandHtml).toContain("Marketing Command Center");
+    expect(commandHtml).toContain("manual/export-ready");
+    expect(launchHtml).toContain("Generate Campaign Packet");
+    expect(pinterestHtml).toContain("No Pinterest API publishing");
+    expect(socialHtml).toContain("No live social posting");
+    expect(emailHtml).toContain("No email provider sending");
+    expect(adsHtml).toContain("No ad APIs or spend");
+    expect(googleHtml).toContain("No Google Ads API calls");
+    expect(metaHtml).toContain("No Meta API calls");
+    expect(searchHtml).toContain("No ranking or AI-visibility guarantees");
+    expect(assetsHtml).toContain("No generated creative claimed");
+    expect(trackingHtml).toContain("No fake campaign performance");
+    expect(researchHtml).toContain("No scraping");
+    expect(approvalsHtml).toContain("Approval does not publish");
+    expect(setupHtml).toContain("Seed Vertical Packs");
+    expect(verticalHtml).toContain("Vertical Pack");
+    expect(combined).not.toMatch(/access_token|refresh_token|client_secret|DATABASE_URL|shpat_|printify_/i);
+  });
+
+  it("Marketing routes are backed by shared-kernel repositories, not static placeholder-only pages", () => {
+    const dataSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/marketing-command-center/data.ts"), "utf8");
+    const workflowRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/launch-campaign/route.ts"), "utf8");
+    const utmRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/utm-links/route.ts"), "utf8");
+    const searchRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/search-visibility/audit/route.ts"), "utf8");
+
+    expect(dataSource).toContain("repos.shared.campaigns.listByWorkspace");
+    expect(dataSource).toContain("repos.shared.campaignChannels.listByWorkspace");
+    expect(dataSource).toContain("repos.shared.exportPackages.listByWorkspace");
+    expect(workflowRoute).toContain("requireDraftMutationPermission");
+    expect(workflowRoute).toContain("buildCampaignProofPackContent");
+    expect(workflowRoute).toContain("buildNoAdGrowthPlanContent");
+    expect(workflowRoute).toContain("buildReadinessScore");
+    expect(utmRoute).toContain("buildUtmUrl");
+    expect(searchRoute).toContain("No ranking guarantees.");
+    expect(workflowRoute).not.toMatch(/googleads\.googleapis\.com|graph\.facebook\.com|sendgrid|mailgun|pinterest\.com\/v5/i);
   });
 
   it("Trends page renders filters and queue sections", async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getTableColumns } from "drizzle-orm";
 import { tables } from "@saltyfactory/db";
 
-const nonWorkspaceTables = new Set(["users", "organizations", "organizationMembers", "workspaces", "plans", "subscriptions", "billingEvents", "featureLimits"]);
+const nonWorkspaceTables = new Set(["users", "organizations", "organizationMembers", "workspaces", "plans", "subscriptions", "billingEvents", "featureLimits", "verticalPacks"]);
 
 describe("db schema workspace ownership", () => {
   it("workspace-owned tables include workspace_id, created_at, and updated_at", () => {
