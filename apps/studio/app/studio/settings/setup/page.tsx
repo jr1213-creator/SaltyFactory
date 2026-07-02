@@ -15,9 +15,10 @@ export default async function Page() {
   const googleSetup = googleOAuthSetupRequired(config);
   const steps = [
     ["Google OAuth app", googleSetup.length ? "Blocked" : "Configured", googleSetup.length ? googleSetup.join(", ") : "Ready for Connect Google"],
-    ["Google Analytics Data API", persisted.ga4?.status ?? "not_configured", "Enable API and configure GA4 property ID"],
-    ["Search Console API", persisted.google_search_console?.status ?? "not_configured", "Enable API and configure verified site URL"],
-    ["Business Profile APIs", persisted.google_business_profile?.status ?? "not_configured", "Enable APIs and configure account/location IDs"],
+    ["Auto-detect Google setup", persisted.google_oauth?.status === "connected" ? "Recommended" : "Blocked until OAuth is connected", "Use Integrations to discover GA4, Search Console, and optional Business Profile resources before manual setup"],
+    ["Google Analytics Data API", persisted.ga4?.status ?? "not_configured", "Auto-detect or manually enter the numeric GA4 property ID, then sync"],
+    ["Search Console API", persisted.google_search_console?.status ?? "not_configured", "Auto-detect or select the verified saltycowhide.com URL/sc-domain property, then sync"],
+    ["Business Profile APIs", persisted.google_business_profile?.status ?? "optional_for_online_pod", "Optional for online-only Salty Cowhide POD launch; configure only if the business has an eligible public profile"],
     ["Encrypted credential storage", config.CREDENTIAL_ENCRYPTION_KEY ? "Configured" : "Blocked", "CREDENTIAL_ENCRYPTION_KEY must be set server-side"],
     ["Human-approved recommendations", "Required", "Google data may inform drafts only; no automatic publishing or review replies"]
   ];

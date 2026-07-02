@@ -13,6 +13,7 @@ import GeneratePage from "../apps/studio/app/studio/generate/page";
 import IntegrationsPage from "../apps/studio/app/studio/integrations/page";
 import AiEmployeesPage from "../apps/studio/app/studio/ai-employees/page";
 import BusinessProfilePage from "../apps/studio/app/studio/settings/business-profile/page";
+import SettingsSetupPage from "../apps/studio/app/studio/settings/setup/page";
 import PodBuilderPage from "../apps/studio/app/studio/pod-migration/page";
 import SetupGuidePage from "../apps/studio/app/studio/migration-guide/page";
 import BaselineImpactPage from "../apps/studio/app/studio/baseline/page";
@@ -20,10 +21,17 @@ import AccessoryDropshippingPage from "../apps/studio/app/studio/dropshipping/pa
 import PricingPage from "../apps/studio/app/studio/pricing/page";
 import StorefrontHome from "../apps/storefront/app/page";
 import ProductPage from "../apps/storefront/app/products/[handle]/page";
+import {
+  STUDIO_NAV_SECTIONS,
+  activeStudioNavSectionIds,
+  parseStoredStudioNavSections,
+  resolveExpandedStudioNavSections,
+  visibleStudioNavLinks
+} from "../apps/studio/app/studio/StudioNavigation";
 
 describe("production UI routes", () => {
   it("Studio navigation is grouped around the POD launch workflow", () => {
-    const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/layout.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain('label: "POD Studio"');
     expect(source).toContain('["Product Builder", "/studio/pod-migration"]');
     expect(source).toContain('["Pricing & Margins", "/studio/pricing"]');
@@ -31,6 +39,53 @@ describe("production UI routes", () => {
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
     expect(source).not.toContain('"POD Migration"');
     expect(source).not.toContain('"Migration Guide"');
+  });
+
+  it("Studio navigation sections default collapsed and active sections auto-expand", () => {
+    expect(resolveExpandedStudioNavSections({ pathname: "/studio", storedValue: null })).toEqual([]);
+    expect(activeStudioNavSectionIds("/studio/pod-migration")).toEqual(["pod-studio"]);
+    expect(resolveExpandedStudioNavSections({ pathname: "/studio/pod-migration", storedValue: null })).toEqual(["pod-studio"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: [] })).not.toContain("Product Builder");
+    expect(visibleStudioNavLinks({ pathname: "/studio/pod-migration", expandedIds: [] })).toContain("Product Builder");
+  });
+
+  it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
+    expect(parseStoredStudioNavSections(JSON.stringify(["operations", "bad-id"]))).toEqual(["operations"]);
+    expect(resolveExpandedStudioNavSections({ pathname: "/studio/channels", storedValue: JSON.stringify(["operations"]) }).sort()).toEqual(["marketing", "operations"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Business Profile", "Integrations", "Setup Guide", "Settings", "Billing"]);
+    const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
+    expect(source).toContain("aria-expanded");
+    expect(source).toContain("aria-controls");
+    expect(source).toContain("STUDIO_NAV_STORAGE_KEY");
+  });
+
+  it("Studio navigation primary links point at existing Studio routes", () => {
+    const routeFiles = new Set([
+      "/studio",
+      "/studio/pod-migration",
+      "/studio/designs",
+      "/studio/assets",
+      "/studio/mockups",
+      "/studio/listing-drafts",
+      "/studio/pricing",
+      "/studio/publish",
+      "/studio/ai-employees",
+      "/studio/products",
+      "/studio/integrations",
+      "/studio/drafts",
+      "/studio/social-planner",
+      "/studio/channels",
+      "/studio/trends",
+      "/studio/baseline",
+      "/studio/settings/business-profile",
+      "/studio/migration-guide",
+      "/studio/settings",
+      "/studio/billing",
+      "/studio/dropshipping"
+    ]);
+    for (const section of STUDIO_NAV_SECTIONS) {
+      for (const [, href] of section.links) expect(routeFiles.has(href)).toBe(true);
+    }
   });
 
   it("Dashboard page renders key cards", async () => {
@@ -105,6 +160,8 @@ describe("production UI routes", () => {
     const html = renderToStaticMarkup(await IntegrationsPage());
     expect(html).toContain("Overall AI Readiness Score");
     expect(html).toContain("AI Tools Configuration");
+    expect(html).toContain("Auto-detect Google setup");
+    expect(html).toContain("optional for online-only Salty Cowhide POD launch readiness");
   });
 
   it("AI employees page renders employee cards", async () => {
@@ -125,10 +182,13 @@ describe("production UI routes", () => {
   it("Setup Guide and Baseline pages use launch-focused labels", async () => {
     const setupHtml = renderToStaticMarkup(await SetupGuidePage());
     const baselineHtml = renderToStaticMarkup(await BaselineImpactPage());
+    const settingsSetupHtml = renderToStaticMarkup(await SettingsSetupPage());
     expect(setupHtml).toContain("Setup Guide");
     expect(setupHtml).not.toContain("AI Migration Guide");
     expect(baselineHtml).toContain("Baseline &amp; Impact");
     expect(baselineHtml).not.toContain("Baseline + Impact");
+    expect(settingsSetupHtml).toContain("Auto-detect Google setup");
+    expect(settingsSetupHtml).toContain("Optional for online-only Salty Cowhide POD launch");
   });
 
   it("Expansion and pricing pages render POD workflow labels", async () => {

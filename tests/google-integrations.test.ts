@@ -4,6 +4,7 @@ import { createMemoryRepositories } from "../packages/db/src/repositories/memory
 import { decryptCredential } from "@saltyfactory/security";
 import {
   GOOGLE_OAUTH_SCOPES,
+  autoDetectGoogleSetup,
   configureGoogleWorkspace,
   googleOAuthSetupRequired,
   storeVerifiedGoogleOAuth,
@@ -15,6 +16,7 @@ import {
 import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
 import { GET as googleOAuthStart } from "../apps/studio/app/api/studio/integrations/google/oauth/start/route";
 import { GET as googleOAuthCallback } from "../apps/studio/app/api/studio/integrations/google/oauth/callback/route";
+import { POST as googleAutoDetect } from "../apps/studio/app/api/studio/integrations/google/auto-detect/route";
 import { signOAuthState } from "../apps/studio/app/api/studio/integrations/_shared";
 
 const originalEnv = { ...process.env };
@@ -246,5 +248,102 @@ describe("Google provider status and sync", () => {
     const result = await syncGoogleBusinessProfile({ repos, workspaceId, actorId: actor.id, config, fetcher });
     expect(result).toMatchObject({ ok: false, status: "access_limited" });
     expect(JSON.stringify(result)).not.toMatch(/replyReview|createPost|updateLocation|locations\.patch|localPosts/i);
+  });
+});
+
+describe("Google auto-detect setup", () => {
+  it("auto-detect route requires Supabase auth and workspace permission", async () => {
+    const response = await googleAutoDetect(new Request("http://localhost:3001/api/studio/integrations/google/auto-detect", { method: "POST" }));
+    const body = await response.json();
+    expect(response.status).toBe(401);
+    expect(body.status).toBe("unauthorized");
+  });
+
+  it("auto-detect requires an encrypted Google OAuth connection", async () => {
+    const repos = createMemoryRepositories();
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config: googleConfig(), fetcher: async () => jsonResponse({}) });
+    expect(result).toMatchObject({ ok: false, status: "not_configured" });
+  });
+
+  it("one confident GA4 and Search Console match is saved as configured_not_verified without tokens", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    await repos.businessProfileV1.create({
+      id: "biz_google_detect",
+      workspace_id: workspaceId,
+      public_brand_name: "Salty Cowhide",
+      profile_json: { publicBrandName: "Salty Cowhide", storefrontUrl: "https://saltycowhide.com/" },
+      created_by: actor.id
+    });
+    const fetcher: GoogleFetch = async (url) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/accounts")) return jsonResponse({ accounts: [{ name: "accounts/1", displayName: "Salty Cowhide" }] });
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/properties")) return jsonResponse({ properties: [{ name: "properties/123456789", displayName: "Salty Cowhide Web" }] });
+      if (text.includes("dataStreams")) return jsonResponse({ dataStreams: [{ webStreamData: { defaultUri: "https://saltycowhide.com/" } }] });
+      if (text.includes("webmasters")) return jsonResponse({ siteEntry: [{ siteUrl: "https://saltycowhide.com/", permissionLevel: "siteOwner" }] });
+      if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ accounts: [] });
+      return jsonResponse({});
+    };
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("auto-detect failed");
+    expect(result.autoSaved).toMatchObject({ ga4PropertyId: "123456789", searchConsoleSiteUrl: "https://saltycowhide.com/" });
+    expect(result.dataSources.businessProfile.status).toBe("optional_not_required");
+    expect(JSON.stringify(result)).not.toContain("google-access-token");
+    expect(JSON.stringify(result)).not.toContain("google-refresh-token");
+    const ga4 = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4");
+    const gsc = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "google_search_console");
+    expect(ga4?.status).toBe("configured_not_verified");
+    expect(gsc?.status).toBe("configured_not_verified");
+  });
+
+  it("multiple GA4 candidates require owner selection and do not fake connected status", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const fetcher: GoogleFetch = async (url) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/accounts")) return jsonResponse({ accounts: [{ name: "accounts/1", displayName: "Owner" }] });
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/properties")) return jsonResponse({ properties: [{ name: "properties/111", displayName: "Shop A" }, { name: "properties/222", displayName: "Shop B" }] });
+      if (text.includes("dataStreams")) return jsonResponse({ dataStreams: [] });
+      if (text.includes("webmasters")) return jsonResponse({ siteEntry: [] });
+      if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ accounts: [] });
+      return jsonResponse({});
+    };
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("auto-detect failed");
+    expect(result.dataSources.ga4.status).toBe("needs_selection");
+    expect(result.autoSaved.ga4PropertyId).toBeUndefined();
+    expect(await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4")).toBeNull();
+  });
+
+  it("Search Console properties are listed with sanitized candidate data", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const fetcher: GoogleFetch = async (url) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin")) return jsonResponse({ accounts: [] });
+      if (text.includes("webmasters")) return jsonResponse({ siteEntry: [{ siteUrl: "sc-domain:saltycowhide.com", permissionLevel: "siteFullUser" }, { siteUrl: "https://example.com/", permissionLevel: "siteRestrictedUser" }] });
+      if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ accounts: [] });
+      return jsonResponse({});
+    };
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config, fetcher, autoSave: false });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("auto-detect failed");
+    expect(result.dataSources.searchConsole.candidates.map((candidate) => candidate.siteUrl)).toEqual(expect.arrayContaining(["sc-domain:saltycowhide.com"]));
+    expect(JSON.stringify(result)).not.toMatch(/access_token|refresh_token|client_secret|google-access-token|google-refresh-token/i);
+  });
+
+  it("GBP access limits are honest and not a hard blocker for online-only Salty Cowhide POD launch", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const fetcher: GoogleFetch = async (url) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin")) return jsonResponse({ accounts: [] });
+      if (text.includes("webmasters")) return jsonResponse({ siteEntry: [] });
+      if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ error: { status: "PERMISSION_DENIED", message: "API not enabled or quota exceeded for this account" } }, 403);
+      return jsonResponse({});
+    };
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("auto-detect failed");
+    expect(result.dataSources.businessProfile.status).toBe("access_limited");
+    expect(result.dataSources.businessProfile.message).toContain("not a hard blocker");
   });
 });

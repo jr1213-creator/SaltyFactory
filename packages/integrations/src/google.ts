@@ -57,6 +57,44 @@ export type GoogleConnectionBundle =
   | { ok: true; connection: WorkspaceRow; credential: WorkspaceRow; tokens: GoogleTokenSet; workspaceConfig: GoogleWorkspaceConfig; googleEmail?: string | null; scopes: string[] }
   | { ok: false; status: "not_configured" | "configured_not_verified" | "auth_required"; message: string; setupRequired: string[]; connection?: WorkspaceRow | null };
 
+export type GoogleDiscoveryCandidate = {
+  id: string;
+  label: string;
+  type: "ga4_property" | "search_console_site" | "gbp_location";
+  confidence: "high" | "medium" | "low";
+  matchReason: string;
+  url?: string | null;
+  accountId?: string | null;
+  propertyId?: string | null;
+  siteUrl?: string | null;
+  locationId?: string | null;
+};
+
+export type GoogleDiscoverySourceResult = {
+  status: "auto_detected" | "needs_selection" | "manual_setup" | "access_limited" | "setup_needed" | "optional_not_required";
+  message: string;
+  candidates: GoogleDiscoveryCandidate[];
+  selected?: GoogleDiscoveryCandidate | null;
+  saved?: boolean;
+  setupRequired: string[];
+};
+
+export type GoogleAutoDetectResult =
+  | {
+      ok: true;
+      status: "completed";
+      provider: "google_oauth";
+      message: string;
+      googleEmail?: string | null;
+      autoSaved: Partial<GoogleWorkspaceConfig>;
+      dataSources: {
+        ga4: GoogleDiscoverySourceResult;
+        searchConsole: GoogleDiscoverySourceResult;
+        businessProfile: GoogleDiscoverySourceResult;
+      };
+    }
+  | { ok: false; status: "not_configured" | "configured_not_verified" | "auth_required" | "access_limited" | "error"; provider: "google_oauth"; message: string; setupRequired: string[] };
+
 export class GoogleProviderError extends Error {
   constructor(
     public readonly status: "access_denied" | "access_limited" | "auth_required" | "configured_not_verified" | "provider_error",
@@ -367,6 +405,76 @@ function googleStateFromConnection(connection: WorkspaceRow | null | undefined, 
     selectedAccountId: String(config.businessProfileAccountId ?? config.selectedAccountId ?? "") || null,
     selectedLocationId: String(config.businessProfileLocationId ?? config.selectedLocationId ?? "") || null
   };
+}
+
+async function upsertGoogleDataSourceConnection(input: {
+  repos: RepositoryBundle;
+  workspaceId: string;
+  providerKey: "ga4" | "google_search_console" | "google_business_profile";
+  providerName: string;
+  configuration: Record<string, unknown>;
+  actorId: string;
+}) {
+  const existing = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, input.providerKey);
+  const row: WorkspaceRow = {
+    id: existing?.id ? String(existing.id) : `conn_${input.providerKey}_${Date.now()}`,
+    workspace_id: input.workspaceId,
+    provider_type: input.providerKey,
+    provider_name: input.providerName,
+    enabled: true,
+    status: "configured_not_verified",
+    last_health_check_status: "configured_not_verified",
+    configuration: {
+      ...connectionConfig(existing),
+      ...input.configuration
+    },
+    created_by: input.actorId,
+    updated_by: input.actorId
+  };
+  return existing
+    ? input.repos.integration.updateProviderConnectionStatus(input.workspaceId, input.providerKey, row)
+    : input.repos.integration.createProviderConnection(row);
+}
+
+async function upsertConfiguredGoogleDataSources(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: GoogleWorkspaceConfig }) {
+  const writes: Promise<WorkspaceRow>[] = [];
+  if (input.config.ga4PropertyId) {
+    writes.push(upsertGoogleDataSourceConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "ga4",
+      providerName: "Google Analytics 4",
+      configuration: { selectedPropertyId: input.config.ga4PropertyId, ga4PropertyId: input.config.ga4PropertyId }
+    }));
+  }
+  if (input.config.searchConsoleSiteUrl) {
+    writes.push(upsertGoogleDataSourceConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "google_search_console",
+      providerName: "Google Search Console",
+      configuration: { selectedSiteUrl: input.config.searchConsoleSiteUrl, searchConsoleSiteUrl: input.config.searchConsoleSiteUrl }
+    }));
+  }
+  if (input.config.businessProfileAccountId || input.config.businessProfileLocationId) {
+    writes.push(upsertGoogleDataSourceConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "google_business_profile",
+      providerName: "Google Business Profile",
+      configuration: {
+        selectedAccountId: input.config.businessProfileAccountId,
+        selectedLocationId: input.config.businessProfileLocationId,
+        businessProfileAccountId: input.config.businessProfileAccountId,
+        businessProfileLocationId: input.config.businessProfileLocationId,
+        optionalForOnlineOnlyPod: true
+      }
+    }));
+  }
+  await Promise.all(writes);
 }
 
 export async function storeVerifiedGoogleOAuth(input: {
@@ -816,6 +924,220 @@ export async function syncGoogleBusinessProfile(input: { repos: RepositoryBundle
   }
 }
 
+function normalizeGa4PropertyId(value: string) {
+  const match = value.match(/properties\/(\d+)/);
+  return match?.[1] ?? value.replace(/[^\d]/g, "");
+}
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function hostFromUrl(value: string) {
+  if (!value) return "";
+  if (value.startsWith("sc-domain:")) return value.replace("sc-domain:", "").replace(/^www\./, "").toLowerCase();
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+async function googleDetectionHints(input: { repos: RepositoryBundle; workspaceId: string; config: RuntimeConfig }) {
+  const profile = (await input.repos.businessProfileV1.listByWorkspace(input.workspaceId))[0] as any;
+  const profileJson = (profile?.profile_json ?? profile?.profileJson ?? {}) as Record<string, unknown>;
+  const brandValues = [
+    "Salty Cowhide",
+    "SaltyCowhide.com",
+    input.config.NEXT_PUBLIC_STOREFRONT_BASE_URL,
+    String(profile?.public_brand_name ?? profile?.publicBrandName ?? ""),
+    String(profileJson.publicBrandName ?? ""),
+    String(profileJson.businessName ?? ""),
+    String(profileJson.websiteUrl ?? profileJson.storefrontUrl ?? "")
+  ].filter(Boolean);
+  const domains = Array.from(new Set(brandValues.map((value) => hostFromUrl(String(value))).filter(Boolean)));
+  const terms = Array.from(new Set(brandValues.map((value) => normalizeText(String(value))).filter((value) => value.length > 2)));
+  return { domains, terms };
+}
+
+function scoreCandidate(text: string, url: string | null | undefined, hints: Awaited<ReturnType<typeof googleDetectionHints>>) {
+  const normalizedText = normalizeText(`${text} ${url ?? ""}`);
+  const host = hostFromUrl(url ?? "");
+  const domainMatch = hints.domains.find((domain) => host === domain || normalizedText.includes(normalizeText(domain)));
+  if (domainMatch) return { confidence: "high" as const, matchReason: `Matched ${domainMatch}.` };
+  const termMatch = hints.terms.find((term) => term && normalizedText.includes(term));
+  if (termMatch) return { confidence: "high" as const, matchReason: "Matched Salty Cowhide business profile hints." };
+  return { confidence: "low" as const, matchReason: "Available to this Google account." };
+}
+
+function finalizeDiscovery(candidates: GoogleDiscoveryCandidate[], options: { emptyStatus?: GoogleDiscoverySourceResult["status"]; emptyMessage: string; multiMessage: string; singleMessage: string }) {
+  const high = candidates.filter((candidate) => candidate.confidence === "high");
+  const selected = high.length === 1 ? high[0] : candidates.length === 1 ? { ...candidates[0]!, confidence: candidates[0]!.confidence === "low" ? "medium" as const : candidates[0]!.confidence, matchReason: candidates[0]!.confidence === "low" ? "Only accessible candidate found." : candidates[0]!.matchReason } : null;
+  if (selected) {
+    return {
+      status: "auto_detected" as const,
+      message: options.singleMessage,
+      candidates: candidates.map((candidate) => candidate.id === selected.id ? selected : candidate),
+      selected,
+      saved: false,
+      setupRequired: ["Run sync to verify live provider access."]
+    };
+  }
+  if (candidates.length > 1) {
+    return { status: "needs_selection" as const, message: options.multiMessage, candidates, selected: null, saved: false, setupRequired: ["Select the correct Google resource, then sync."] };
+  }
+  return { status: options.emptyStatus ?? "manual_setup", message: options.emptyMessage, candidates: [], selected: null, saved: false, setupRequired: ["Manual setup required."] };
+}
+
+async function discoverGa4Properties(input: { fetcher: GoogleFetch; accessToken: string; hints: Awaited<ReturnType<typeof googleDetectionHints>> }): Promise<GoogleDiscoverySourceResult> {
+  try {
+    const accountsResponse = await googleJson(input.fetcher, "https://analyticsadmin.googleapis.com/v1beta/accounts", bearer(input.accessToken, { method: "GET" }));
+    const accounts = (accountsResponse.accounts ?? []).map((account: any) => ({ name: String(account.name ?? ""), displayName: String(account.displayName ?? account.name ?? "") })).filter((account: any) => account.name);
+    const candidates: GoogleDiscoveryCandidate[] = [];
+    for (const account of accounts.slice(0, 20)) {
+      const propertiesUrl = new URL("https://analyticsadmin.googleapis.com/v1beta/properties");
+      propertiesUrl.searchParams.set("filter", `parent:${account.name}`);
+      const propertiesResponse = await googleJson(input.fetcher, propertiesUrl.toString(), bearer(input.accessToken, { method: "GET" }));
+      for (const property of propertiesResponse.properties ?? []) {
+        const propertyName = String(property.name ?? "");
+        const propertyId = normalizeGa4PropertyId(propertyName);
+        let url: string | null = null;
+        try {
+          const streamsResponse = await googleJson(input.fetcher, `https://analyticsadmin.googleapis.com/v1beta/${propertyName}/dataStreams`, bearer(input.accessToken, { method: "GET" }));
+          const webStream = (streamsResponse.dataStreams ?? []).find((stream: any) => stream.webStreamData?.defaultUri);
+          url = webStream?.webStreamData?.defaultUri ? String(webStream.webStreamData.defaultUri) : null;
+        } catch (error) {
+          if (!(error instanceof GoogleProviderError) || !["access_denied", "access_limited"].includes(error.status)) throw error;
+        }
+        const label = String(property.displayName ?? propertyName);
+        const score = scoreCandidate(`${label} ${account.displayName}`, url, input.hints);
+        candidates.push({ id: propertyId, propertyId, label, type: "ga4_property", url, confidence: score.confidence, matchReason: score.matchReason, accountId: account.name });
+      }
+    }
+    return finalizeDiscovery(candidates, {
+      emptyMessage: "No GA4 properties were found for this Google account. Create or grant access to the SaltyCowhide.com GA4 property, then retry.",
+      multiMessage: "Multiple GA4 properties are available. Select the SaltyCowhide.com property before syncing.",
+      singleMessage: "One likely GA4 property was found and can be saved for verification."
+    });
+  } catch (error) {
+    const result = resultFromGoogleError(error);
+    return { status: result.status === "access_limited" ? "access_limited" : "setup_needed", message: result.status === "access_limited" ? "GA4 discovery requires Analytics Admin API access or manual property ID setup." : result.message, candidates: [], selected: null, saved: false, setupRequired: result.setupRequired };
+  }
+}
+
+async function discoverSearchConsoleSites(input: { fetcher: GoogleFetch; accessToken: string; hints: Awaited<ReturnType<typeof googleDetectionHints>> }): Promise<GoogleDiscoverySourceResult> {
+  try {
+    const response = await googleJson(input.fetcher, "https://www.googleapis.com/webmasters/v3/sites", bearer(input.accessToken, { method: "GET" }));
+    const candidates = (response.siteEntry ?? []).map((site: any) => {
+      const siteUrl = String(site.siteUrl ?? "");
+      const score = scoreCandidate(siteUrl, siteUrl, input.hints);
+      return {
+        id: siteUrl,
+        label: siteUrl,
+        type: "search_console_site" as const,
+        siteUrl,
+        url: siteUrl.startsWith("sc-domain:") ? null : siteUrl,
+        confidence: score.confidence,
+        matchReason: `${score.matchReason} Permission: ${String(site.permissionLevel ?? "available")}.`
+      };
+    }).filter((candidate: GoogleDiscoveryCandidate) => candidate.siteUrl);
+    return finalizeDiscovery(candidates, {
+      emptyMessage: "No Search Console properties found for this Google account. Add saltycowhide.com to Search Console, verify ownership, then retry.",
+      multiMessage: "Multiple Search Console properties are available. Select the SaltyCowhide.com URL or sc-domain property before syncing.",
+      singleMessage: "One likely Search Console property was found and can be saved for verification."
+    });
+  } catch (error) {
+    const result = resultFromGoogleError(error);
+    return { status: result.status === "access_limited" ? "access_limited" : "setup_needed", message: result.status === "access_limited" ? "Search Console discovery requires API access or manual site setup." : result.message, candidates: [], selected: null, saved: false, setupRequired: result.setupRequired };
+  }
+}
+
+async function discoverBusinessProfileLocations(input: { fetcher: GoogleFetch; accessToken: string; hints: Awaited<ReturnType<typeof googleDetectionHints>> }): Promise<GoogleDiscoverySourceResult> {
+  try {
+    const accountsResponse = await googleJson(input.fetcher, "https://mybusinessaccountmanagement.googleapis.com/v1/accounts", bearer(input.accessToken, { method: "GET" }));
+    const accounts = (accountsResponse.accounts ?? []).map((account: any) => ({ name: String(account.name ?? ""), accountName: String(account.accountName ?? account.name ?? "") })).filter((account: any) => account.name);
+    if (!accounts.length) {
+      return { status: "optional_not_required", message: "No Google Business Profile accounts were found. GBP is optional for an online-only Salty Cowhide POD launch.", candidates: [], selected: null, saved: false, setupRequired: [] };
+    }
+    const candidates: GoogleDiscoveryCandidate[] = [];
+    for (const account of accounts.slice(0, 20)) {
+      const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName(account.name)}/locations?readMask=name,title,websiteUri,metadata`;
+      const locationsResponse = await googleJson(input.fetcher, locationsUrl, bearer(input.accessToken, { method: "GET" }));
+      for (const location of locationsResponse.locations ?? []) {
+        const locationId = String(location.name ?? "");
+        const label = String(location.title ?? locationId);
+        const url = typeof location.websiteUri === "string" ? location.websiteUri : null;
+        const score = scoreCandidate(`${label} ${account.accountName}`, url, input.hints);
+        candidates.push({ id: `${account.name}:${locationId}`, label, type: "gbp_location", accountId: account.name, locationId, url, confidence: score.confidence, matchReason: score.matchReason });
+      }
+    }
+    const result = finalizeDiscovery(candidates, {
+      emptyStatus: "optional_not_required",
+      emptyMessage: "No Google Business Profile locations were found. GBP is optional for online-only ecommerce/POD workspaces.",
+      multiMessage: "Multiple Google Business Profile locations are available. Select one only if Salty Cowhide has an eligible public profile.",
+      singleMessage: "One likely Google Business Profile location was found. GBP remains optional for online-only POD launch readiness."
+    });
+    if (result.status === "manual_setup") result.status = "optional_not_required";
+    return result;
+  } catch (error) {
+    const result = resultFromGoogleError(error);
+    return { status: "access_limited", message: "Google Business Profile discovery is unavailable or limited for this account. This is not a hard blocker for an online-only Salty Cowhide POD launch.", candidates: [], selected: null, saved: false, setupRequired: result.status === "auth_required" ? ["Reconnect Google."] : ["Use GBP only if the business is eligible and API access is available."] };
+  }
+}
+
+export async function autoDetectGoogleSetup(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined; autoSave?: boolean | undefined }): Promise<GoogleAutoDetectResult> {
+  const bundle = await getUsableTokens(input);
+  if (!bundle.ok) {
+    return { ok: false, status: bundle.status, provider: "google_oauth", message: bundle.message, setupRequired: bundle.setupRequired };
+  }
+  const fetcher = input.fetcher ?? fetch;
+  const hints = await googleDetectionHints({ repos: input.repos, workspaceId: input.workspaceId, config: input.config });
+  const [ga4, searchConsole, businessProfile] = await Promise.all([
+    discoverGa4Properties({ fetcher, accessToken: bundle.tokens.access_token, hints }),
+    discoverSearchConsoleSites({ fetcher, accessToken: bundle.tokens.access_token, hints }),
+    discoverBusinessProfileLocations({ fetcher, accessToken: bundle.tokens.access_token, hints })
+  ]);
+  const autoSaved: Partial<GoogleWorkspaceConfig> = {};
+  if (input.autoSave !== false) {
+    if (ga4.selected?.propertyId) autoSaved.ga4PropertyId = ga4.selected.propertyId;
+    if (searchConsole.selected?.siteUrl) autoSaved.searchConsoleSiteUrl = searchConsole.selected.siteUrl;
+    if (businessProfile.selected?.accountId && businessProfile.selected.locationId) {
+      autoSaved.businessProfileAccountId = businessProfile.selected.accountId;
+      autoSaved.businessProfileLocationId = businessProfile.selected.locationId;
+    }
+    if (Object.keys(autoSaved).length) {
+      await configureGoogleWorkspace({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, config: input.config, values: autoSaved });
+      if (autoSaved.ga4PropertyId) ga4.saved = true;
+      if (autoSaved.searchConsoleSiteUrl) searchConsole.saved = true;
+      if (autoSaved.businessProfileAccountId || autoSaved.businessProfileLocationId) businessProfile.saved = true;
+    }
+  }
+  await syncRun({
+    repos: input.repos,
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    providerKey: "google_oauth",
+    syncType: "auto_detect",
+    status: "completed",
+    recordsRead: ga4.candidates.length + searchConsole.candidates.length + businessProfile.candidates.length,
+    recordsWritten: Object.keys(autoSaved).length,
+    resultSummary: {
+      ga4: { status: ga4.status, candidates: ga4.candidates.length, saved: Boolean(autoSaved.ga4PropertyId) },
+      searchConsole: { status: searchConsole.status, candidates: searchConsole.candidates.length, saved: Boolean(autoSaved.searchConsoleSiteUrl) },
+      businessProfile: { status: businessProfile.status, candidates: businessProfile.candidates.length, saved: Boolean(autoSaved.businessProfileLocationId), optionalForOnlineOnlyPod: true }
+    }
+  });
+  return {
+    ok: true,
+    status: "completed",
+    provider: "google_oauth",
+    message: "Google resource discovery completed. Saved only single confident matches; sync is still required before any data source is connected.",
+    googleEmail: bundle.googleEmail ?? null,
+    autoSaved,
+    dataSources: { ga4, searchConsole, businessProfile }
+  };
+}
+
 export async function configureGoogleWorkspace(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; values: Partial<GoogleWorkspaceConfig> }) {
   const existing = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "google_oauth");
   const current = workspaceGoogleConfig(input.config, existing);
@@ -837,6 +1159,7 @@ export async function configureGoogleWorkspace(input: { repos: RepositoryBundle;
       businessProfileLocationId: next.businessProfileLocationId
     }
   });
+  await upsertConfiguredGoogleDataSources({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, config: next });
   return { ok: true as const, status: "configured" as const, provider: "google_oauth", configuration: next };
 }
 

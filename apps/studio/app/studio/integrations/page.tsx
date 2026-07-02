@@ -37,8 +37,12 @@ export default async function Page() {
   });
   const configuredCount = integrations.filter((item) => item.status === "connected").length;
   const readiness = Math.round((configuredCount / integrations.length) * 100);
+  const googleOAuth = integrations.find((item) => item.key === "google_oauth");
+  const ga4 = integrations.find((item) => item.key === "ga4");
+  const gsc = integrations.find((item) => item.key === "google_search_console");
+  const gbp = integrations.find((item) => item.key === "google_business_profile");
   return <>
-    <PageHeader title="Integrations & AI Readiness" description="Configure real provider connections and site readiness checks. Disabled providers do not show fake live data.">
+    <PageHeader title="Integrations & AI Readiness" description="Connect Google OAuth, auto-detect available data sources, then sync only verified GA4/Search Console/optional Business Profile data. Disabled providers do not show fake live data.">
       <a className="sf-button sf-button-secondary" href="/studio/settings/setup">Setup Guide</a><a className="sf-button sf-button-primary" href="/studio/ai-readiness/audit">Run Site Audit</a>
     </PageHeader>
     <div className="sf-grid sf-grid-4">
@@ -50,6 +54,16 @@ export default async function Page() {
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Connected Integrations</h2>
       <div className="sf-grid sf-grid-4">{integrations.map((item) => <IntegrationCard key={item.key} title={item.label} status={item.status.replace(/_/g, " ")} tone={item.status === "connected" ? "success" : item.status === "disabled" ? "warning" : "danger"} />)}</div>
+    </section>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Google Setup</h2>
+      <div className="sf-grid sf-grid-4">
+        <IntegrationCard title="Google OAuth" status={String(googleOAuth?.status ?? "not_configured").replace(/_/g, " ")} tone={googleOAuth?.status === "connected" ? "success" : "warning"} />
+        <IntegrationCard title="GA4" status={String(ga4?.selectedPropertyId ? ga4.status : "manual setup or auto-detect needed").replace(/_/g, " ")} tone={ga4?.status === "connected" ? "success" : "warning"} />
+        <IntegrationCard title="Search Console" status={String(gsc?.selectedSiteUrl ? gsc.status : "manual setup or auto-detect needed").replace(/_/g, " ")} tone={gsc?.status === "connected" ? "success" : "warning"} />
+        <IntegrationCard title="Google Business Profile" status={String(gbp?.selectedLocationId ? gbp.status : "optional for online POD").replace(/_/g, " ")} tone={gbp?.status === "connected" ? "success" : "warning"} />
+      </div>
+      <p className="sf-muted">Recommended flow: Connect Google OAuth, run Auto-detect Google setup, save the selected resources, then sync. Business Profile is optional for online-only Salty Cowhide POD launch readiness.</p>
     </section>
     <IntegrationActionsClient integrations={integrations} />
     <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>

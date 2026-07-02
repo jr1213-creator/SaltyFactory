@@ -4,66 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireStudioUser } from "@saltyfactory/auth";
 import { NotificationBell, ProgressBar, SearchCommand, UserMenu, WorkspaceSwitcher } from "@saltyfactory/ui";
-
-const navGroups = [
-  {
-    label: "",
-    links: [["Dashboard", "/studio"]]
-  },
-  {
-    label: "POD Studio",
-    links: [
-      ["Product Builder", "/studio/pod-migration"],
-      ["Designs", "/studio/designs"],
-      ["Assets", "/studio/assets"],
-      ["Mockups", "/studio/mockups"],
-      ["Listing Drafts", "/studio/listing-drafts"],
-      ["Pricing & Margins", "/studio/pricing"],
-      ["Publish Review", "/studio/publish"]
-    ]
-  },
-  {
-    label: "AI Employees",
-    links: [["AI Employees", "/studio/ai-employees"]]
-  },
-  {
-    label: "Storefront",
-    links: [
-      ["Products", "/studio/products"],
-      ["Shopify / Printify", "/studio/integrations"],
-      ["SaltyCowhide.com", "/studio/drafts"]
-    ]
-  },
-  {
-    label: "Marketing",
-    links: [
-      ["Social Planner", "/studio/social-planner"],
-      ["Channels", "/studio/channels"],
-      ["Trends", "/studio/trends"]
-    ]
-  },
-  {
-    label: "Analytics",
-    links: [
-      ["Baseline & Impact", "/studio/baseline"],
-      ["Google Data", "/studio/integrations"]
-    ]
-  },
-  {
-    label: "Operations",
-    links: [
-      ["Business Profile", "/studio/settings/business-profile"],
-      ["Integrations", "/studio/integrations"],
-      ["Setup Guide", "/studio/migration-guide"],
-      ["Settings", "/studio/settings"],
-      ["Billing", "/studio/billing"]
-    ]
-  },
-  {
-    label: "Expansion",
-    links: [["Accessory Dropshipping", "/studio/dropshipping"]]
-  }
-];
+import { StudioNavigation } from "./StudioNavigation";
 
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -79,12 +20,7 @@ export default async function StudioLayout({ children }: { children: React.React
   return <div className="studio-shell">
     <aside className="studio-sidebar">
       <a className="studio-logo" href="/studio"><span className="studio-logo-mark" />SaltyFactory</a>
-      <nav className="studio-nav" aria-label="Studio navigation">
-        {navGroups.map((group) => <section className="studio-nav-group" key={group.label || "dashboard"}>
-          {group.label ? <h2 className="studio-nav-heading">{group.label}</h2> : null}
-          {group.links.map(([label, href]) => <a key={`${group.label}-${href}-${label}`} href={href}>{label}</a>)}
-        </section>)}
-      </nav>
+      <StudioNavigation />
       <section className="studio-plan">
         <strong>Pro Studio Plan <a href="/studio/billing">Manage</a></strong>
         <ProgressBar label="Credits used" value={68} />
