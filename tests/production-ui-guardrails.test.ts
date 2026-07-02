@@ -188,9 +188,23 @@ describe("production UI guardrails", () => {
     expect(response.status).toBe(200);
   });
 
-  it("Supabase session cookie passes proxy; Studio layout keeps workspace enforcement", async () => {
-    const response = await proxy(request("/studio", `${SUPABASE_ACCESS_COOKIE}=valid`));
-    expect(response.status).toBe(200);
+  it("Login, auth callback, and auth utility routes are not blocked by proxy", async () => {
+    await expect(proxy(request("/login"))).resolves.toMatchObject({ status: 200 });
+    await expect(proxy(request("/auth/callback?code=abc"))).resolves.toMatchObject({ status: 200 });
+    await expect(proxy(request("/api/auth/callback"))).resolves.toMatchObject({ status: 200 });
+    await expect(proxy(request("/api/studio/auth/debug"))).resolves.toMatchObject({ status: 200 });
+  });
+
+  it("Supabase session cookie shapes pass proxy; Studio layout keeps workspace enforcement", async () => {
+    const customCookie = await proxy(request("/studio", `${SUPABASE_ACCESS_COOKIE}=valid`));
+    const ssrCookie = await proxy(request("/studio", "sb-projectref-auth-token=session"));
+    const chunkedCookie = await proxy(request("/api/studio/db/health", "sb-projectref-auth-token.0=session-part"));
+    const verifierOnly = await proxy(request("/studio", "sb-projectref-auth-token-code-verifier=verifier"));
+
+    expect(customCookie.status).toBe(200);
+    expect(ssrCookie.status).toBe(200);
+    expect(chunkedCookie.status).toBe(200);
+    expect(verifierOnly.status).toBe(307);
 
     const layout = readFileSync(join(process.cwd(), "apps/studio/app/studio/layout.tsx"), "utf8");
     expect(layout).toContain("requireStudioUser");
