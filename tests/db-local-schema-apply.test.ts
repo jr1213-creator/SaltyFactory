@@ -7,7 +7,12 @@ import {
   requiredStudioTables,
   tablesCreatedByMigration
 } from "../packages/db/src/apply-local";
-import { isSchemaIncompleteError } from "../apps/studio/app/studio/data";
+import {
+  classifyStudioDataError,
+  getStudioLists,
+  isSchemaIncompleteError,
+  sanitizeStudioDataError
+} from "../apps/studio/app/studio/data";
 
 describe("local database schema apply", () => {
   it("uses a real migrate/apply implementation, not a placeholder", () => {
@@ -71,8 +76,42 @@ describe("local database schema apply", () => {
 
     expect(isSchemaIncompleteError(missingRelation)).toBe(true);
     expect(isSchemaIncompleteError(missingColumn)).toBe(true);
+    expect(classifyStudioDataError(missingRelation)).toBe("schema_incomplete");
     expect(isSchemaIncompleteError(new Error("Failed query: select * from workspace_channels"))).toBe(false);
     expect(isSchemaIncompleteError(Object.assign(new Error("permission denied for table workspace_channels"), { code: "42501" }))).toBe(false);
+  });
+
+  it("classifies non-schema Studio data setup failures honestly", async () => {
+    const unreachable = Object.assign(new Error("Failed query: select * from workspace_channels"), {
+      cause: Object.assign(new Error("connect EACCES 203.0.113.10:5432"), { code: "EACCES" })
+    });
+    const permission = Object.assign(new Error("permission denied for table workspace_channels"), { code: "42501" });
+    const workspace = new Error("workspace access required for wks_default");
+
+    expect(classifyStudioDataError(unreachable)).toBe("database_unreachable");
+    expect(classifyStudioDataError(permission)).toBe("database_permission_denied");
+    expect(classifyStudioDataError(workspace)).toBe("workspace_setup_required");
+    expect(sanitizeStudioDataError(new Error("postgres://user:pass@example/db access_token=abc123 client_secret=shh"))).not.toMatch(/abc123|shh|user:pass/);
+
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+    const originalRepositoryAdapter = process.env.REPOSITORY_ADAPTER;
+    const originalAppEnv = process.env.APP_ENV;
+    delete process.env.DATABASE_URL;
+    delete process.env.REPOSITORY_ADAPTER;
+    process.env.APP_ENV = "development";
+    try {
+      const result = await getStudioLists();
+      expect(result.schemaIncomplete).toBe(false);
+      expect(result.setupMessage).toContain("Studio database is not configured");
+      expect(result.setupMessage).not.toContain("Database schema incomplete");
+    } finally {
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+      if (originalRepositoryAdapter === undefined) delete process.env.REPOSITORY_ADAPTER;
+      else process.env.REPOSITORY_ADAPTER = originalRepositoryAdapter;
+      if (originalAppEnv === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = originalAppEnv;
+    }
   });
 
   it("Studio pages expose a non-production schema setup state instead of crashing", () => {
