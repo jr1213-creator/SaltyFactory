@@ -180,6 +180,26 @@ describe("production UI routes", () => {
     expect(serviceCasesHtml).toContain("No fake support data");
   });
 
+  it("Customer success pages surface saved CRM records instead of hardcoded empty states", () => {
+    const captureSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/customer-capture/forms/page.tsx"), "utf8");
+    const campaignsSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/customer-campaigns/page.tsx"), "utf8");
+    const opportunitiesSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/opportunities/page.tsx"), "utf8");
+    const serviceCasesSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/service-cases/page.tsx"), "utf8");
+    const schedulingSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/customer-scheduling/page.tsx"), "utf8");
+    const dataSource = readFileSync(join(process.cwd(), "apps/studio/app/studio/customer-command-center/data.ts"), "utf8");
+
+    expect(dataSource).toContain("repos.crm.opportunities.listByWorkspace");
+    expect(dataSource).toContain("repos.crm.serviceCases.listByWorkspace");
+    expect(dataSource).toContain("repos.crm.bookingRequests.listByWorkspace");
+    expect(captureSource).toContain("data.forms.length ? data.forms : data.defaultCaptureForms");
+    expect(campaignsSource).toContain("Saved Campaign Drafts");
+    expect(opportunitiesSource).toContain("data.opportunities");
+    expect(opportunitiesSource).not.toContain('MetricCard title="Opportunities" value="0"');
+    expect(serviceCasesSource).toContain("data.serviceCases");
+    expect(serviceCasesSource).not.toContain('MetricCard title="Cases" value="0"');
+    expect(schedulingSource).toContain("data.bookingRequests.length");
+  });
+
   it("Trends page renders filters and queue sections", async () => {
     const html = renderToStaticMarkup(await TrendsPage());
     expect(html).toContain("Trend Intelligence");

@@ -84,6 +84,8 @@ function emptyCustomerCommandCenterState(setupKind = "", setupMessage = "") {
     setupKind,
     customers: [] as WorkspaceRow[],
     leads: [] as WorkspaceRow[],
+    opportunities: [] as WorkspaceRow[],
+    serviceCases: [] as WorkspaceRow[],
     tasks: [] as WorkspaceRow[],
     notes: [] as WorkspaceRow[],
     timelineEvents: [] as WorkspaceRow[],
@@ -92,6 +94,8 @@ function emptyCustomerCommandCenterState(setupKind = "", setupMessage = "") {
     forms: [] as WorkspaceRow[],
     campaigns: [] as WorkspaceRow[],
     conversations: [] as WorkspaceRow[],
+    appointmentTypes: [] as WorkspaceRow[],
+    bookingRequests: [] as WorkspaceRow[],
     consultations: [] as WorkspaceRow[],
     events: [] as WorkspaceRow[],
     productInterests: [] as WorkspaceRow[],
@@ -127,6 +131,7 @@ export async function getCustomerCommandCenterData() {
     const [
       customers,
       leads,
+      opportunities,
       tasks,
       notes,
       timelineEvents,
@@ -134,6 +139,8 @@ export async function getCustomerCommandCenterData() {
       forms,
       campaigns,
       conversations,
+      appointmentTypes,
+      bookingRequests,
       consultations,
       events,
       productInterests,
@@ -144,6 +151,7 @@ export async function getCustomerCommandCenterData() {
     ] = await Promise.all([
       repos.crm.customers.listByWorkspace(studioWorkspaceId),
       repos.crm.leads.listByWorkspace(studioWorkspaceId),
+      repos.crm.opportunities.listByWorkspace(studioWorkspaceId),
       repos.crm.tasks.listByWorkspace(studioWorkspaceId),
       repos.crm.notes.listByWorkspace(studioWorkspaceId),
       repos.crm.timelineEvents.listByWorkspace(studioWorkspaceId),
@@ -151,6 +159,8 @@ export async function getCustomerCommandCenterData() {
       repos.crm.forms.listByWorkspace(studioWorkspaceId),
       repos.crm.campaigns.listByWorkspace(studioWorkspaceId),
       repos.crm.conversations.listByWorkspace(studioWorkspaceId),
+      repos.crm.appointmentTypes.listByWorkspace(studioWorkspaceId),
+      repos.crm.bookingRequests.listByWorkspace(studioWorkspaceId),
       repos.crm.consultations.listByWorkspace(studioWorkspaceId),
       repos.crm.events.listByWorkspace(studioWorkspaceId),
       repos.crm.productInterests.listByWorkspace(studioWorkspaceId),
@@ -160,11 +170,17 @@ export async function getCustomerCommandCenterData() {
       repos.integration.listProviderConnectionsForWorkspace(studioWorkspaceId)
     ]);
     const shopifyStatus = providerStatus(providerConnections, "shopify");
+    const defaultSegments = defaultSegmentRows();
+    const persistedSegmentKeys = new Set(persistedSegments.map((segment) => String(segment.key ?? segment.segment_key ?? segment.name ?? segment.id)));
+    const segments = [
+      ...persistedSegments.map(safeCrmRow),
+      ...defaultSegments.filter((segment) => !persistedSegmentKeys.has(String(segment.key)) && !persistedSegmentKeys.has(String(segment.name)))
+    ];
     const summary = createCustomerCommandCenterSummary({
       customers,
       leads,
       tasks,
-      segments: persistedSegments.length ? persistedSegments : defaultCrmSegments as unknown as Array<Record<string, unknown>>,
+      segments,
       forms,
       campaigns,
       conversations,
@@ -172,7 +188,6 @@ export async function getCustomerCommandCenterData() {
       events,
       shopifyStatus
     });
-    const defaultSegments = defaultSegmentRows();
     const nextActions = customers.flatMap((customer) => {
       const customerId = String(customer.id);
       const customerInterests = productInterests.filter((interest) => String(interest.customer_id ?? interest.customerId ?? "") === customerId);
@@ -196,14 +211,18 @@ export async function getCustomerCommandCenterData() {
       setupKind: "",
       customers: customers.map(safeCrmRow),
       leads: leads.map(safeCrmRow),
+      opportunities: opportunities.map(safeCrmRow),
+      serviceCases: serviceCases.map(safeCrmRow),
       tasks: tasks.map(safeCrmRow),
       notes: notes.map(safeCrmRow),
       timelineEvents: sortCustomerTimeline(timelineEvents).map(safeCrmRow),
-      segments: persistedSegments.length ? persistedSegments.map(safeCrmRow) : defaultSegments,
+      segments,
       defaultSegments,
       forms: forms.map(safeCrmRow),
       campaigns: campaigns.map(safeCrmRow),
       conversations: conversations.map(safeCrmRow),
+      appointmentTypes: appointmentTypes.map(safeCrmRow),
+      bookingRequests: bookingRequests.map(safeCrmRow),
       consultations: consultations.map(safeCrmRow),
       events: events.map(safeCrmRow),
       productInterests: productInterests.map(safeCrmRow),

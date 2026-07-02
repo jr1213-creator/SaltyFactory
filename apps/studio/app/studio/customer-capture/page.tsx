@@ -4,8 +4,17 @@ import { getCustomerCommandCenterData } from "../customer-command-center/data";
 
 export const runtime = "nodejs";
 
+function formTitle(form: any) {
+  return String(form.title ?? form.name ?? "Untitled capture form");
+}
+
+function formDescription(form: any) {
+  return String(form.description ?? "Workspace capture form.");
+}
+
 export default async function CustomerCapturePage() {
   const data = await getCustomerCommandCenterData();
+  const captureRows = data.forms.length ? data.forms : data.defaultCaptureForms;
   return <>
     <PageHeader
       eyebrow="Customer capture"
@@ -24,12 +33,12 @@ export default async function CustomerCapturePage() {
     </div>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Capture Readiness</h2>
-      <DataTable columns={["Template", "Description", "Status", "Consent", "Embed readiness"]} rows={data.defaultCaptureForms.map((form: any) => [
-        form.title,
-        form.description,
-        form.status,
+      <DataTable columns={["Form", "Description", "Status", "Consent", "Embed readiness"]} rows={captureRows.map((form: any) => [
+        formTitle(form),
+        formDescription(form),
+        form.status ?? "draft",
         "Consent language placeholder required before public activation.",
-        form.embedReadinessStatus
+        form.embed_readiness_status ?? form.embedReadinessStatus ?? "future_integration"
       ])} />
     </section>
     <ProviderStatusCard title="Embed code generation" status="future integration" tone="warning" description="Embed code generation is a future integration. No public embeddable script is exposed in this pass." />

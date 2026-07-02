@@ -4,8 +4,17 @@ import { getCustomerCommandCenterData } from "../../customer-command-center/data
 
 export const runtime = "nodejs";
 
+function fieldsFor(form: any) {
+  const fields = form.fields ?? form.fields_json ?? form.fieldsJson ?? [];
+  if (Array.isArray(fields)) {
+    return fields.map((field) => typeof field === "string" ? field : String(field.name ?? field.key ?? field.label ?? "field")).join(", ");
+  }
+  return String(fields || "name, email, phone, interest, consent");
+}
+
 export default async function CustomerCaptureFormsPage() {
   const data = await getCustomerCommandCenterData();
+  const forms = data.forms.length ? data.forms : data.defaultCaptureForms;
   return <>
     <PageHeader
       eyebrow="Capture form templates"
@@ -17,13 +26,13 @@ export default async function CustomerCaptureFormsPage() {
     <SchemaSetupState message={data.setupMessage} />
     <DataTable
       columns={["Form", "Fields", "Target segment", "Follow-up task", "Status", "Embed"]}
-      rows={data.defaultCaptureForms.map((form: any) => [
+      rows={forms.map((form: any) => [
         form.title,
-        form.fields.join(", "),
-        form.key.replace(/_/g, " "),
-        "Create follow-up task",
-        <StatusBadge key={form.key} status={form.status} tone="info" />,
-        form.embedReadinessStatus
+        fieldsFor(form),
+        String(form.target_segment_key ?? form.targetSegmentKey ?? form.key ?? "manual").replace(/_/g, " "),
+        form.suggested_follow_up_task ?? form.suggestedFollowUpTask ?? "Create follow-up task",
+        <StatusBadge key={form.key ?? form.id} status={form.status ?? "draft"} tone="info" />,
+        form.embed_readiness_status ?? form.embedReadinessStatus ?? "future_integration"
       ])}
     />
   </>;

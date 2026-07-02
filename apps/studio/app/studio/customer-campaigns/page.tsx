@@ -4,6 +4,10 @@ import { getCustomerCommandCenterData } from "../customer-command-center/data";
 
 export const runtime = "nodejs";
 
+function campaignName(campaign: any) {
+  return String(campaign.name ?? campaign.title ?? "Untitled campaign");
+}
+
 export default async function CustomerCampaignsPage() {
   const data = await getCustomerCommandCenterData();
   return <>
@@ -22,6 +26,19 @@ export default async function CustomerCampaignsPage() {
       <MetricCard title="Message templates" value={String(data.defaultMessageTemplates.length)} delta="No sending provider" />
       <MetricCard title="Email sends" value="Disabled" delta="Owner/provider required" tone="warning" />
     </div>
+    {data.campaigns.length > 0 && <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Saved Campaign Drafts</h2>
+      <DataTable
+        columns={["Campaign", "Goal", "Target segment", "Status", "Consent readiness"]}
+        rows={data.campaigns.map((campaign: any) => [
+          campaignName(campaign),
+          campaign.goal ?? "Review campaign goal.",
+          campaign.target_segment_id ?? campaign.targetSegmentId ?? "manual selection required",
+          <StatusBadge key={campaign.id} status={String(campaign.status ?? "draft").replace(/_/g, " ")} tone="info" />,
+          campaign.consent_required === false || campaign.consentRequired === false ? "Consent not required by record" : "Consent must be confirmed before enrollment."
+        ])}
+      />
+    </section>}
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Default Campaign Ideas</h2>
       <DataTable
