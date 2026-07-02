@@ -35,6 +35,7 @@ import SearchVisibilityPage from "../apps/studio/app/studio/marketing/search-vis
 import CampaignAssetStudioPage from "../apps/studio/app/studio/marketing/assets/page";
 import MarketingTrackingPage from "../apps/studio/app/studio/marketing/tracking/page";
 import VoiceOfMarketResearchPage from "../apps/studio/app/studio/marketing/research/page";
+import SocialCareOpportunitiesPage from "../apps/studio/app/studio/marketing/social-care/page";
 import MarketingApprovalsPage from "../apps/studio/app/studio/marketing/approvals/page";
 import MarketingSetupPage from "../apps/studio/app/studio/marketing/setup/page";
 import VerticalPackSettingsPage from "../apps/studio/app/studio/settings/vertical-pack/page";
@@ -69,6 +70,7 @@ describe("production UI routes", () => {
     expect(source).toContain('["Marketing Command Center", "/studio/marketing-command-center"]');
     expect(source).toContain('["Pinterest Pin Factory", "/studio/marketing/pinterest"]');
     expect(source).toContain('["Search Visibility", "/studio/marketing/search-visibility"]');
+    expect(source).toContain('["Social Care", "/studio/marketing/social-care"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
     expect(source).toContain('label: "Expansion"');
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
@@ -125,6 +127,7 @@ describe("production UI routes", () => {
       "/studio/marketing/assets",
       "/studio/marketing/tracking",
       "/studio/marketing/research",
+      "/studio/marketing/social-care",
       "/studio/marketing/setup",
       "/studio/products",
       "/studio/integrations",
@@ -247,10 +250,11 @@ describe("production UI routes", () => {
     const assetsHtml = renderToStaticMarkup(await CampaignAssetStudioPage());
     const trackingHtml = renderToStaticMarkup(await MarketingTrackingPage());
     const researchHtml = renderToStaticMarkup(await VoiceOfMarketResearchPage());
+    const socialCareHtml = renderToStaticMarkup(await SocialCareOpportunitiesPage());
     const approvalsHtml = renderToStaticMarkup(await MarketingApprovalsPage());
     const setupHtml = renderToStaticMarkup(await MarketingSetupPage());
     const verticalHtml = renderToStaticMarkup(await VerticalPackSettingsPage());
-    const combined = [commandHtml, campaignsHtml, launchHtml, pinterestHtml, socialHtml, emailHtml, adsHtml, googleHtml, metaHtml, searchHtml, assetsHtml, trackingHtml, researchHtml, approvalsHtml, setupHtml, verticalHtml].join("\n");
+    const combined = [commandHtml, campaignsHtml, launchHtml, pinterestHtml, socialHtml, emailHtml, adsHtml, googleHtml, metaHtml, searchHtml, assetsHtml, trackingHtml, researchHtml, socialCareHtml, approvalsHtml, setupHtml, verticalHtml].join("\n");
 
     expect(commandHtml).toContain("Marketing Command Center");
     expect(commandHtml).toContain("manual/export-ready");
@@ -265,6 +269,8 @@ describe("production UI routes", () => {
     expect(assetsHtml).toContain("No generated creative claimed");
     expect(trackingHtml).toContain("No fake campaign performance");
     expect(researchHtml).toContain("No scraping");
+    expect(socialCareHtml).toContain("No live social inbox is connected");
+    expect(socialCareHtml).toContain("Save Opportunity");
     expect(approvalsHtml).toContain("Approval does not publish");
     expect(setupHtml).toContain("Seed Vertical Packs");
     expect(verticalHtml).toContain("Vertical Pack");
@@ -276,6 +282,7 @@ describe("production UI routes", () => {
     const workflowRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/launch-campaign/route.ts"), "utf8");
     const utmRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/utm-links/route.ts"), "utf8");
     const searchRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/search-visibility/audit/route.ts"), "utf8");
+    const socialCareRoute = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/social-care/route.ts"), "utf8");
 
     expect(dataSource).toContain("repos.shared.campaigns.listByWorkspace");
     expect(dataSource).toContain("repos.shared.campaignChannels.listByWorkspace");
@@ -290,7 +297,12 @@ describe("production UI routes", () => {
     expect(workflowRoute).toContain("landingUrl,");
     expect(utmRoute).toContain("buildUtmUrl");
     expect(searchRoute).toContain("No ranking guarantees.");
+    expect(socialCareRoute).toContain("repos.shared.sourceRecords.create");
+    expect(socialCareRoute).toContain("repos.shared.notes.create");
+    expect(socialCareRoute).toContain("repos.shared.tasks.create");
+    expect(socialCareRoute).toContain("social_care_opportunity_created");
     expect(workflowRoute).not.toMatch(/googleads\.googleapis\.com|graph\.facebook\.com|sendgrid|mailgun|pinterest\.com\/v5/i);
+    expect(socialCareRoute).not.toMatch(/graph\.facebook\.com|pinterest\.com\/v5|tiktokapis|sendgrid|mailgun/i);
   });
 
   it("Trends page renders filters and queue sections", async () => {

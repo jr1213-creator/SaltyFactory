@@ -17,6 +17,7 @@ import {
 import { createMemoryRepositories } from "../packages/db/src/repositories/memory";
 import { requiredStudioTables, sharedKernelTables } from "../packages/db/src/apply-local";
 import { GET as listShared, POST as createShared } from "../apps/studio/app/api/studio/shared/[resource]/route";
+import { POST as createSocialCareOpportunity } from "../apps/studio/app/api/studio/marketing/social-care/route";
 
 const workspaceId = "wks_default";
 const actor = { id: "auth_user_01", email: "owner@saltycowhide.com", emailVerified: true };
@@ -143,5 +144,42 @@ describe("shared kernel v1", () => {
     expect(await repos.shared.campaignChannels.listByWorkspace(workspaceId)).toHaveLength(1);
     expect(await repos.shared.exportPackages.listByWorkspace(workspaceId)).toHaveLength(1);
     expect(await repos.shared.utmLinks.listByWorkspace(workspaceId)).toHaveLength(1);
+  });
+
+  it("creates manual Social Care Opportunity records without live social provider calls", async () => {
+    const unauthorized = await createSocialCareOpportunity(new Request("http://localhost:3001/api/studio/marketing/social-care", { method: "POST" }));
+    expect(unauthorized.status).toBe(401);
+
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
+    const response = await createSocialCareOpportunity(request({
+      workspace_id: "attacker_workspace",
+      platform: "instagram",
+      classification: "buying_intent",
+      comment_text: "Do you make this as a tote? client_secret=bad",
+      response_draft: "Thanks for asking. We can review tote options and follow up.",
+      linked_entity_type: "lead",
+      linked_entity_id: "lead_1",
+      api_token: "must_not_return",
+      create_task: true,
+      owner_verified: true
+    }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      status: "created",
+      records: {
+        sourceRecord: expect.stringContaining("source_socialcare_"),
+        note: expect.stringContaining("note_socialcare_"),
+        task: expect.stringContaining("task_socialcare_"),
+        event: expect.stringContaining("event_socialcare_")
+      }
+    });
+    expect(JSON.stringify(body)).not.toMatch(/attacker_workspace|must_not_return|api_token|client_secret|access_token|refresh_token/i);
+    const source = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/marketing/social-care/route.ts"), "utf8");
+    expect(source).toContain("manualOnly: true");
+    expect(source).toContain("noLiveSocialInbox: true");
+    expect(source).not.toMatch(/graph\.facebook\.com|pinterest\.com\/v5|tiktokapis|sendgrid|mailgun/i);
   });
 });

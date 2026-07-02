@@ -43,7 +43,8 @@ export default async function MarketingCommandCenterPage() {
             ["Run launch campaign workflow", "manual/export-ready", <a key="workflow" href="/studio/marketing-command-center/launch-campaign">Open</a>],
             ["Create proof pack", summary.proofPacks ? "created" : "needed", <a key="campaigns" href="/studio/marketing-campaigns">Campaigns</a>],
             ["Create UTM links", summary.utmLinks ? "created" : "needed", <a key="utm" href="/studio/marketing/tracking">Tracking</a>],
-            ["Review approvals", summary.approvalItems ? "pending" : "none", <a key="approvals" href="/studio/marketing/assets">Assets/approvals</a>]
+            ["Review approvals", summary.approvalItems ? "pending" : "none", <a key="approvals" href="/studio/marketing/assets">Assets/approvals</a>],
+            ["Classify social care opportunities", summary.researchItems ? "manual/imported records exist" : "manual input ready", <a key="social-care" href="/studio/marketing/social-care">Social Care</a>]
           ]} />
         </section>
         <section className="sf-card">

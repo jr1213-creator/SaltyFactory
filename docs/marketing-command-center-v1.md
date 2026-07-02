@@ -28,8 +28,11 @@ Marketing Command Center is a native manual/export-ready campaign operating syst
 - Search/AEO/GEO readiness report
 - Voice-of-Market Research Board
 - Creative Intelligence Swipe File
+- Social Care Opportunity foundation
 
 These features create editable, persisted records for owner review and manual export. They do not publish, send, submit, launch ads, or spend money.
+
+The Social Care Opportunity foundation stores manual/imported comment opportunities as source records, response drafts as shared notes, follow-up actions as shared tasks, and owner-facing events. It does not connect to live social inboxes or send replies.
 
 ## Future Integration Placeholders
 

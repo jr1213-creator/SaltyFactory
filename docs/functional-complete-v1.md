@@ -23,9 +23,9 @@ It provides provider readiness, source provenance, owner-facing events, audit lo
 
 Marketing Command Center v1 is documented in `docs/marketing-command-center-v1.md`.
 
-- Routes: `/studio/marketing-command-center`, `/studio/marketing-campaigns`, `/studio/marketing-command-center/launch-campaign`, `/studio/marketing/pinterest`, `/studio/marketing/social`, `/studio/marketing/email`, `/studio/marketing/ads`, `/studio/marketing/ads/google`, `/studio/marketing/ads/meta`, `/studio/marketing/search-visibility`, `/studio/marketing/assets`, `/studio/marketing/tracking`, `/studio/marketing/research`, `/studio/marketing/approvals`, `/studio/marketing/setup`
-- APIs: `/api/studio/shared/*`, `/api/studio/marketing/launch-campaign`, `/api/studio/marketing/utm-links`, `/api/studio/marketing/search-visibility/audit`
-- Functional: campaign CRUD, editable channel drafts, guided campaign packet generation, Campaign Proof Pack, No-Ad Growth Plan, Ad Readiness Score, UTM generation, asset specs, source-labeled research, approval queue, vertical pack seed/settings.
+- Routes: `/studio/marketing-command-center`, `/studio/marketing-campaigns`, `/studio/marketing-command-center/launch-campaign`, `/studio/marketing/pinterest`, `/studio/marketing/social`, `/studio/marketing/email`, `/studio/marketing/ads`, `/studio/marketing/ads/google`, `/studio/marketing/ads/meta`, `/studio/marketing/search-visibility`, `/studio/marketing/assets`, `/studio/marketing/tracking`, `/studio/marketing/research`, `/studio/marketing/social-care`, `/studio/marketing/approvals`, `/studio/marketing/setup`
+- APIs: `/api/studio/shared/*`, `/api/studio/marketing/launch-campaign`, `/api/studio/marketing/utm-links`, `/api/studio/marketing/search-visibility/audit`, `/api/studio/marketing/social-care`
+- Functional: campaign CRUD, editable channel drafts, guided campaign packet generation, Campaign Proof Pack, No-Ad Growth Plan, Ad Readiness Score, UTM generation, asset specs, source-labeled research, manual Social Care Opportunity records, approval queue, vertical pack seed/settings.
 - Manual/export-ready: Pinterest pins, social posts, email drafts, Google Ads drafts, Meta Ads drafts, campaign asset specs, search/AEO/GEO reports.
 - Future integrations: live social publishing, email sending, ad APIs, campaign analytics, external crawling, generated creative media.
 
