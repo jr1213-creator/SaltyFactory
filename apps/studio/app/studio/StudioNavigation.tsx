@@ -69,6 +69,7 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
       ["Campaign Assets", "/studio/marketing/assets"],
       ["Tracking / UTMs", "/studio/marketing/tracking"],
       ["Research Board", "/studio/marketing/research"],
+      ["Approvals", "/studio/marketing/approvals"],
       ["Social Care", "/studio/marketing/social-care"],
       ["Social Planner", "/studio/social-planner"],
       ["Channels", "/studio/channels"],

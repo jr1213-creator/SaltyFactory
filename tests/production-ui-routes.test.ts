@@ -70,6 +70,7 @@ describe("production UI routes", () => {
     expect(source).toContain('["Marketing Command Center", "/studio/marketing-command-center"]');
     expect(source).toContain('["Pinterest Pin Factory", "/studio/marketing/pinterest"]');
     expect(source).toContain('["Search Visibility", "/studio/marketing/search-visibility"]');
+    expect(source).toContain('["Approvals", "/studio/marketing/approvals"]');
     expect(source).toContain('["Social Care", "/studio/marketing/social-care"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
     expect(source).toContain('label: "Expansion"');
@@ -127,6 +128,7 @@ describe("production UI routes", () => {
       "/studio/marketing/assets",
       "/studio/marketing/tracking",
       "/studio/marketing/research",
+      "/studio/marketing/approvals",
       "/studio/marketing/social-care",
       "/studio/marketing/setup",
       "/studio/products",
@@ -258,6 +260,8 @@ describe("production UI routes", () => {
 
     expect(commandHtml).toContain("Marketing Command Center");
     expect(commandHtml).toContain("manual/export-ready");
+    expect(commandHtml).toContain('href="/studio/marketing/approvals"');
+    expect(commandHtml).toContain("Approval queue");
     expect(launchHtml).toContain("Generate Campaign Packet");
     expect(pinterestHtml).toContain("No Pinterest API publishing");
     expect(socialHtml).toContain("No live social posting");
