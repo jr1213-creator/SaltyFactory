@@ -53,6 +53,7 @@ function SuggestionCard({ suggestion, onAction, busy }: { suggestion: Suggestion
 export default function DesignsPage() {
   const [topic, setTopic] = useState("coastal cowgirl western beach boutique");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [aiDesignOutputs, setAiDesignOutputs] = useState<Suggestion[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<unknown>(null);
   const approvedCount = useMemo(() => suggestions.filter((item) => item.approved_for_design).length, [suggestions]);
@@ -60,6 +61,10 @@ export default function DesignsPage() {
   async function refresh() {
     const data = await fetch("/api/studio/design-suggestions").then((res) => res.json());
     if (Array.isArray(data.suggestions)) setSuggestions(data.suggestions);
+    const aiData = await fetch("/api/studio/ai-employees").then((res) => res.json());
+    if (Array.isArray(aiData.outputs)) {
+      setAiDesignOutputs(aiData.outputs.filter((output: any) => (output.output_type ?? output.outputType) === "design_concept"));
+    }
   }
 
   useEffect(() => {
@@ -105,6 +110,21 @@ export default function DesignsPage() {
       </div>
       <p className="sf-muted">Suggestions are persisted workspace records. No asset, draft, projection, or provider call is created at this step.</p>
       <ResultPanel result={result} />
+    </section>
+    <section className="card" style={{ display: "grid", gap: 14, marginTop: 18 }}>
+      <h2>AI Design Concepts</h2>
+      <p className="sf-muted">Persisted AI employee design concept drafts appear here for owner review. Image generation remains provider-gated and separate.</p>
+      {aiDesignOutputs.length ? aiDesignOutputs.map((output) => {
+        const payload = output.output_json ?? output.outputJson ?? {};
+        return <Card key={output.id}>
+          <div className="sf-card-header">
+            <h3>{payload.title ?? output.id}</h3>
+            <StatusBadge status={output.status ?? "pending review"} tone={output.status === "approved" ? "success" : "warning"} />
+          </div>
+          <p>{payload.body ?? payload.data?.prompt ?? "Design concept draft awaiting review."}</p>
+          <div className="sf-action-bar"><a className="sf-button sf-button-secondary" href="/studio/ai-employees">Review in AI Queue</a></div>
+        </Card>;
+      }) : <EmptyState title="No AI design concepts yet" description="Run Daily POD Planning to create persisted design concept drafts." />}
     </section>
     <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
       {suggestions.length ? suggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} onAction={runAction} busy={busy} />) : <EmptyState title="No design suggestions yet" description="Create suggestions from a manual topic to start the POD product workflow." />}

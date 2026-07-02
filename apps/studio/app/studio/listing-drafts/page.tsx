@@ -32,6 +32,6 @@ export default async function ListingDraftsPage() {
         <button className="sf-button" type="submit">Create Draft</button>
       </form>
     </section>
-    <DataTable columns={["Title", "Channel", "Validation", "Approval", "Blockers"]} rows={lists.listingDraftsV1.length ? lists.listingDraftsV1.map((row: any) => [row.title, row.target_channel ?? row.targetChannel, <StatusBadge key={row.id} status={row.validation_status ?? row.validationStatus} />, row.approval_status ?? row.approvalStatus, (row.validation_blockers ?? row.validationBlockers ?? []).join(", ") || "-"]) : [["No listing drafts", "-", "blocked", "draft", "Create a draft"]]} />
+    <DataTable columns={["Title", "Channel", "Validation", "Approval", "Blockers", "Edit"]} rows={lists.listingDraftsV1.length ? lists.listingDraftsV1.map((row: any) => [row.title, row.target_channel ?? row.targetChannel, <StatusBadge key={row.id} status={row.validation_status ?? row.validationStatus} />, row.approval_status ?? row.approvalStatus, (row.validation_blockers ?? row.validationBlockers ?? []).join(", ") || "-", <a key={`${row.id}-edit`} className="sf-button sf-button-secondary" href={`/studio/listing-drafts/${row.id}`}>Edit</a>]) : [["No listing drafts", "-", "blocked", "draft", "Create a draft", "-"]]} />
   </>;
 }

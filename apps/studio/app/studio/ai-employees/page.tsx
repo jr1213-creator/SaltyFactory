@@ -1,6 +1,7 @@
 import { createAgenticApprovalQueue, employeeDefinitions, runAgenticPodWorkflow } from "@saltyfactory/domain";
 import { AiEmployeeCard, DataTable, PageHeader, ProviderStatusCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
+import { AiApprovalQueueClient } from "./AiApprovalQueueClient";
 import { AiEmployeeWorkflowClient } from "./AiEmployeeWorkflowClient";
 
 export default async function Page() {
@@ -40,17 +41,7 @@ export default async function Page() {
       <ProviderStatusCard title="Image generation" status="Provider-gated" tone="warning" description="When no image provider is configured, employees create prompt drafts only. No fake images are created." />
     </div>
     <AiEmployeeWorkflowClient />
-    <section className="sf-card" style={{ marginTop: 18 }}>
-      <h2>Approval Queue</h2>
-      <p className="sf-muted">Every item requires owner review before it can influence publishing, provider sync, social posting, Merchant Center feeds, or DNS changes.</p>
-      <DataTable columns={["Item", "Type", "Source", "Status", "Next action"]} rows={approvalQueue.length ? approvalQueue.slice(0, 10).map((item) => [
-        item.title,
-        item.type.replace(/_/g, " "),
-        item.sourceLabel,
-        <StatusBadge key={item.id} status={item.status.replace(/_/g, " ")} tone={item.status.includes("blocked") || item.status.includes("needed") ? "warning" : "primary"} />,
-        item.nextAction
-      ]) : [["No approval items", "Queue empty", "rules_based", <StatusBadge key="empty" status="clear" tone="success" />, "Run AI employees or create workflow drafts"]]} />
-    </section>
+    <AiApprovalQueueClient initialItems={approvalQueue as any[]} />
     <section style={{ marginTop: 18 }}>
       <h2>AI Employee Team</h2>
       <div className="sf-grid sf-grid-3">{primaryEmployees.map(([key, name, requiredSources, allowedActions]) => {

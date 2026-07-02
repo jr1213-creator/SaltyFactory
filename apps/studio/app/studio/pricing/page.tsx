@@ -19,6 +19,7 @@ export default async function PricingPage() {
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Margin Calculator</h2>
       <form className="sf-grid sf-grid-3" action="/api/studio/pricing/calculate" method="post">
+        <label>Product draft<select name="productDraftId" defaultValue=""><option value="">Calculate only - do not save</option>{lists.drafts.map((draft: any) => <option key={draft.id} value={draft.id}>{draft.title ?? draft.id}</option>)}</select></label>
         <label>Base product cost<input name="baseProductCost" type="number" min="0" step="0.01" /></label>
         <label>Shipping cost<input name="shippingCost" type="number" min="0" step="0.01" /></label>
         <label>Packaging / handling<input name="packagingHandlingCost" type="number" min="0" step="0.01" /></label>
@@ -27,9 +28,21 @@ export default async function PricingPage() {
         <label>Fixed transaction fee<input name="fixedTransactionFee" type="number" min="0" step="0.01" /></label>
         <label>Ad cost estimate<input name="adCostEstimate" type="number" min="0" step="0.01" /></label>
         <label>Discount %<input name="discountPercent" type="number" min="0" max="100" step="0.01" /></label>
+        <label>Discount / promo notes<input name="discountNotes" placeholder="Manual note; no fake provider cost" /></label>
         <label>Sale price<input name="salePrice" type="number" min="0" step="0.01" /></label>
         <button className="sf-button" type="submit">Calculate Margin</button>
       </form>
+    </section>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Saved Margin Checks</h2>
+      <DataTable columns={["Draft", "Cost", "Shipping", "Price", "Margin", "Status"]} rows={lists.marginChecks.length ? lists.marginChecks.map((row: any) => [
+        row.product_draft_id ?? row.productDraftId,
+        `$${Number(row.cost ?? 0).toFixed(2)}`,
+        `$${Number(row.printify_shipping_estimate ?? row.printifyShippingEstimate ?? 0).toFixed(2)}`,
+        `$${Number(row.price ?? 0).toFixed(2)}`,
+        `${Number(row.margin_percent ?? row.marginPercent ?? 0).toFixed(1)}%`,
+        <StatusBadge key={row.id} status={row.status ?? (row.blocked ? "blocked" : "passed")} tone={row.blocked ? "danger" : "success"} />
+      ]) : [["No saved margin checks", "-", "-", "-", "-", "Attach a calculation to a product draft to persist it"]]} />
     </section>
     <DataTable columns={["Gate", "State"]} rows={[
       ["POD product cost", "Owner-entered or provider-imported only"],

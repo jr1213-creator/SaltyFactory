@@ -148,7 +148,7 @@ describe("functional complete v1 domain rules", () => {
       "Configure Shopify / Printify / Google / Merchant",
       "Approve exports or guarded syncs"
     ]);
-    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/ai-employees", "/studio/trends", "/studio/pod-migration", "/studio/briefs", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/account-center", "/studio/publish", "/studio/baseline"]));
+    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/ai-employees", "/studio/trends", "/studio/product-builder", "/studio/briefs", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing-margins", "/studio/account-center", "/studio/publish-review", "/studio/baseline"]));
   });
 
   it("creates trend reports only from stored trend data", () => {

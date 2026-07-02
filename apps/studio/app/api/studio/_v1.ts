@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProviderMutationPermission, requireWorkspaceMember } from "@saltyfactory/auth";
+import { requireDraftMutationPermission, requireProviderMutationPermission, requireWorkspaceMember } from "@saltyfactory/auth";
 import { createRepositories, type BaseRepositoryContract, type WorkspaceRow } from "@saltyfactory/db";
 import {
   buildMigrationRecommendations,
@@ -439,8 +439,41 @@ export async function createSocialContent(req: Request) {
 export async function calculatePricingRoute(req: Request) {
   try {
     await requireWorkspaceMember(req, studioWorkspaceId);
-    const pricing = calculatePricing(await readBody(req));
-    return NextResponse.json({ ok: true, status: "calculated", pricing });
+    const body = await readBody(req);
+    const pricing = calculatePricing(body);
+    const productDraftId = String(body.productDraftId || body.product_draft_id || "");
+    if (!productDraftId) return NextResponse.json({ ok: true, status: "calculated", pricing });
+
+    const user = await requireDraftMutationPermission(req, studioWorkspaceId);
+    const repos = createRepositories();
+    const draft = await repos.draft.getById(productDraftId, studioWorkspaceId);
+    if (!draft) return NextResponse.json({ ok: false, status: "not_found", message: "Product draft not found for this workspace." }, { status: 404 });
+    const baseCost = Number(body.baseProductCost ?? body.base_product_cost ?? 0);
+    const salePrice = Number(body.salePrice ?? body.sale_price ?? 0);
+    const shippingCost = Number(body.shippingCost ?? body.shipping_cost ?? 0);
+    const platformFeeEstimate = salePrice * (Number(body.platformFeePercent ?? body.platform_fee_percent ?? 0) / 100);
+    const marginId = String(body.id || `margin_${Date.now()}`);
+    const margin = await repos.margin.create({
+      id: marginId,
+      workspace_id: studioWorkspaceId,
+      product_draft_id: productDraftId,
+      variant_id: body.variantId || body.variant_id || null,
+      cost: baseCost,
+      price: salePrice,
+      shopify_fee_estimate: 0,
+      printify_shipping_estimate: shippingCost,
+      platform_fee_estimate: platformFeeEstimate,
+      net_revenue_estimate: pricing.estimatedNetProfit,
+      margin_percent: pricing.netMarginPercent,
+      minimum_margin_threshold: Number(body.minimumMarginPercent ?? 35),
+      margin_ok: !pricing.marginBelowThreshold,
+      blocked: pricing.marginBelowThreshold,
+      status: pricing.marginBelowThreshold ? "blocked" : "passed",
+      notes: String(body.discountNotes || body.discount_notes || "Manual owner-entered pricing input. No fake Printify cost was imported."),
+      created_by: user.id,
+      updated_by: user.id
+    }, audit("price_margin_check", "created", { id: marginId, workspace_id: studioWorkspaceId }, user.id));
+    return NextResponse.json({ ok: true, status: "calculated_and_saved", pricing, marginCheck: safeRow(margin) });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return NextResponse.json({ ok: false, status: "failed", message: sanitizeProviderError(error) }, { status: 400 });

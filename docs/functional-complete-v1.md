@@ -2,6 +2,27 @@
 
 SaltyFactory v1 is an AI-run, human-approved POD business operating system for launching and operating SaltyCowhide.com. It is built around real workspace-owned records, provider honesty, encrypted credential storage, provider setup guidance, AI employee draft workflows, and owner approval gates.
 
+## Functionality Truth Table
+
+| Module | Status | Current truth |
+|---|---|---|
+| AI Employees | Fully functional v1 | Owner-triggered runs persist AI run/output records, create shared approval records, support approve/reject/needs-edits/convert-to-task, and materialize supported outputs into internal POD records. No provider action is executed by approval. |
+| Product Builder | Fully functional v1 | `/studio/product-builder` shows persisted POD product ideas from manual creation or approved AI product-idea outputs. `/studio/pod-migration` remains a compatibility alias. |
+| Designs | Manual/export-ready | Deterministic design suggestions and persisted AI design concept outputs are visible for owner review. Image generation remains provider-gated. |
+| Assets | Fully functional v1 | Private manual asset upload, QA run, approve/reject, and mockup handoff are persisted. No fake generated artwork is created. |
+| Mockups | Fully functional v1 | Internal mockup generation from approved private assets, approve/reject, and draft creation are persisted. Provider mockup generation remains future integration. |
+| Listing Drafts | Fully functional v1 | Create/edit listing drafts, validation blockers, owner approval status, and export payloads persist. No Shopify/Etsy/Printify sync is implied. |
+| Pricing & Margins | Fully functional v1 | Manual cost/shipping/price inputs calculate margin and can persist price-margin checks against product drafts. No fake Printify cost is imported. |
+| Publish Review | Manual/export-ready | `/studio/publish-review` exists, computes gates from persisted evidence, shows blockers, listing drafts, margin evidence, and internal approval state. Approval does not publish or sync. `/studio/publish` remains a compatibility alias. |
+| Customer Command Center | Fully functional v1 | Workspace-owned customers, leads, notes, tasks, timeline events, forms, and readiness summaries persist through CRM repositories. |
+| Capture Forms | Honest foundation | Capture form records and submissions/consent foundations exist. Public embeds and external email automation remain future integrations unless explicitly implemented and verified. |
+| Marketing Command Center | Fully functional v1 | Guided launch campaign workflow creates persisted product-referenced campaign packets, proof packs, growth plans, channel drafts, asset specs, UTMs, tasks, recommendations, and approvals. |
+| Approvals | Fully functional v1 | Shared approvals cover marketing and AI employee outputs; approval pages expose real controls and audit/event records. |
+| Social Care | Manual/export-ready | Manual/imported social opportunities create source records, response notes, tasks, events, and audit logs. No live social provider inbox or reply sending is active. |
+| Shopify/Printify | Future integration placeholder | Provider setup, disabled/default states, health checks, and guarded draft paths exist. Live sync/publish requires explicit flags, credentials, provider verification, gates, and owner action. |
+| Google/Merchant/Search/Analytics | Honest foundation | Setup, OAuth/configuration helpers, readiness scoring, and sanitized sync/test paths exist. No fake analytics, ranking guarantees, or feed submission. |
+| Email/Social/Ads | Manual/export-ready | Drafts and campaign packets persist for manual/export use. Sending, posting, ad launch, and spend are not implemented. |
+
 ## Customer Command Center
 
 Customer Command Center v1 is the native customer success foundation for SaltyCowhide.com.
@@ -83,11 +104,11 @@ Recommended or optional setup, such as Google Business Profile for online-only P
 4. Create or open Shopify and Printify accounts externally, keep credentials server-side, then test providers from Account Center or Integrations.
 5. Verify Supabase Storage from `/studio/integrations`.
 6. Run AI Employees from `/studio/ai-employees` to create safe internal trend, product, design, image prompt, listing, pricing, social, and launch-readiness drafts.
-7. Create or approve Product Ideas at `/studio/pod-migration`.
+7. Create or approve Product Ideas at `/studio/product-builder`.
 8. Upload/approve artwork assets at `/studio/assets`.
 9. Create or retrieve product mockups at `/studio/mockups`.
 10. Create listing drafts at `/studio/listing-drafts`.
-11. Use the margin calculator route before approving exports.
+11. Use `/studio/pricing-margins` before approving exports.
 12. Create social content drafts at `/studio/social-planner`; publish manually only after owner approval.
 13. Create a baseline snapshot at `/studio/baseline`.
 
@@ -232,16 +253,16 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 
 ## Salty Cowhide POD Product Builder Workflow
 
-1. Run AI Employees or manually create Product Ideas in `/studio/pod-migration`.
+1. Run AI Employees or manually create Product Ideas in `/studio/product-builder`.
 2. Create design concepts and print artwork prompts.
 3. Generate artwork only when an image provider is configured and owner-approved, or upload artwork manually.
 4. Run asset QA and approve artwork before product use.
 5. Select Printify targets and create/retrieve product mockups when Printify is configured.
 6. Approve mockups from the mockup workflow.
 7. Create listing drafts.
-8. Calculate margin and resolve blockers.
+8. Calculate margin in `/studio/pricing-margins` and resolve blockers.
 9. Validate disclosure, safety, pricing, shipping notes, approved artwork, approved mockups, and owner approval.
-10. Export JSON/CSV manually or use guarded Shopify/Printify draft sync when providers and gates pass.
+10. Review `/studio/publish-review`; export JSON/CSV manually or use guarded Shopify/Printify draft sync only when providers and gates pass.
 
 ## Owner QA Checklist
 

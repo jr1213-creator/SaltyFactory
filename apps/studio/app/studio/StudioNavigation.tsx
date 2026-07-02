@@ -18,13 +18,13 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     id: "pod-studio",
     label: "POD Studio",
     links: [
-      ["Product Builder", "/studio/pod-migration"],
+      ["Product Builder", "/studio/product-builder"],
       ["Designs", "/studio/designs"],
       ["Assets", "/studio/assets"],
       ["Mockups", "/studio/mockups"],
       ["Listing Drafts", "/studio/listing-drafts"],
-      ["Pricing & Margins", "/studio/pricing"],
-      ["Publish Review", "/studio/publish"]
+      ["Pricing & Margins", "/studio/pricing-margins"],
+      ["Publish Review", "/studio/publish-review"]
     ]
   },
   {

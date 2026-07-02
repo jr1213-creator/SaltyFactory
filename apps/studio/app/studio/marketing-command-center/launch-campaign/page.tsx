@@ -1,11 +1,16 @@
 import { DataTable, LinkButton, PageHeader, ProviderStatusCard, StatusBadge } from "@saltyfactory/ui";
-import { SchemaSetupState } from "../../data";
+import { getStudioLists, SchemaSetupState } from "../../data";
 import { getMarketingCommandCenterData } from "../data";
 
 export const runtime = "nodejs";
 
 export default async function LaunchCampaignWorkflowPage() {
   const data = await getMarketingCommandCenterData();
+  const lists = await getStudioLists();
+  const productRefs = [
+    ...lists.drafts.map((draft: any) => ({ id: draft.id, label: `Product draft: ${draft.title ?? draft.id}` })),
+    ...lists.listingDraftsV1.map((draft: any) => ({ id: draft.id, label: `Listing draft: ${draft.title ?? draft.id}` }))
+  ];
   return <>
     <PageHeader
       eyebrow="Guided campaign packet"
@@ -27,7 +32,7 @@ export default async function LaunchCampaignWorkflowPage() {
         <label>Vertical pack<select name="vertical_pack_id" defaultValue="vp_pod_boutique"><option value="vp_pod_boutique">POD Boutique</option><option value="vp_ai_readiness_consulting">AI Readiness Consulting</option></select></label>
         <label>Campaign name<input name="name" defaultValue="Salty Cowhide Product Drop Launch" required /></label>
         <label>Campaign goal<input name="goal" defaultValue="Launch a Salty Cowhide product/drop with proof-backed marketing." /></label>
-        <label>Product/drop/offer reference<input name="product_ref" placeholder="manual-offer, listing ID, product idea ID" /></label>
+        <label>Product/drop/offer reference<select name="product_ref" defaultValue=""><option value="">Manual offer / no saved product selected</option>{productRefs.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <label>Target segment ID<input name="target_segment_id" placeholder="optional segment ID" /></label>
         <label>Audience<input name="audience" defaultValue="Salty Cowhide buyers and high-intent leads" /></label>
         <label>Offer<input name="offer" defaultValue="Owner-reviewed product/drop offer" /></label>

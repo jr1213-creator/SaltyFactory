@@ -1,7 +1,7 @@
 import { createRepositories } from "@saltyfactory/db";
 
 export const studioWorkspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
-const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], publishReviews: [], products: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], aiEmployeeRuns: [], aiEmployeeOutputs: [], activity: [] };
+const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], marginChecks: [], publishReviews: [], products: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], aiEmployeeRuns: [], aiEmployeeOutputs: [], activity: [] };
 type StudioDataSetupKind =
   | "schema_incomplete"
   | "database_not_configured"
@@ -134,7 +134,7 @@ export async function getStudioLists() {
   }
   try {
     const repos = createRepositories();
-    const [trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity] = await Promise.all([
+    const [trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, marginChecks, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity] = await Promise.all([
       repos.trend.listByWorkspace(studioWorkspaceId),
       repos.cluster.listByWorkspace(studioWorkspaceId),
       repos.phrase.listByWorkspace(studioWorkspaceId),
@@ -143,6 +143,7 @@ export async function getStudioLists() {
       repos.asset.listByWorkspace(studioWorkspaceId),
       repos.mockup.listByWorkspace(studioWorkspaceId),
       repos.draft.listByWorkspace(studioWorkspaceId),
+      repos.margin.listByWorkspace(studioWorkspaceId),
       repos.publish.listByWorkspace(studioWorkspaceId),
       repos.shopify.listByWorkspace(studioWorkspaceId),
       repos.integration.listProviderConnectionsForWorkspace(studioWorkspaceId),
@@ -161,7 +162,7 @@ export async function getStudioLists() {
       repos.aiEmployee.outputs.listByWorkspace(studioWorkspaceId),
       repos.audit.listByWorkspace(studioWorkspaceId)
     ]);
-    return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity, schemaIncomplete: false, setupMessage: "" };
+    return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, marginChecks, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity, schemaIncomplete: false, setupMessage: "" };
   } catch (error) {
     return handleStudioDataError(error, "studio_lists_loader");
   }

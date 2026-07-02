@@ -178,7 +178,7 @@ export async function runAgenticAiEmployeeWorkflow(input: {
 
   const outputs: WorkspaceRow[] = [];
   for (const [index, output] of workflow.outputs.entries()) {
-    outputs.push(await input.repos.aiEmployee.outputs.create({
+    const persistedOutput = await input.repos.aiEmployee.outputs.create({
       id: `aiout_agentic_${Date.now()}_${index}`,
       workspace_id: input.workspaceId,
       run_id: runId,
@@ -197,7 +197,32 @@ export async function runAgenticAiEmployeeWorkflow(input: {
       },
       created_by: input.actorId,
       updated_by: input.actorId
-    }));
+    });
+    outputs.push(persistedOutput);
+
+    if (output.requiresHumanReview || output.approvalRequired) {
+      const approvalStatus = output.approvalRequired ? "pending" : output.blockers.length ? "blocked" : "pending";
+      await input.repos.shared.approvals.create({
+        id: `approval_${persistedOutput.id}`,
+        workspace_id: input.workspaceId,
+        entity_type: "ai_employee_output",
+        entity_id: persistedOutput.id,
+        approval_type: output.outputType,
+        status: approvalStatus,
+        requested_by: input.actorId,
+        requested_at: now,
+        notes: output.blockers.length
+          ? `Blocked until resolved: ${output.blockers.join(", ")}`
+          : "Owner review required. Approval does not publish, sync, send, spend, or generate provider assets.",
+        updated_by: input.actorId,
+        metadata: {
+          sourceLabel: output.sourceLabel,
+          employeeKey: output.employeeKey,
+          noProviderAction: true,
+          blockers: output.blockers
+        }
+      });
+    }
   }
 
   await input.repos.audit.write({

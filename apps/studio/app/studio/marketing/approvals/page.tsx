@@ -17,11 +17,17 @@ export default async function MarketingApprovalsPage() {
         String(approval.approval_type ?? approval.approvalType ?? "approval").replace(/_/g, " "),
         `${approval.entity_type ?? approval.entityType}:${approval.entity_id ?? approval.entityId}`,
         <StatusBadge key={approval.id} status={String(approval.status ?? "pending").replace(/_/g, " ")} tone={String(approval.status ?? "pending") === "approved" ? "success" : "warning"} />,
-        <form key={`${approval.id}-decision`} action={`/api/studio/shared/approvals/${approval.id}`} method="post">
-          <input type="hidden" name="next" value="/studio/marketing/approvals" />
-          <select name="status" defaultValue={approval.status ?? "pending"}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_edits">Needs edits</option><option value="dismissed">Dismissed</option></select>
-          <button className="sf-button sf-button-secondary" type="submit">Save</button>
-        </form>
+        String(approval.entity_type ?? approval.entityType) === "ai_employee_output"
+          ? <form key={`${approval.id}-decision`} action={`/api/studio/ai-employees/outputs/${approval.entity_id ?? approval.entityId}/review`} method="post">
+            <select name="decision" defaultValue="needs_edits"><option value="approve">Approve</option><option value="reject">Reject</option><option value="needs_edits">Needs edits</option><option value="convert_to_task">Convert to task</option></select>
+            <input name="notes" placeholder="Owner note" />
+            <button className="sf-button sf-button-secondary" type="submit">Save</button>
+          </form>
+          : <form key={`${approval.id}-decision`} action={`/api/studio/shared/approvals/${approval.id}`} method="post">
+            <input type="hidden" name="next" value="/studio/marketing/approvals" />
+            <select name="status" defaultValue={approval.status ?? "pending"}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_edits">Needs edits</option><option value="dismissed">Dismissed</option></select>
+            <button className="sf-button sf-button-secondary" type="submit">Save</button>
+          </form>
       ]) : [["No approval items", "Run launch workflow to create approval queue.", "empty", "-"]]} />
     </section>
     <ProviderStatusCard title="Approval gate" status="required" tone="warning" description="Approvals unlock manual/export review state only; they do not trigger live provider actions." />

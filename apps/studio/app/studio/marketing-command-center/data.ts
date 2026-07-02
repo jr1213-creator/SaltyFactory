@@ -58,6 +58,7 @@ function emptyMarketingCommandCenterState(setupKind = "", setupMessage = "") {
     exportPackages: [] as WorkspaceRow[],
     readinessScores: [] as WorkspaceRow[],
     approvals: [] as WorkspaceRow[],
+    aiOutputApprovals: [] as WorkspaceRow[],
     tasks: [] as WorkspaceRow[],
     recommendations: [] as WorkspaceRow[],
     assets: [] as WorkspaceRow[],
@@ -113,7 +114,8 @@ export async function getMarketingCommandCenterData() {
       sourceRecords,
       templates,
       verticalPacks,
-      providerConnections
+      providerConnections,
+      aiOutputs
     ] = await Promise.all([
       repos.shared.campaigns.listByWorkspace(studioWorkspaceId),
       repos.shared.campaignChannels.listByWorkspace(studioWorkspaceId),
@@ -127,8 +129,29 @@ export async function getMarketingCommandCenterData() {
       repos.shared.sourceRecords.listByWorkspace(studioWorkspaceId),
       repos.shared.templates.listByWorkspace(studioWorkspaceId),
       repos.shared.verticalPacks.list(),
-      repos.shared.providerConnections.listByWorkspace(studioWorkspaceId)
+      repos.shared.providerConnections.listByWorkspace(studioWorkspaceId),
+      repos.aiEmployee.outputs.listByWorkspace(studioWorkspaceId)
     ]);
+    const sharedAiOutputApprovalIds = new Set(approvals.filter((approval) => String(approval.entity_type ?? approval.entityType) === "ai_employee_output").map((approval) => String(approval.entity_id ?? approval.entityId)));
+    const aiOutputApprovals = aiOutputs
+      .filter((output) => !sharedAiOutputApprovalIds.has(output.id))
+      .filter((output) => ["draft", "pending_review", "needs_review", "provider_not_configured", "setup_needed", "manual_input_required", "blocked_by_guardrail"].includes(String(output.status ?? "")))
+      .map((output) => {
+        const payload = (output.output_json ?? output.outputJson ?? {}) as Record<string, unknown>;
+        const metadata = (output.metadata ?? {}) as Record<string, unknown>;
+        const blocked = ["provider_not_configured", "setup_needed", "manual_input_required", "blocked_by_guardrail"].includes(String(output.status ?? ""));
+        return {
+          id: `approval_${output.id}`,
+          workspace_id: studioWorkspaceId,
+          entity_type: "ai_employee_output",
+          entity_id: output.id,
+          approval_type: String(output.output_type ?? output.outputType ?? "ai_employee_output"),
+          status: blocked ? "blocked" : "pending",
+          notes: blocked ? `Blocked until resolved: ${((metadata.blockers as string[] | undefined) ?? [String(output.status ?? "blocked")]).join(", ")}` : String(payload.title ?? "AI employee output awaiting owner review"),
+          source_label: "AI employee compatibility bridge"
+        } as WorkspaceRow;
+      });
+    const unifiedApprovals = [...approvals, ...aiOutputApprovals];
     const proofPacks = exportPackages.filter((pack) => String(pack.package_type ?? pack.packageType ?? "") === "proof_pack");
     const growthPlans = exportPackages.filter((pack) => String(pack.package_type ?? pack.packageType ?? "") === "growth_plan");
     const socialDrafts = channels.filter((channel) => ["instagram", "facebook", "tiktok", "youtube_shorts", "threads", "linkedin", "google_business_profile", "bluesky"].includes(String(channel.channel_type ?? channel.channelType ?? "")));
@@ -137,7 +160,7 @@ export async function getMarketingCommandCenterData() {
       { key: "proof_pack", label: "Proof pack exists", passed: proofPacks.length > 0, blocker: "Generate a Campaign Proof Pack." },
       { key: "utm", label: "UTM links exist", passed: utmLinks.length > 0, blocker: "Create a tracking-ready UTM link." },
       { key: "assets", label: "Asset specs exist", passed: assets.length > 0, blocker: "Create campaign asset specs." },
-      { key: "approval", label: "Approval items exist", passed: approvals.length > 0, blocker: "Create owner approval items before publishing/export." }
+      { key: "approval", label: "Approval items exist", passed: unifiedApprovals.length > 0, blocker: "Create owner approval items before publishing/export." }
     ];
     return {
       ok: true as const,
@@ -149,7 +172,8 @@ export async function getMarketingCommandCenterData() {
       growthPlans: redacted(growthPlans),
       exportPackages: redacted(exportPackages),
       readinessScores: redacted(readinessScores),
-      approvals: redacted(approvals),
+      approvals: redacted(unifiedApprovals),
+      aiOutputApprovals: redacted(aiOutputApprovals),
       tasks: redacted(tasks),
       recommendations: redacted(recommendations),
       assets: redacted(assets),
@@ -180,7 +204,7 @@ export async function getMarketingCommandCenterData() {
         assetSpecs: assets.length,
         utmLinks: utmLinks.length,
         researchItems: sourceRecords.filter((record) => ["reddit_observation", "community_observation", "competitor", "review", "social_comment", "owner_note", "imported_note"].includes(String(record.source_name ?? ""))).length,
-        approvalItems: approvals.filter((approval) => String(approval.status ?? "pending") === "pending").length,
+        approvalItems: unifiedApprovals.filter((approval) => String(approval.status ?? "pending") === "pending").length,
         exportReadyItems: channels.filter((channel) => String(channel.status ?? "") === "export_ready").length + exportPackages.filter((pack) => String(pack.status ?? "") === "approved").length,
         unifiedReadiness: buildReadinessScore({ workspaceId: studioWorkspaceId, entityType: "marketing", entityId: studioWorkspaceId, scoreType: "campaign", criteria })
       }

@@ -62,8 +62,9 @@ describe("production UI routes", () => {
   it("Studio navigation is grouped around the POD launch workflow", () => {
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain('label: "POD Studio"');
-    expect(source).toContain('["Product Builder", "/studio/pod-migration"]');
-    expect(source).toContain('["Pricing & Margins", "/studio/pricing"]');
+    expect(source).toContain('["Product Builder", "/studio/product-builder"]');
+    expect(source).toContain('["Pricing & Margins", "/studio/pricing-margins"]');
+    expect(source).toContain('["Publish Review", "/studio/publish-review"]');
     expect(source).toContain('label: "Customer"');
     expect(source).toContain('["Customer Command Center", "/studio/customer-command-center"]');
     expect(source).toContain('["Customer Intelligence", "/studio/customer-intelligence"]');
@@ -81,10 +82,10 @@ describe("production UI routes", () => {
 
   it("Studio navigation sections default collapsed and active sections auto-expand", () => {
     expect(resolveExpandedStudioNavSections({ pathname: "/studio", storedValue: null })).toEqual([]);
-    expect(activeStudioNavSectionIds("/studio/pod-migration")).toEqual(["pod-studio"]);
-    expect(resolveExpandedStudioNavSections({ pathname: "/studio/pod-migration", storedValue: null })).toEqual(["pod-studio"]);
+    expect(activeStudioNavSectionIds("/studio/product-builder")).toEqual(["pod-studio"]);
+    expect(resolveExpandedStudioNavSections({ pathname: "/studio/product-builder", storedValue: null })).toEqual(["pod-studio"]);
     expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: [] })).not.toContain("Product Builder");
-    expect(visibleStudioNavLinks({ pathname: "/studio/pod-migration", expandedIds: [] })).toContain("Product Builder");
+    expect(visibleStudioNavLinks({ pathname: "/studio/product-builder", expandedIds: [] })).toContain("Product Builder");
   });
 
   it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
@@ -100,13 +101,16 @@ describe("production UI routes", () => {
   it("Studio navigation primary links point at existing Studio routes", () => {
     const routeFiles = new Set([
       "/studio",
+      "/studio/product-builder",
       "/studio/pod-migration",
       "/studio/designs",
       "/studio/assets",
       "/studio/mockups",
       "/studio/listing-drafts",
       "/studio/pricing",
+      "/studio/pricing-margins",
       "/studio/publish",
+      "/studio/publish-review",
       "/studio/ai-employees",
       "/studio/customer-command-center",
       "/studio/customers",
@@ -349,6 +353,9 @@ describe("production UI routes", () => {
     const html = renderToStaticMarkup(await PublishPage());
     expect(html).toContain("Publish Review");
     expect(html).toContain("Automation cannot publish without human approval");
+    expect(html).toContain("Create Publish Review");
+    expect(html).toContain("Listing Drafts Awaiting Review");
+    expect(html).toContain("Margin Evidence");
   });
 
   it("Publish summary panel does not expose an active publish-looking action", async () => {
@@ -389,6 +396,11 @@ describe("production UI routes", () => {
     expect(html).toContain("Run AI Employees");
     expect(html).toContain("Approval Queue");
     expect(html).toContain("AI Work Queue");
+    expect(html).toContain("View details");
+    expect(html).toContain("Approve");
+    expect(html).toContain("Reject");
+    expect(html).toContain("Needs edits");
+    expect(html).toContain("Convert to task");
     expect(html).toContain("Trend Research Analyst");
     expect(html).toContain("POD Product Builder Assistant");
     expect(html).toContain("Pricing &amp; Margin Assistant");

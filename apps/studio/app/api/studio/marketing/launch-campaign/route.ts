@@ -46,6 +46,7 @@ export async function POST(req: Request) {
     const thesis = String(body.goal || body.thesis || "Launch a proof-backed Salty Cowhide product/drop campaign.");
     const audience = String(body.audience || "Salty Cowhide buyers and high-intent leads");
     const offer = String(body.offer || "New product/drop offer");
+    const productRef = String(body.product_ref || "");
     const campaign = await upsert(repos.shared.campaigns, {
       id: campaignId,
       workspace_id: sharedWorkspaceId,
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
       name: campaignName,
       campaign_type: String(body.campaign_type || "product_drop_launch"),
       goal: thesis,
-      product_ref: String(body.product_ref || ""),
+      product_ref: productRef,
       offer_ref: String(body.offer_ref || ""),
       manual_offer: { offer, source: "manual_entry" },
       target_segment_id: String(body.target_segment_id || ""),
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
       source_name: "campaign_launch_workflow",
       source_label: "System-generated",
       provider: "saltyfactory",
-      raw_payload: { campaignId, featureClassification: "manual_export_ready_feature" },
+      raw_payload: { campaignId, productRef, featureClassification: "manual_export_ready_feature" },
       confidence: "0.82",
       created_at: now
     });
@@ -103,9 +104,10 @@ export async function POST(req: Request) {
         thesis,
         audience,
         offer,
+        productRef,
         landingUrl,
         headline: `${campaignName} ${channelType.replace(/_/g, " ")}`,
-        body: `${thesis}\n\nAudience: ${audience}\nOffer: ${offer}\nLanding URL: ${landingUrl}\n\nDraft only. Owner review and manual/export workflow required.`
+        body: `${thesis}\n\nProduct/listing/drop reference: ${productRef || "manual offer"}\nAudience: ${audience}\nOffer: ${offer}\nLanding URL: ${landingUrl}\n\nDraft only. Owner review and manual/export workflow required.`
       },
       status: "ready_for_review",
       source_record_id: source.id,
@@ -230,6 +232,7 @@ export async function POST(req: Request) {
       ok: true,
       status: "ready_for_review",
       campaignId,
+      productRef,
       records: {
         campaign: campaign.id,
         sourceRecord: source.id,
