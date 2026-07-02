@@ -13,6 +13,7 @@ import GeneratePage from "../apps/studio/app/studio/generate/page";
 import IntegrationsPage from "../apps/studio/app/studio/integrations/page";
 import AiEmployeesPage from "../apps/studio/app/studio/ai-employees/page";
 import BusinessProfilePage from "../apps/studio/app/studio/settings/business-profile/page";
+import AccountCenterPage from "../apps/studio/app/studio/account-center/page";
 import SettingsSetupPage from "../apps/studio/app/studio/settings/setup/page";
 import PodBuilderPage from "../apps/studio/app/studio/pod-migration/page";
 import SetupGuidePage from "../apps/studio/app/studio/migration-guide/page";
@@ -35,6 +36,7 @@ describe("production UI routes", () => {
     expect(source).toContain('label: "POD Studio"');
     expect(source).toContain('["Product Builder", "/studio/pod-migration"]');
     expect(source).toContain('["Pricing & Margins", "/studio/pricing"]');
+    expect(source).toContain('["Account Center", "/studio/account-center"]');
     expect(source).toContain('label: "Expansion"');
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
     expect(source).not.toContain('"POD Migration"');
@@ -52,7 +54,7 @@ describe("production UI routes", () => {
   it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
     expect(parseStoredStudioNavSections(JSON.stringify(["operations", "bad-id"]))).toEqual(["operations"]);
     expect(resolveExpandedStudioNavSections({ pathname: "/studio/channels", storedValue: JSON.stringify(["operations"]) }).sort()).toEqual(["marketing", "operations"]);
-    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Business Profile", "Integrations", "Setup Guide", "Settings", "Billing"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Business Profile", "Integrations", "Setup Guide", "Settings", "Billing"]);
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain("aria-expanded");
     expect(source).toContain("aria-controls");
@@ -77,6 +79,7 @@ describe("production UI routes", () => {
       "/studio/channels",
       "/studio/trends",
       "/studio/baseline",
+      "/studio/account-center",
       "/studio/settings/business-profile",
       "/studio/migration-guide",
       "/studio/settings",
@@ -96,6 +99,23 @@ describe("production UI routes", () => {
     expect(html).toContain("Active AI employees");
     expect(html).toContain("Generate or approve trend report");
     expect(html).toContain("Approval queue");
+  });
+
+  it("Account Center renders production launch readiness without fake provider success", async () => {
+    const html = renderToStaticMarkup(await AccountCenterPage());
+    expect(html).toContain("Salty Cowhide Launch Command Center");
+    expect(html).toContain("Printify Fulfillment");
+    expect(html).toContain("Create or open Printify account");
+    expect(html).toContain("Discover Printify shops");
+    expect(html).toContain("Shopify Store");
+    expect(html).toContain("Create or open Shopify store");
+    expect(html).toContain("Domain &amp; DNS");
+    expect(html).toContain("Email Domain Readiness");
+    expect(html).toContain("Merchant Product Feed");
+    expect(html).toContain("Approval Queue");
+    expect(html).toContain("Product creation blockers");
+    expect(html).not.toMatch(/access_token|refresh_token|client_secret|postgres:\/\/|shpat_|sk_live_/i);
+    expect(html).not.toContain("fake");
   });
 
   it("Trends page renders filters and queue sections", async () => {

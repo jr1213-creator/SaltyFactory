@@ -2,20 +2,29 @@ import { describe, expect, it } from "vitest";
 import { parseEnv } from "@saltyfactory/config";
 import {
   buildMigrationRecommendations,
+  buildShopifyMetafieldPayload,
   calculatePricing,
   channelSchema,
   compareBaseline,
+  createAccountCenterLaunchCards,
   createAgenticApprovalQueue,
+  createArtworkGenerationReadiness,
+  createArtworkToPrintifyWorkflow,
   createBaselineMetrics,
   createDesignConceptDraft,
   createImageGenerationPlan,
+  createMerchantProductFeedReadiness,
+  createPrintifySetupState,
   createProductIdeasFromTrendReport,
+  createShopifySetupState,
   createSocialDraft,
   createTrendReportDraft,
   deriveNextBestActions,
+  evaluateEmailReadiness,
   evaluateDropshipCandidate,
   evaluatePodCandidate,
   exportListingDraft,
+  generateDnsReadinessRecords,
   runAgenticPodWorkflow,
   scoreBusinessProfile,
   scoreChannelCompleteness,
@@ -127,7 +136,8 @@ describe("functional complete v1 domain rules", () => {
 
   it("derives dashboard next best actions from honest missing setup", () => {
     const actions = deriveNextBestActions({ businessProfileScore: 10, channelScore: 10, googleStatus: "not_configured", baselineStatus: "missing", podCandidates: 0, listingDrafts: 0, storageStatus: "not_configured", shopifyStatus: "not_configured", printifyStatus: "not_configured", assets: 0, mockups: 0, approvedProducts: 0 });
-    expect(actions.slice(0, 9).map((action) => action.title)).toEqual([
+    expect(actions.slice(0, 10).map((action) => action.title)).toEqual([
+      "Run AI Employees / Daily POD Planning",
       "Generate or approve trend report",
       "Create or approve product ideas",
       "Generate or approve design concepts",
@@ -138,7 +148,7 @@ describe("functional complete v1 domain rules", () => {
       "Configure Shopify / Printify / Google / Merchant",
       "Approve exports or guarded syncs"
     ]);
-    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/trends", "/studio/pod-migration", "/studio/briefs", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/integrations", "/studio/publish", "/studio/baseline"]));
+    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/ai-employees", "/studio/trends", "/studio/pod-migration", "/studio/briefs", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/account-center", "/studio/publish", "/studio/baseline"]));
   });
 
   it("creates trend reports only from stored trend data", () => {
@@ -202,6 +212,109 @@ describe("functional complete v1 domain rules", () => {
       }]
     });
     expect(queue[0]).toMatchObject({ id: "aiout_1", type: "trend_report", sourceLabel: "rules_based" });
+  });
+
+  it("models Printify and Shopify setup without exposing credentials or faking connection", () => {
+    const printifyMissing = createPrintifySetupState({ enabled: false, hasApiToken: false, shopId: null });
+    expect(printifyMissing.status).toBe("external_signup_required");
+    expect(printifyMissing.setupRequired).toEqual(expect.arrayContaining(["PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID", "PRINTIFY_ENABLED=true"]));
+    expect(printifyMissing.connected).toBe(false);
+    expect(printifyMissing.tokenExposed).toBe(false);
+
+    const printifyNeedsTest = createPrintifySetupState({ enabled: true, hasApiToken: true, shopId: "shop_1" });
+    expect(printifyNeedsTest.status).toBe("configured_not_verified");
+    expect(printifyNeedsTest.checklist.map((item) => item.label)).toContain("Discover catalog blueprints/providers/variants");
+
+    const shopifyMissing = createShopifySetupState({ enabled: false, storeDomain: "", hasAdminToken: false });
+    expect(shopifyMissing.status).toBe("external_signup_required");
+    expect(shopifyMissing.setupRequired).toEqual(expect.arrayContaining(["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]));
+    expect(shopifyMissing.tokenExposed).toBe(false);
+    expect(shopifyMissing.connected).toBe(false);
+  });
+
+  it("builds Shopify draft metafields for approved sync payloads only", () => {
+    const metafields = buildShopifyMetafieldPayload({
+      productIdeaId: "podidea_1",
+      designSource: "approved_artwork",
+      aiEmployeeSource: "product_listing_assistant",
+      approvalStatus: "approved",
+      productionPartner: "printify",
+      marginScore: 84,
+      launchBatch: "saltycowhide-launch",
+      productReadiness: "ready",
+      mockupApprovalStatus: "approved",
+      listingValidationStatus: "ready"
+    });
+    expect(metafields.map((field) => field.key)).toEqual(expect.arrayContaining(["saltyfactory_product_idea_id", "approval_status", "mockup_approval_status"]));
+    expect(JSON.stringify(metafields)).not.toMatch(/access_token|refresh_token|client_secret/i);
+  });
+
+  it("generates manual DNS and email readiness without provider writes", () => {
+    const dnsRecords = generateDnsReadinessRecords({ domain: "saltycowhide.com", searchConsoleVerificationValue: "google-site-verification=abc", dkimRecords: [{ host: "selector._domainkey", value: "v=DKIM1; k=rsa; p=abc" }] });
+    expect(dnsRecords.map((record) => record.purpose)).toEqual(expect.arrayContaining(["Search Console verification", "Merchant Center website claim", "DMARC email trust", "DKIM sender verification"]));
+    expect(dnsRecords.every((record) => record.provider === "manual" && record.createdByApp === false)).toBe(true);
+    expect(dnsRecords.some((record) => record.status === "manual_action_required")).toBe(true);
+
+    const email = evaluateEmailReadiness({ supportEmail: "support@saltycowhide.com", sendingDomain: "saltycowhide.com", spfVerified: true, dkimVerified: false, dmarcVerified: false, transactionalProviderConfigured: false, senderVerified: false });
+    expect(email.status).toBe("manual_setup_required");
+    expect(email.blocksPodProductCreation).toBe(false);
+    expect(email.blocksLaunchPublish).toBe(false);
+    expect(email.blockers).toEqual(expect.arrayContaining(["dkim_record_needed", "dmarc_record_needed"]));
+  });
+
+  it("keeps Merchant feed submission disabled until owner-approved product prerequisites pass", () => {
+    const feed = createMerchantProductFeedReadiness({ merchantStatus: "configured_not_verified", approvedListings: 0, approvedMockups: 0, pricesReady: false, shippingReady: false, taxReady: false, policyReady: false });
+    expect(feed.status).toBe("setup_needed");
+    expect(feed.feedSubmissionEnabled).toBe(false);
+    expect(feed.blockers).toEqual(expect.arrayContaining(["merchant_center_not_verified", "approved_listing_required", "approved_mockup_required"]));
+  });
+
+  it("treats image generation as print artwork and keeps mockups separate", () => {
+    const concept = createDesignConceptDraft({ productIdea: { title: "Coastal cowgirl sticker", targetProductTypes: ["sticker"] } });
+    const artwork = createArtworkGenerationReadiness({ prompt: concept.prompt, imageProviderConfigured: false });
+    expect(artwork.status).toBe("prompt_draft");
+    expect(artwork.artifactType).toBe("print_artwork_asset");
+    expect(artwork.generatedAssetCreated).toBe(false);
+    expect(artwork.providerMode).toBe("prompt_only");
+    expect(artwork.promptRequirements.join(" ")).toContain("no product mockup");
+
+    const workflow = createArtworkToPrintifyWorkflow({ artworkApproved: false, printifyConnected: false });
+    expect(workflow.artworkAssetKind).toBe("print_file");
+    expect(workflow.productMockupKind).toBe("product_preview");
+    expect(workflow.status).toBe("setup_needed");
+    expect(workflow.blockers).toEqual(expect.arrayContaining(["approved_artwork_required", "printify_not_connected"]));
+    expect(workflow.lanes.printifyGeneratedMockups).toBe("production_accuracy_default");
+  });
+
+  it("builds Account Center launch cards with honest required, recommended, and optional blockers", () => {
+    const dnsRecords = generateDnsReadinessRecords({ domain: "saltycowhide.com" });
+    const emailReadiness = evaluateEmailReadiness({ supportEmail: "support@saltycowhide.com", sendingDomain: "saltycowhide.com" });
+    const productFeedReadiness = createMerchantProductFeedReadiness({ merchantStatus: "not_configured" });
+    const cards = createAccountCenterLaunchCards({
+      businessProfileScore: 100,
+      supportEmail: "support@saltycowhide.com",
+      productionDisclosure: "Made to order with a production partner.",
+      returnPolicy: "Returns policy ready.",
+      shopifyStatus: "not_configured",
+      printifyStatus: "not_configured",
+      googleOAuthStatus: "connected",
+      merchantStatus: "not_configured",
+      gbpStatus: "not_configured",
+      productIdeas: 0,
+      approvedAssets: 0,
+      approvedMockups: 0,
+      listingDrafts: 0,
+      dnsRecords,
+      emailReadiness,
+      productFeedReadiness
+    });
+    const gbp = cards.find((card) => card.title === "Google Business Profile");
+    const productIdeas = cards.find((card) => card.title === "Product Ideas");
+    const merchant = cards.find((card) => card.title === "Merchant Center");
+    expect(gbp).toMatchObject({ status: "optional_for_online_only", importance: "optional", blocksPodProductCreation: false, blocksLaunchPublish: false });
+    expect(productIdeas).toMatchObject({ status: "setup_needed", blocksPodProductCreation: true });
+    expect(merchant).toMatchObject({ importance: "recommended", blocksPodProductCreation: false });
+    expect(JSON.stringify(cards)).not.toMatch(/access_token|refresh_token|client_secret/i);
   });
 });
 

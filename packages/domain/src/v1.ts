@@ -507,9 +507,85 @@ export type ApprovalQueueItem = {
   nextAction: string;
 };
 
+export type LaunchReadinessStatus =
+  | "not_configured"
+  | "setup_needed"
+  | "detected"
+  | "create_available"
+  | "manual_setup_required"
+  | "manual_action_required"
+  | "external_signup_required"
+  | "requires_scope"
+  | "requires_owner_action"
+  | "verification_required"
+  | "configured_not_verified"
+  | "sync_needed"
+  | "connected"
+  | "access_limited"
+  | "failed"
+  | "blocked_by_guardrail"
+  | "draft_created"
+  | "approval_required"
+  | "approved"
+  | "rejected"
+  | "ready"
+  | "optional_for_online_only"
+  | "provider_not_configured"
+  | "generated"
+  | "prompt_draft"
+  | "mockup_pending"
+  | "verified";
+
+export type LaunchReadinessCard = {
+  section: string;
+  title: string;
+  status: LaunchReadinessStatus;
+  importance: "required" | "recommended" | "optional";
+  whyItMatters: string;
+  nextOwnerAction: string;
+  actionHref: string;
+  detailHref: string;
+  lastChecked: string | null;
+  sanitizedError: string | null;
+  blocksPodProductCreation: boolean;
+  blocksLaunchPublish: boolean;
+  setupRequired: string[];
+};
+
+export type DnsReadinessRecord = {
+  type: "TXT" | "CNAME" | "A" | "AAAA" | "MX";
+  host: string;
+  value: string;
+  ttl: number;
+  provider: "manual" | "cloudflare" | "future_provider";
+  purpose: string;
+  status: LaunchReadinessStatus;
+  createdByApp: boolean;
+  ownerActionRequired: string;
+  verifiedAt: string | null;
+  lastCheckedAt: string | null;
+  sanitizedError: string | null;
+};
+
+export type ProviderSetupState = {
+  provider: "shopify" | "printify";
+  status: LaunchReadinessStatus;
+  checklist: Array<{ label: string; status: LaunchReadinessStatus; ownerAction: string }>;
+  setupRequired: string[];
+  nextOwnerAction: string;
+  connectionTestRequired: boolean;
+  connected: boolean;
+  sanitizedError: string | null;
+  tokenExposed: false;
+};
+
 const asText = (value: unknown, fallback = "") => typeof value === "string" && value.trim() ? value.trim() : fallback;
 const asArray = (value: unknown) => Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 const rowStatus = (row: Record<string, unknown>) => String(row.status ?? row.approval_status ?? row.approvalStatus ?? "");
+export const redactLaunchError = (value: unknown) => String(value ?? "")
+  .replace(/(access_token|refresh_token|api[_-]?token|admin_token|authorization|client_secret|password|secret)=?[^&\s]+/gi, "$1=[redacted]")
+  .replace(/\b(shpat_|sk_|eyJ|ghp_)[A-Za-z0-9._~+/=-]+/gi, "[redacted]")
+  .slice(0, 240) || null;
 
 export function createTrendReportDraft(input: {
   trends?: Array<Record<string, unknown>> | undefined;
@@ -613,7 +689,7 @@ export function createDesignConceptDraft(input: {
   const ideaTitle = asText(input.productIdea?.title, "Salty Cowhide product idea");
   const profile = input.businessProfile ?? {};
   const colors = asArray(profile.brandColors);
-  const prompt = `Original Salty Cowhide coastal western POD artwork for "${ideaTitle}", ${colors.length ? `use brand colors ${colors.join(", ")}, ` : ""}clean print-ready design, transparent background, no copied logos, no celebrity likeness, no sports team references.`;
+  const prompt = `Original Salty Cowhide coastal western POD print artwork for "${ideaTitle}", ${colors.length ? `use brand colors ${colors.join(", ")}, ` : ""}centered high-resolution commercial illustration, transparent or removable background, no product mockup, no shirt, mug, tote, model, watermark, copied logos, celebrity likeness, sports team references, or exact AI text.`;
   const riskFlags = detectRiskyPhrases(prompt, profile.trademarkCautionList ?? []);
   return {
     conceptTitle: `${ideaTitle} design concept`,
@@ -663,6 +739,83 @@ export function createImageGenerationPlan(input: {
     generatedAssetCreated: false,
     message: "Image provider is configured, but generation still requires explicit owner run approval.",
     prompt: input.designConcept.prompt
+  };
+}
+
+export function createArtworkGenerationReadiness(input: {
+  imageProviderConfigured?: boolean | undefined;
+  localComfyEndpointConfigured?: boolean | undefined;
+  localAutomatic1111EndpointConfigured?: boolean | undefined;
+  hfImageProviderConfigured?: boolean | undefined;
+  prompt?: string | undefined;
+}) {
+  const providerConfigured = Boolean(input.imageProviderConfigured || input.localComfyEndpointConfigured || input.localAutomatic1111EndpointConfigured || input.hfImageProviderConfigured);
+  const prompt = asText(input.prompt, "Original Salty Cowhide POD artwork prompt");
+  const unsafe = detectRiskyPhrases(prompt);
+  return {
+    artifactType: "print_artwork_asset",
+    status: unsafe.length ? "blocked_by_guardrail" as const : providerConfigured ? "approval_required" as const : "prompt_draft" as const,
+    providerMode: providerConfigured ? "configured_provider_requires_owner_run" : "prompt_only",
+    promptRequirements: [
+      "original POD artwork only",
+      "transparent or removable background",
+      "centered composition",
+      "high-resolution commercial illustration",
+      "no product mockup",
+      "no shirt, mug, tote, model, watermark, logo, celebrity, sports team, or copyrighted character",
+      "no messy AI text; use deterministic overlay/template workflow for exact text"
+    ],
+    outputPlans: ["apparel graphic", "mug wrap", "sticker/cutout", "tote graphic", "ornament/gift item"],
+    qaRequired: ["transparency", "resolution", "dimensions", "safe margins", "product fit", "text readability", "trademark/safety flags", "file type", "file size", "owner approval"],
+    generatedAssetCreated: false,
+    riskFlags: unsafe,
+    nextOwnerAction: unsafe.length ? "Revise prompt before image generation." : providerConfigured ? "Approve a single image generation run." : "Configure image provider or upload artwork manually."
+  };
+}
+
+export function createArtworkToPrintifyWorkflow(input: {
+  artworkApproved?: boolean | undefined;
+  printifyConnected?: boolean | undefined;
+  blueprintSelected?: boolean | undefined;
+  printProviderSelected?: boolean | undefined;
+  variantsSelected?: boolean | undefined;
+  printAreaSelected?: boolean | undefined;
+  printifyImageId?: string | undefined;
+  printifyProductRef?: string | undefined;
+  mockupUrls?: string[] | undefined;
+  mockupsApproved?: boolean | undefined;
+}) {
+  const blockers = [
+    !input.artworkApproved && "approved_artwork_required",
+    !input.printifyConnected && "printify_not_connected",
+    !input.blueprintSelected && "printify_blueprint_required",
+    !input.printProviderSelected && "print_provider_required",
+    !input.variantsSelected && "variants_required",
+    !input.printAreaSelected && "print_area_required",
+    !input.printifyImageId && "printify_image_upload_required",
+    !input.printifyProductRef && "printify_draft_product_required",
+    !(input.mockupUrls ?? []).length && "printify_mockups_pending",
+    !input.mockupsApproved && "owner_mockup_approval_required"
+  ].filter(Boolean) as string[];
+  const setupBlockers = blockers.filter((blocker) => !["printify_mockups_pending", "owner_mockup_approval_required"].includes(blocker));
+  const status = blockers.length
+    ? setupBlockers.length
+      ? "setup_needed" as const
+      : blockers.includes("owner_mockup_approval_required")
+        ? "approval_required" as const
+        : "mockup_pending" as const
+    : "ready" as const;
+  return {
+    artworkAssetKind: "print_file",
+    productMockupKind: "product_preview",
+    status,
+    lanes: {
+      printifyGeneratedMockups: "production_accuracy_default",
+      customSaltyFactoryMockups: "manual_or_internal_mockup_assets",
+      printifyAiMockups: "access_limited_until_api_support_verified"
+    },
+    blockers,
+    nextOwnerAction: blockers[0] ? `Resolve ${blockers[0].replace(/_/g, " ")}.` : "Approve listing readiness or guarded export."
   };
 }
 
@@ -1051,6 +1204,344 @@ export function runAgenticPodWorkflow(input: {
   };
 }
 
+export function createPrintifySetupState(input: {
+  enabled?: boolean | undefined;
+  hasApiToken?: boolean | undefined;
+  shopId?: string | null | undefined;
+  persistedStatus?: string | undefined;
+  shopsDiscovered?: number | undefined;
+  catalogDiscovered?: boolean | undefined;
+  sanitizedError?: unknown;
+}): ProviderSetupState {
+  const setupRequired = [
+    !input.hasApiToken && "PRINTIFY_API_TOKEN",
+    !input.shopId && "PRINTIFY_SHOP_ID",
+    !input.enabled && "PRINTIFY_ENABLED=true"
+  ].filter(Boolean) as string[];
+  const status: LaunchReadinessStatus =
+    input.persistedStatus === "connected" ? "connected" :
+    !input.hasApiToken ? "external_signup_required" :
+    !input.shopId ? "manual_setup_required" :
+    input.persistedStatus === "access_limited" ? "access_limited" :
+    "configured_not_verified";
+  return {
+    provider: "printify",
+    status,
+    checklist: [
+      { label: "Create or open Printify account", status: input.hasApiToken ? "detected" : "external_signup_required", ownerAction: "Use Printify signup/login if the account does not exist." },
+      { label: "Generate API token", status: input.hasApiToken ? "detected" : "manual_setup_required", ownerAction: "Create a Printify API token in Printify and keep it server-side only." },
+      { label: "Select Printify shop", status: input.shopId ? "detected" : input.shopsDiscovered === 1 ? "requires_owner_action" : "manual_setup_required", ownerAction: "Select the real Printify shop ID after shop discovery." },
+      { label: "Verify API connection", status: status === "connected" ? "connected" : "configured_not_verified", ownerAction: "Run Test Printify connection." },
+      { label: "Discover catalog blueprints/providers/variants", status: input.catalogDiscovered ? "detected" : status === "connected" ? "sync_needed" : "setup_needed", ownerAction: "Fetch catalog after the connection is verified." }
+    ],
+    setupRequired,
+    nextOwnerAction: status === "connected" ? "Review Printify catalog and map approved artwork to product targets." : setupRequired.length ? "Create/open Printify, generate an API token, save server config, then test connection." : "Run Test Printify connection.",
+    connectionTestRequired: status !== "connected",
+    connected: status === "connected",
+    sanitizedError: input.sanitizedError ? redactLaunchError(input.sanitizedError) : null,
+    tokenExposed: false
+  };
+}
+
+export function createShopifySetupState(input: {
+  enabled?: boolean | undefined;
+  storeDomain?: string | null | undefined;
+  hasAdminToken?: boolean | undefined;
+  persistedStatus?: string | undefined;
+  shopInfoDetected?: boolean | undefined;
+  sanitizedError?: unknown;
+}): ProviderSetupState {
+  const setupRequired = [
+    !input.enabled && "SHOPIFY_ADMIN_ENABLED=true",
+    !input.storeDomain && "SHOPIFY_STORE_DOMAIN",
+    !input.hasAdminToken && "SHOPIFY_ADMIN_TOKEN"
+  ].filter(Boolean) as string[];
+  const status: LaunchReadinessStatus =
+    input.persistedStatus === "connected" ? "connected" :
+    !input.storeDomain ? "external_signup_required" :
+    !input.hasAdminToken ? "manual_setup_required" :
+    "configured_not_verified";
+  return {
+    provider: "shopify" as const,
+    status,
+    checklist: [
+      { label: "Create or open Shopify store", status: input.storeDomain ? "detected" as const : "external_signup_required" as const, ownerAction: "Create a Shopify store or confirm the existing Salty Cowhide shop domain." },
+      { label: "Configure SaltyCowhide.com domain", status: input.storeDomain ? "detected" as const : "manual_setup_required" as const, ownerAction: "Connect SaltyCowhide.com in Shopify and DNS." },
+      { label: "Create Admin API custom app/token", status: input.hasAdminToken ? "detected" as const : "manual_setup_required" as const, ownerAction: "Create a custom app/admin token with required draft product scopes; keep token server-side only." },
+      { label: "Verify Shopify Admin API", status: status === "connected" ? "connected" as const : "configured_not_verified" as const, ownerAction: "Run Test Shopify connection." },
+      { label: "Draft product sync readiness", status: status === "connected" ? "ready" as const : "setup_needed" as const, ownerAction: "Create draft products only after publish gates pass." }
+    ],
+    setupRequired,
+    nextOwnerAction: status === "connected" ? "Prepare owner-approved Shopify draft product payloads." : setupRequired.length ? "Create/open Shopify, configure domain/admin token, then test connection." : "Run Test Shopify connection.",
+    connectionTestRequired: status !== "connected",
+    connected: status === "connected",
+    sanitizedError: input.sanitizedError ? redactLaunchError(input.sanitizedError) : null,
+    tokenExposed: false
+  };
+}
+
+export function buildShopifyMetafieldPayload(input: {
+  productIdeaId?: string | undefined;
+  designSource?: string | undefined;
+  aiEmployeeSource?: string | undefined;
+  approvalStatus?: string | undefined;
+  productionPartner?: string | undefined;
+  marginScore?: number | undefined;
+  launchBatch?: string | undefined;
+  productReadiness?: string | undefined;
+  mockupApprovalStatus?: string | undefined;
+  listingValidationStatus?: string | undefined;
+}) {
+  return Object.entries({
+    saltyfactory_product_idea_id: input.productIdeaId,
+    design_source: input.designSource,
+    ai_employee_source: input.aiEmployeeSource,
+    approval_status: input.approvalStatus,
+    production_partner: input.productionPartner,
+    margin_score: input.marginScore,
+    launch_batch: input.launchBatch,
+    product_readiness: input.productReadiness,
+    mockup_approval_status: input.mockupApprovalStatus,
+    listing_validation_status: input.listingValidationStatus
+  }).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => ({
+    namespace: "saltyfactory",
+    key,
+    type: typeof value === "number" ? "number_integer" : "single_line_text_field",
+    value: String(value)
+  }));
+}
+
+export function generateDnsReadinessRecords(input: {
+  domain?: string | undefined;
+  searchConsoleVerificationValue?: string | undefined;
+  merchantVerificationValue?: string | undefined;
+  shopifyCnameTarget?: string | undefined;
+  supportEmailDomain?: string | undefined;
+  dkimRecords?: Array<{ host: string; value: string }> | undefined;
+  indexNowKey?: string | undefined;
+  providerConfigured?: boolean | undefined;
+}) {
+  const domain = input.domain || "saltycowhide.com";
+  const provider = input.providerConfigured ? "future_provider" as const : "manual" as const;
+  const records: DnsReadinessRecord[] = [
+    {
+      type: "CNAME",
+      host: "www",
+      value: input.shopifyCnameTarget || "shops.myshopify.com",
+      ttl: 3600,
+      provider,
+      purpose: "Shopify domain connection",
+      status: "manual_action_required",
+      createdByApp: false,
+      ownerActionRequired: "Add or confirm this record in the DNS provider before Shopify domain verification.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    {
+      type: "TXT",
+      host: "@",
+      value: input.searchConsoleVerificationValue || "google-site-verification=[provided-by-google]",
+      ttl: 3600,
+      provider,
+      purpose: "Search Console verification",
+      status: input.searchConsoleVerificationValue ? "generated" : "manual_action_required",
+      createdByApp: false,
+      ownerActionRequired: "Copy the Google-provided TXT value into DNS, then retry Search Console verification.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    {
+      type: "TXT",
+      host: "@",
+      value: input.merchantVerificationValue || "google-site-verification=[provided-by-merchant-center]",
+      ttl: 3600,
+      provider,
+      purpose: "Merchant Center website claim",
+      status: input.merchantVerificationValue ? "generated" : "manual_action_required",
+      createdByApp: false,
+      ownerActionRequired: "Claim SaltyCowhide.com in Merchant Center using the Google-provided verification method.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    {
+      type: "TXT",
+      host: "@",
+      value: "v=spf1 include:_spf.google.com ~all",
+      ttl: 3600,
+      provider,
+      purpose: `SPF for ${input.supportEmailDomain || domain}`,
+      status: "generated",
+      createdByApp: false,
+      ownerActionRequired: "Adjust SPF include values to match the chosen email provider before publishing.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    {
+      type: "TXT",
+      host: "_dmarc",
+      value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain}`,
+      ttl: 3600,
+      provider,
+      purpose: "DMARC email trust",
+      status: "generated",
+      createdByApp: false,
+      ownerActionRequired: "Add DMARC in monitor mode, then tighten policy after legitimate sending is verified.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    {
+      type: "TXT",
+      host: "_indexnow",
+      value: input.indexNowKey || "[generate-indexnow-key-after-domain-ready]",
+      ttl: 3600,
+      provider,
+      purpose: "IndexNow key verification",
+      status: input.indexNowKey ? "generated" : "manual_action_required",
+      createdByApp: false,
+      ownerActionRequired: "Generate and publish an IndexNow key only for approved/published URLs.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    },
+    ...(input.dkimRecords ?? []).map((record): DnsReadinessRecord => ({
+      type: "TXT",
+      host: record.host,
+      value: record.value,
+      ttl: 3600,
+      provider,
+      purpose: "DKIM sender verification",
+      status: "generated",
+      createdByApp: false,
+      ownerActionRequired: "Copy the DKIM value from the selected email provider.",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      sanitizedError: null
+    }))
+  ];
+  return records;
+}
+
+export function evaluateEmailReadiness(input: {
+  supportEmail?: string | undefined;
+  sendingDomain?: string | undefined;
+  spfVerified?: boolean | undefined;
+  dkimVerified?: boolean | undefined;
+  dmarcVerified?: boolean | undefined;
+  transactionalProviderConfigured?: boolean | undefined;
+  senderVerified?: boolean | undefined;
+}) {
+  const blockers = [
+    !input.supportEmail && "support_email_required",
+    !input.sendingDomain && "sending_domain_required",
+    !input.spfVerified && "spf_record_needed",
+    !input.dkimVerified && "dkim_record_needed",
+    !input.dmarcVerified && "dmarc_record_needed",
+    !input.transactionalProviderConfigured && "transactional_email_provider_not_configured",
+    !input.senderVerified && "sender_verification_pending"
+  ].filter(Boolean) as string[];
+  const firstBlocker = blockers[0];
+  return {
+    status: blockers.length ? "manual_setup_required" as const : "verified" as const,
+    blockers,
+    blocksPodProductCreation: false,
+    blocksLaunchPublish: false,
+    nextOwnerAction: firstBlocker ? `Resolve ${firstBlocker.replace(/_/g, " ")}.` : "Keep email authentication monitored."
+  };
+}
+
+export function createMerchantProductFeedReadiness(input: {
+  merchantStatus?: string | undefined;
+  approvedListings?: number | undefined;
+  approvedMockups?: number | undefined;
+  pricesReady?: boolean | undefined;
+  shippingReady?: boolean | undefined;
+  taxReady?: boolean | undefined;
+  policyReady?: boolean | undefined;
+}) {
+  const blockers = [
+    input.merchantStatus !== "connected" && "merchant_center_not_verified",
+    !(input.approvedListings ?? 0) && "approved_listing_required",
+    !(input.approvedMockups ?? 0) && "approved_mockup_required",
+    !input.pricesReady && "price_required",
+    !input.shippingReady && "shipping_required",
+    !input.taxReady && "tax_required",
+    !input.policyReady && "policy_terms_required"
+  ].filter(Boolean) as string[];
+  return {
+    status: blockers.length ? "setup_needed" as const : "ready" as const,
+    blockers,
+    feedSubmissionEnabled: false,
+    nextOwnerAction: blockers.length ? "Complete Merchant Center and approved product feed prerequisites." : "Review feed preview; submission still requires explicit owner approval."
+  };
+}
+
+export function createAccountCenterLaunchCards(input: {
+  businessProfileScore?: number | undefined;
+  businessProfileStatus?: string | undefined;
+  supportEmail?: string | undefined;
+  productionDisclosure?: string | undefined;
+  returnPolicy?: string | undefined;
+  shopifyStatus?: string | undefined;
+  printifyStatus?: string | undefined;
+  googleOAuthStatus?: string | undefined;
+  ga4Status?: string | undefined;
+  searchConsoleStatus?: string | undefined;
+  merchantStatus?: string | undefined;
+  gbpStatus?: string | undefined;
+  storageStatus?: string | undefined;
+  trendReports?: number | undefined;
+  productIdeas?: number | undefined;
+  designConcepts?: number | undefined;
+  imagePrompts?: number | undefined;
+  assets?: number | undefined;
+  approvedAssets?: number | undefined;
+  mockups?: number | undefined;
+  approvedMockups?: number | undefined;
+  listingDrafts?: number | undefined;
+  approvalQueueItems?: number | undefined;
+  baselineStatus?: string | undefined;
+  aiEmployeesReady?: number | undefined;
+  dnsRecords?: DnsReadinessRecord[] | undefined;
+  emailReadiness?: ReturnType<typeof evaluateEmailReadiness> | undefined;
+  productFeedReadiness?: ReturnType<typeof createMerchantProductFeedReadiness> | undefined;
+  lastChecked?: string | null | undefined;
+}) {
+  const card = (partial: Omit<LaunchReadinessCard, "lastChecked" | "sanitizedError"> & { sanitizedError?: string | null | undefined; lastChecked?: string | null | undefined }): LaunchReadinessCard => ({
+    ...partial,
+    lastChecked: partial.lastChecked ?? input.lastChecked ?? null,
+    sanitizedError: partial.sanitizedError ?? null
+  });
+  const businessReady = (input.businessProfileScore ?? 0) >= 90 && Boolean(input.supportEmail && input.productionDisclosure && input.returnPolicy);
+  const shopifyConnected = input.shopifyStatus === "connected";
+  const printifyConnected = input.printifyStatus === "connected";
+  const productWorkflowReady = Boolean(input.trendReports && input.productIdeas && input.designConcepts && input.assets && input.mockups && input.listingDrafts);
+  const dnsReady = (input.dnsRecords ?? []).length > 0 && (input.dnsRecords ?? []).every((record) => record.status === "verified");
+  return [
+    card({ section: "Business Foundation", title: "Business Profile", status: businessReady ? "ready" : "setup_needed", importance: "required", whyItMatters: "POD listings, policies, AI drafts, disclosures, and customer trust depend on the saved business profile.", nextOwnerAction: businessReady ? "Review before launch." : "Complete Business Profile, production partner disclosure, return policy, and support email.", actionHref: "/studio/settings/business-profile", detailHref: "/studio/settings/business-profile", blocksPodProductCreation: false, blocksLaunchPublish: !businessReady, setupRequired: businessReady ? [] : ["business_profile", "support_email", "production_partner_disclosure", "return_policy"] }),
+    card({ section: "Commerce", title: "Shopify Store", status: shopifyConnected ? "connected" : "external_signup_required", importance: "required", whyItMatters: "Shopify hosts SaltyCowhide.com products and guarded draft product exports.", nextOwnerAction: shopifyConnected ? "Prepare approved draft product payloads." : "Create/open Shopify, configure domain/admin app/token, then test connection.", actionHref: "/studio/account-center#shopify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !shopifyConnected, setupRequired: shopifyConnected ? [] : ["SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] }),
+    card({ section: "Commerce", title: "Printify Fulfillment", status: printifyConnected ? "connected" : "external_signup_required", importance: "required", whyItMatters: "Printify provides blueprints, variants, costs, product drafts, and production-accurate mockups.", nextOwnerAction: printifyConnected ? "Fetch catalog and map approved artwork." : "Create/open Printify, configure API token/shop ID, then test connection.", actionHref: "/studio/account-center#printify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !printifyConnected, setupRequired: printifyConnected ? [] : ["PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"] }),
+    card({ section: "Product Workflow", title: "Trend Reports", status: input.trendReports ? "ready" : "setup_needed", importance: "recommended", whyItMatters: "Trend reports feed product ideas and design prompts without inventing trend data.", nextOwnerAction: input.trendReports ? "Approve or generate product ideas." : "Add manual trends or run AI employees from stored sources.", actionHref: "/studio/trends", detailHref: "/studio/trends", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.trendReports ? [] : ["trend_report"] }),
+    card({ section: "Product Workflow", title: "Product Ideas", status: input.productIdeas ? "ready" : "setup_needed", importance: "required", whyItMatters: "Product ideas start the POD build path.", nextOwnerAction: input.productIdeas ? "Create/approve design concepts." : "Generate or manually create product ideas.", actionHref: "/studio/pod-migration", detailHref: "/studio/pod-migration", blocksPodProductCreation: !input.productIdeas, blocksLaunchPublish: !input.productIdeas, setupRequired: input.productIdeas ? [] : ["product_idea"] }),
+    card({ section: "Product Workflow", title: "Artwork Assets", status: input.approvedAssets ? "approved" : input.assets ? "approval_required" : "prompt_draft", importance: "required", whyItMatters: "Approved print artwork is required before Printify products or mockups.", nextOwnerAction: input.approvedAssets ? "Create Printify/product mockups." : input.assets ? "Run QA and approve artwork." : "Generate prompt drafts or upload artwork manually.", actionHref: "/studio/assets", detailHref: "/studio/assets", blocksPodProductCreation: false, blocksLaunchPublish: !input.approvedAssets, setupRequired: input.approvedAssets ? [] : ["approved_artwork"] }),
+    card({ section: "Product Workflow", title: "Mockups", status: input.approvedMockups ? "approved" : input.mockups ? "approval_required" : "mockup_pending", importance: "required", whyItMatters: "Listings need approved product previews. Artwork assets are not mockups.", nextOwnerAction: input.approvedMockups ? "Use mockups in listing drafts." : "Create or retrieve mockups and approve them.", actionHref: "/studio/mockups", detailHref: "/studio/mockups", blocksPodProductCreation: false, blocksLaunchPublish: !input.approvedMockups, setupRequired: input.approvedMockups ? [] : ["approved_mockup"] }),
+    card({ section: "Product Workflow", title: "Listing Drafts", status: input.listingDrafts ? "draft_created" : "setup_needed", importance: "required", whyItMatters: "Listings hold channel-ready copy, disclosures, images, and validation blockers.", nextOwnerAction: input.listingDrafts ? "Validate pricing and owner approval gates." : "Create listing drafts from approved product workflow inputs.", actionHref: "/studio/listing-drafts", detailHref: "/studio/listing-drafts", blocksPodProductCreation: false, blocksLaunchPublish: !input.listingDrafts, setupRequired: input.listingDrafts ? [] : ["listing_draft"] }),
+    card({ section: "Google / Discovery", title: "Google OAuth", status: input.googleOAuthStatus === "connected" ? "connected" : "setup_needed", importance: "recommended", whyItMatters: "Google OAuth enables GA4, Search Console, Merchant Center, and optional GBP discovery/sync.", nextOwnerAction: input.googleOAuthStatus === "connected" ? "Auto-detect SaltyCowhide.com resources." : "Connect Google Business Data OAuth.", actionHref: "/studio/integrations", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.googleOAuthStatus === "connected" ? [] : ["google_oauth"] }),
+    card({ section: "Google / Discovery", title: "Merchant Center", status: input.merchantStatus === "connected" ? "connected" : input.productFeedReadiness?.status ?? "setup_needed", importance: "recommended", whyItMatters: "Merchant Center supports ecommerce discovery and product feed readiness, but feeds are never submitted without approval.", nextOwnerAction: input.productFeedReadiness?.nextOwnerAction ?? "Set up Merchant Center for SaltyCowhide.com.", actionHref: "/studio/integrations", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.productFeedReadiness?.blockers ?? ["merchant_center_setup"] }),
+    card({ section: "Google / Discovery", title: "Google Business Profile", status: input.gbpStatus === "connected" ? "connected" : "optional_for_online_only", importance: "optional", whyItMatters: "GBP may not be appropriate for online-only POD unless there is an eligible local presence.", nextOwnerAction: "Run eligibility check before any GBP setup.", actionHref: "/studio/integrations", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: [] }),
+    card({ section: "Launch Infrastructure", title: "Domain & DNS", status: dnsReady ? "ready" : "manual_setup_required", importance: "required", whyItMatters: "DNS connects Shopify, Search Console verification, Merchant claim, email trust, and IndexNow.", nextOwnerAction: dnsReady ? "Monitor DNS." : "Copy/paste required DNS records and verify manually.", actionHref: "/studio/account-center#dns", detailHref: "/studio/account-center#dns", blocksPodProductCreation: false, blocksLaunchPublish: !dnsReady, setupRequired: dnsReady ? [] : ["shopify_domain_dns", "google_verification_dns", "email_dns"] }),
+    card({ section: "Launch Infrastructure", title: "Email Domain", status: input.emailReadiness?.status === "verified" ? "ready" : "manual_setup_required", importance: "recommended", whyItMatters: "Authenticated email improves support and transactional trust.", nextOwnerAction: input.emailReadiness?.nextOwnerAction ?? "Configure support email, SPF, DKIM, and DMARC.", actionHref: "/studio/account-center#email", detailHref: "/studio/account-center#email", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.emailReadiness?.blockers ?? ["spf", "dkim", "dmarc"] }),
+    card({ section: "Launch Infrastructure", title: "AI-readable Storefront", status: "ready", importance: "recommended", whyItMatters: "sitemap.xml, robots.txt, llms.txt, structured data, Open Graph, canonical URLs, and product JSON-LD support search and AI readability.", nextOwnerAction: "Run site audit after deployment and product approval.", actionHref: "/studio/ai-readiness/audit", detailHref: "/studio/ai-readiness/audit", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: [] }),
+    card({ section: "AI Employees", title: "AI Employee Team", status: (input.aiEmployeesReady ?? 0) > 0 ? "ready" : "setup_needed", importance: "recommended", whyItMatters: "AI employees prepare drafts and checklists while owner approval gates protect public/provider actions.", nextOwnerAction: "Run Daily POD Planning and review approval queue.", actionHref: "/studio/ai-employees", detailHref: "/studio/ai-employees", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: [] }),
+    card({ section: "Operations", title: "Approval Queue", status: input.approvalQueueItems ? "approval_required" : "ready", importance: "required", whyItMatters: "Owner approval is the final control before public, provider, financial, DNS, feed, email, or social effects.", nextOwnerAction: input.approvalQueueItems ? "Approve, reject, or request changes." : "Run AI employees or create drafts.", actionHref: "/studio/ai-employees", detailHref: "/studio/ai-employees", blocksPodProductCreation: false, blocksLaunchPublish: Boolean(input.approvalQueueItems), setupRequired: [] }),
+    card({ section: "Analytics", title: "Baseline & Impact", status: input.baselineStatus === "captured" ? "ready" : "setup_needed", importance: "recommended", whyItMatters: "Baseline snapshots let Analytics Employee measure launch impact.", nextOwnerAction: input.baselineStatus === "captured" ? "Compare current impact." : "Create Baseline & Impact snapshot.", actionHref: "/studio/baseline", detailHref: "/studio/baseline", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.baselineStatus === "captured" ? [] : ["baseline_snapshot"] })
+  ];
+}
+
 export function validateGoogleConfiguration(input: { ga4PropertyId?: string; searchConsoleSiteUrl?: string; gbpAccountId?: string; gbpLocationId?: string }) {
   const blockers: string[] = [];
   if (input.ga4PropertyId && !/^\d+$/.test(input.ga4PropertyId)) blockers.push("ga4_property_id_must_be_numeric");
@@ -1072,6 +1563,7 @@ export function validateGoogleConfiguration(input: { ga4PropertyId?: string; sea
 export function deriveNextBestActions(input: { businessProfileScore?: number; channelScore?: number; googleStatus?: string; baselineStatus?: string; podCandidates?: number; listingDrafts?: number; storageStatus?: string; shopifyStatus?: string; printifyStatus?: string; pendingMockups?: number; assets?: number; mockups?: number; approvedProducts?: number; readyDrafts?: number; trendReports?: number; designConcepts?: number; approvalQueueItems?: number }) {
   const commerceConfigured = input.shopifyStatus === "connected" && input.printifyStatus === "connected";
   return [
+    { title: "Run AI Employees / Daily POD Planning", href: "/studio/ai-employees", reason: "AI employees can create safe internal trend, product, design, listing, pricing, social, and launch-readiness drafts for owner review." },
     !input.trendReports && { title: "Generate or approve trend report", href: "/studio/trends", reason: "AI employees need owner-reviewed trend direction before product strategy." },
     !input.podCandidates && { title: "Create or approve product ideas", href: "/studio/pod-migration", reason: "No POD product ideas are ready for the builder yet." },
     !input.designConcepts && { title: "Generate or approve design concepts", href: "/studio/briefs", reason: "Approved concepts unlock image prompts and artwork workflows." },
@@ -1079,7 +1571,7 @@ export function deriveNextBestActions(input: { businessProfileScore?: number; ch
     !input.mockups && { title: "Approve assets and mockups", href: "/studio/mockups", reason: "Approved mockups are required before POD listing review." },
     !input.listingDrafts && { title: "Create listing draft", href: "/studio/listing-drafts", reason: "No export-ready listing drafts exist." },
     { title: "Check margin", href: "/studio/pricing", reason: "Pricing and margin must be reviewed before owner approval." },
-    !commerceConfigured && { title: "Configure Shopify / Printify / Google / Merchant", href: "/studio/integrations", reason: "Guarded export, analytics, and launch infrastructure need verified providers." },
+    !commerceConfigured && { title: "Configure Shopify / Printify / Google / Merchant", href: "/studio/account-center", reason: "Guarded export, analytics, and launch infrastructure need verified providers." },
     !input.approvedProducts && { title: "Approve exports or guarded syncs", href: "/studio/publish", reason: "Owner approval gates must pass before export or sync." },
     commerceConfigured && (input.readyDrafts ?? input.listingDrafts ?? 0) > 0 && { title: "Export or sync approved draft", href: "/studio/publish", reason: "Provider sync remains guarded by approval gates." },
     input.baselineStatus !== "captured" && { title: "Track impact", href: "/studio/baseline", reason: "Baseline & Impact needs a starting snapshot." },

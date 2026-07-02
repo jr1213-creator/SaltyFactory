@@ -1,6 +1,6 @@
 # SaltyFactory Functional Complete v1
 
-SaltyFactory v1 is an AI-assisted ecommerce, POD, dropshipping, and business migration cockpit. It is built around real workspace-owned records, provider honesty, encrypted credential storage, and owner approval gates.
+SaltyFactory v1 is an AI-run, human-approved POD business operating system for launching and operating SaltyCowhide.com. It is built around real workspace-owned records, provider honesty, encrypted credential storage, provider setup guidance, AI employee draft workflows, and owner approval gates.
 
 ## Provider Status Definitions
 
@@ -12,21 +12,57 @@ SaltyFactory v1 is an AI-assisted ecommerce, POD, dropshipping, and business mig
 - `access_limited`: provider API/quota/permission is unavailable for a non-destructive read.
 - `failed`: attempted action failed with a sanitized error.
 - `blocked_by_guardrail`: action requires approval, provider configuration, or safety gates.
+- `external_signup_required`: the owner must create/open the provider account on the provider website.
+- `manual_action_required`: the owner must complete a manual provider, DNS, domain, email, verification, or protected-config step.
+- `prompt_draft`: the system created an internal prompt only; no image provider generated an asset.
+- `mockup_pending`: artwork/product prerequisites are ready but product preview mockups are still pending.
+
+## Launch Command Center
+
+Primary route:
+
+```txt
+/studio/account-center
+```
+
+The Salty Cowhide Launch Command Center shows required, recommended, and optional launch cards for:
+
+- Business Foundation
+- Commerce
+- Product Workflow
+- Google / Discovery
+- Launch Infrastructure
+- AI Employees
+- Operations
+- Analytics
+
+Cards explicitly distinguish:
+
+- product-creation blockers
+- launch/publish blockers
+- owner actions
+- external signup requirements
+- manual DNS/email/domain/verification steps
+- optional online-only Google Business Profile readiness
+
+Recommended or optional setup, such as Google Business Profile for online-only POD, must not falsely block product creation.
 
 ## Manual Setup Checklist
 
-1. Complete `/studio/settings/business-profile`.
+1. Open `/studio/account-center`.
+2. Complete `/studio/settings/business-profile`.
 2. Add priority sales, social, reputation, and content channels at `/studio/channels`.
-3. Connect Google in `/studio/integrations`, configure GA4 property ID, Search Console property, and GBP account/location, then sync each data source.
-4. Verify Supabase Storage from `/studio/integrations`.
-5. Create a baseline snapshot at `/studio/baseline`.
-6. Configure AI employees at `/studio/ai-employees`.
-7. Add POD migration candidates at `/studio/pod-migration`.
-8. Add dropshipping candidates at `/studio/dropshipping`.
-9. Create listing drafts at `/studio/listing-drafts`.
-10. Use the margin calculator route before approving exports.
-11. Create social content drafts at `/studio/social-planner`; publish manually only after owner approval.
-12. Test Shopify and Printify only after credentials are configured.
+3. Connect Google in `/studio/integrations`, auto-detect or create setup for SaltyCowhide.com, configure GA4/Search Console/Merchant Center where available, then sync/test.
+4. Create or open Shopify and Printify accounts externally, keep credentials server-side, then test providers from Account Center or Integrations.
+5. Verify Supabase Storage from `/studio/integrations`.
+6. Run AI Employees from `/studio/ai-employees` to create safe internal trend, product, design, image prompt, listing, pricing, social, and launch-readiness drafts.
+7. Create or approve Product Ideas at `/studio/pod-migration`.
+8. Upload/approve artwork assets at `/studio/assets`.
+9. Create or retrieve product mockups at `/studio/mockups`.
+10. Create listing drafts at `/studio/listing-drafts`.
+11. Use the margin calculator route before approving exports.
+12. Create social content drafts at `/studio/social-planner`; publish manually only after owner approval.
+13. Create a baseline snapshot at `/studio/baseline`.
 
 ## Google Setup
 
@@ -91,7 +127,14 @@ SHOPIFY_STORE_DOMAIN=
 SHOPIFY_ADMIN_TOKEN=
 ```
 
-The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, and publish gates pass.
+Account Center state:
+
+- `external_signup_required` when no store domain or provider setup exists.
+- `manual_setup_required` when the Shopify domain or Admin API token must be configured server-side.
+- `configured_not_verified` until a live Admin API test succeeds.
+- `connected` only after a live API test succeeds.
+
+The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, and publish gates pass. Shopify setup exposes metafield keys only, never the Admin token.
 
 ## Printify Setup
 
@@ -103,7 +146,32 @@ PRINTIFY_API_TOKEN=
 PRINTIFY_SHOP_ID=
 ```
 
-The v1 adapter can fetch shops, catalog blueprints, print providers, variants, and create draft products only after approval gates pass.
+Account Center state:
+
+- `external_signup_required` when the owner must create/open a Printify account or generate a server-side API token.
+- `manual_setup_required` when `PRINTIFY_SHOP_ID` must be set from a real discovered shop.
+- `configured_not_verified` until a live API test succeeds.
+- `connected` only after a live API test succeeds.
+
+The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. The v1 adapter can fetch shops, catalog blueprints, print providers, variants, and create draft products only after approval gates pass.
+
+## Domain, DNS, Email, and Merchant Feed Readiness
+
+Account Center generates manual DNS records for:
+
+- Shopify domain connection
+- Search Console verification
+- Merchant Center website claim
+- SPF
+- DKIM where provided
+- DMARC
+- IndexNow key verification
+
+Manual mode is the default. SaltyFactory does not overwrite DNS records unless a future provider adapter is explicitly configured and the owner approves the specific write.
+
+Email readiness tracks support email, sending domain, SPF, DKIM, DMARC, transactional provider status, and sender verification. It improves launch trust but does not block POD product creation.
+
+Merchant product feed readiness tracks Merchant Center verification, approved listings, approved mockups, price, shipping, tax, and policy prerequisites. Feed submission is disabled until explicit owner approval and provider gates pass.
 
 ## AI Provider Setup
 
@@ -135,27 +203,32 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 - Shopify collection assigned
 - provider connection valid
 
-## Salty Cowhide POD Migration Workflow
+## Salty Cowhide POD Product Builder Workflow
 
-1. Add legacy design/product candidates in `/studio/pod-migration`.
-2. Attach or reference approved assets from the asset workflow.
-3. Approve mockups from the mockup workflow.
-4. Calculate margin and resolve blockers.
-5. Create a listing draft.
-6. Validate disclosure, safety, pricing, shipping notes, and owner approval.
-7. Export JSON/CSV manually or use guarded Shopify/Printify draft sync when providers and gates pass.
+1. Run AI Employees or manually create Product Ideas in `/studio/pod-migration`.
+2. Create design concepts and print artwork prompts.
+3. Generate artwork only when an image provider is configured and owner-approved, or upload artwork manually.
+4. Run asset QA and approve artwork before product use.
+5. Select Printify targets and create/retrieve product mockups when Printify is configured.
+6. Approve mockups from the mockup workflow.
+7. Create listing drafts.
+8. Calculate margin and resolve blockers.
+9. Validate disclosure, safety, pricing, shipping notes, approved artwork, approved mockups, and owner approval.
+10. Export JSON/CSV manually or use guarded Shopify/Printify draft sync when providers and gates pass.
 
 ## Owner QA Checklist
 
 - Business profile setup saves and shows readiness blockers.
+- Account Center shows product-creation blockers, launch blockers, Shopify/Printify setup state, DNS/email readiness, Merchant feed readiness, and approval queue state.
 - Channels page accepts social/sales/reputation URLs and shows completeness.
 - Google connect/test/configure/sync returns honest statuses.
+- Google Business Profile stays optional for online-only Salty Cowhide POD unless an eligible local presence is selected.
 - Baseline snapshot reports insufficient data when Google metrics are missing.
-- AI employee configuration rejects forbidden actions.
-- POD candidate creation shows design/mockup/listing/margin/approval blockers.
+- AI employee configuration rejects forbidden actions and AI runs produce drafts/approval items only.
+- Product Idea creation shows design/mockup/listing/margin/approval blockers.
+- Artwork assets are not treated as product mockups.
 - Dropshipping candidate flags long shipping, low margin, and brand mismatch.
 - Listing draft blocks Etsy POD disclosure and missing approved assets/mockups.
 - Social planner creates drafts only and does not auto-post.
 - Shopify/Printify draft sync blocks without provider configuration and publish gates.
 - Guardrail script catches token exposure, fake metrics, and premature GBP write actions.
-
