@@ -57,6 +57,63 @@ export interface SiteAuditRepositoryContract extends BaseRepositoryContract {
   createRun(row: WorkspaceRow, findings?: WorkspaceRow[], audit?: WorkspaceRow): Promise<WorkspaceRow>;
 }
 
+export interface CrmRepositoryContract {
+  customers: BaseRepositoryContract;
+  companies: BaseRepositoryContract;
+  contactMethods: BaseRepositoryContract;
+  addresses: BaseRepositoryContract;
+  tags: BaseRepositoryContract;
+  customerTags: BaseRepositoryContract;
+  sources: BaseRepositoryContract;
+  preferences: BaseRepositoryContract;
+  productInterests: BaseRepositoryContract;
+  metrics: BaseRepositoryContract;
+  externalRefs: BaseRepositoryContract;
+  timelineEvents: BaseRepositoryContract;
+  interactions: BaseRepositoryContract;
+  notes: BaseRepositoryContract;
+  tasks: BaseRepositoryContract;
+  taskTemplates: BaseRepositoryContract;
+  leads: BaseRepositoryContract;
+  opportunities: BaseRepositoryContract;
+  quotes: BaseRepositoryContract;
+  deals: BaseRepositoryContract;
+  pipelineStages: BaseRepositoryContract;
+  serviceCases: BaseRepositoryContract;
+  conversations: BaseRepositoryContract;
+  conversationMessages: BaseRepositoryContract;
+  supportCases: BaseRepositoryContract;
+  helpTopics: BaseRepositoryContract;
+  inboxChannels: BaseRepositoryContract;
+  campaigns: BaseRepositoryContract;
+  campaignMembers: BaseRepositoryContract;
+  messageTemplates: BaseRepositoryContract;
+  landingPages: BaseRepositoryContract;
+  forms: BaseRepositoryContract;
+  formSubmissions: BaseRepositoryContract;
+  consents: BaseRepositoryContract;
+  unsubscribePreferences: BaseRepositoryContract;
+  events: BaseRepositoryContract;
+  personEvents: BaseRepositoryContract;
+  behavioralTraits: BaseRepositoryContract;
+  surveys: BaseRepositoryContract;
+  surveyResponses: BaseRepositoryContract;
+  featureFlags: BaseRepositoryContract;
+  customerCohorts: BaseRepositoryContract;
+  behaviorSegments: BaseRepositoryContract;
+  aiInsights: BaseRepositoryContract;
+  nextActions: BaseRepositoryContract;
+  recommendationEvents: BaseRepositoryContract;
+  automationRules: BaseRepositoryContract;
+  automationRuns: BaseRepositoryContract;
+  importBatches: BaseRepositoryContract;
+  syncState: BaseRepositoryContract;
+  appointmentTypes: BaseRepositoryContract;
+  bookingRequests: BaseRepositoryContract;
+  consultations: BaseRepositoryContract;
+  availabilityReadiness: BaseRepositoryContract;
+}
+
 export interface IntegrationRepositoryContract extends BaseRepositoryContract {
   credentials: BaseRepositoryContract;
   syncRuns: BaseRepositoryContract;
@@ -117,6 +174,7 @@ export interface RepositoryBundle {
   marketing: BaseRepositoryContract & { assets: BaseRepositoryContract };
   support: BaseRepositoryContract & { drafts: BaseRepositoryContract };
   billing: BaseRepositoryContract & { plans: BaseRepositoryContract; events: BaseRepositoryContract; featureLimits: BaseRepositoryContract };
+  crm: CrmRepositoryContract;
 }
 
 export type RepositoryRuntimeConfig = {

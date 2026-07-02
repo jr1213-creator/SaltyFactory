@@ -33,6 +33,20 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     links: [["AI Employees", "/studio/ai-employees"]]
   },
   {
+    id: "customer",
+    label: "Customer",
+    links: [
+      ["Customer Command Center", "/studio/customer-command-center"],
+      ["Customers", "/studio/customers"],
+      ["Segments", "/studio/customer-segments"],
+      ["Customer Capture", "/studio/customer-capture"],
+      ["Customer Inbox", "/studio/customer-inbox"],
+      ["Customer Campaigns", "/studio/customer-campaigns"],
+      ["Customer Intelligence", "/studio/customer-intelligence"],
+      ["Customer Scheduling", "/studio/customer-scheduling"]
+    ]
+  },
+  {
     id: "storefront",
     label: "Storefront",
     links: [

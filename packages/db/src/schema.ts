@@ -1258,6 +1258,628 @@ export const storefrontPages = pgTable("storefront_pages", {
   statusIdx: index("storefront_pages_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
+const crmOwnership = () => ({
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceLabel: text("source_label").notNull().default("manual_entry"),
+  status: text("status").notNull().default("active")
+});
+
+export const crmCustomers = pgTable("crm_customers", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  phone: text("phone"),
+  location: text("location"),
+  lifecycleStage: text("lifecycle_stage").notNull().default("lead"),
+  customerType: text("customer_type").notNull().default("unknown"),
+  marketingConsentStatus: text("marketing_consent_status").notNull().default("unknown"),
+  lifetimeValue: money("lifetime_value").notNull().default("0"),
+  averageOrderValue: money("average_order_value").notNull().default("0"),
+  orderCount: integer("order_count").notNull().default(0),
+  lastOrderAt: timestamp("last_order_at", { withTimezone: true }),
+  lastInteractionAt: timestamp("last_interaction_at", { withTimezone: true }),
+  nextAction: text("next_action"),
+  assignedOwnerId: text("assigned_owner_id").references(() => users.id),
+  profileJson: jsonb("profile_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  workspaceEmailIdx: index("crm_customers_workspace_email_idx").on(table.workspaceId, table.email),
+  workspaceStatusIdx: index("crm_customers_workspace_status_idx").on(table.workspaceId, table.status),
+  sourceIdx: index("crm_customers_source_idx").on(table.workspaceId, table.sourceLabel),
+  lifecycleIdx: index("crm_customers_lifecycle_idx").on(table.workspaceId, table.lifecycleStage)
+}));
+
+export const crmCompanies = pgTable("crm_companies", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  websiteUrl: text("website_url"),
+  companyType: text("company_type").notNull().default("account"),
+  lifecycleStage: text("lifecycle_stage").notNull().default("prospect"),
+  notes: text("notes")
+}, (table) => ({
+  workspaceNameIdx: index("crm_companies_workspace_name_idx").on(table.workspaceId, table.name),
+  statusIdx: index("crm_companies_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmContactMethods = pgTable("crm_contact_methods", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  methodType: text("method_type").notNull(),
+  value: text("value").notNull(),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  consentStatus: text("consent_status").notNull().default("unknown"),
+  verificationStatus: text("verification_status").notNull().default("unverified")
+}, (table) => ({
+  customerIdx: index("crm_contact_methods_customer_idx").on(table.workspaceId, table.customerId),
+  valueIdx: index("crm_contact_methods_value_idx").on(table.workspaceId, table.value)
+}));
+
+export const crmAddresses = pgTable("crm_addresses", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  addressType: text("address_type").notNull().default("shipping"),
+  name: text("name"),
+  line1: text("line1"),
+  line2: text("line2"),
+  city: text("city"),
+  region: text("region"),
+  postalCode: text("postal_code"),
+  country: text("country").notNull().default("US")
+}, (table) => ({
+  customerIdx: index("crm_addresses_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmTags = pgTable("crm_tags", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  color: text("color"),
+  category: text("category").notNull().default("customer")
+}, (table) => ({
+  tagUnique: uniqueIndex("crm_tags_workspace_name_unique").on(table.workspaceId, table.name),
+  categoryIdx: index("crm_tags_category_idx").on(table.workspaceId, table.category)
+}));
+
+export const crmCustomerTags = pgTable("crm_customer_tags", {
+  ...crmOwnership(),
+  customerId: text("customer_id").notNull().references(() => crmCustomers.id),
+  tagId: text("tag_id").notNull().references(() => crmTags.id)
+}, (table) => ({
+  customerTagUnique: uniqueIndex("crm_customer_tags_unique").on(table.workspaceId, table.customerId, table.tagId),
+  customerIdx: index("crm_customer_tags_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmSources = pgTable("crm_sources", {
+  ...crmOwnership(),
+  sourceKey: text("source_key").notNull(),
+  displayName: text("display_name").notNull(),
+  category: text("category").notNull().default("manual")
+}, (table) => ({
+  sourceUnique: uniqueIndex("crm_sources_workspace_key_unique").on(table.workspaceId, table.sourceKey)
+}));
+
+export const crmCustomerPreferences = pgTable("crm_customer_preferences", {
+  ...crmOwnership(),
+  customerId: text("customer_id").notNull().references(() => crmCustomers.id),
+  preferenceKey: text("preference_key").notNull(),
+  preferenceValue: text("preference_value")
+}, (table) => ({
+  customerIdx: index("crm_customer_preferences_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmCustomerProductInterests = pgTable("crm_customer_product_interests", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  productType: text("product_type").notNull(),
+  productId: text("product_id"),
+  interestScore: integer("interest_score").notNull().default(0),
+  interestNotes: text("interest_notes")
+}, (table) => ({
+  customerIdx: index("crm_customer_product_interests_customer_idx").on(table.workspaceId, table.customerId),
+  productTypeIdx: index("crm_customer_product_interests_type_idx").on(table.workspaceId, table.productType)
+}));
+
+export const crmCustomerMetrics = pgTable("crm_customer_metrics", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  metricKey: text("metric_key").notNull(),
+  metricValue: numeric("metric_value", { precision: 14, scale: 4 }).notNull().default("0"),
+  measuredAt: timestamp("measured_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  metricIdx: index("crm_customer_metrics_metric_idx").on(table.workspaceId, table.customerId, table.metricKey)
+}));
+
+export const crmCustomerExternalRefs = pgTable("crm_customer_external_refs", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  providerKey: text("provider_key").notNull(),
+  externalId: text("external_id").notNull(),
+  externalUrl: text("external_url")
+}, (table) => ({
+  externalUnique: uniqueIndex("crm_customer_external_refs_unique").on(table.workspaceId, table.providerKey, table.externalId),
+  customerIdx: index("crm_customer_external_refs_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmTimelineEvents = pgTable("crm_timeline_events", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  eventType: text("event_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  eventAt: timestamp("event_at", { withTimezone: true }).notNull().defaultNow(),
+  sourceRecordId: text("source_record_id"),
+  aiSuggested: boolean("ai_suggested").notNull().default(false)
+}, (table) => ({
+  customerTimeIdx: index("crm_timeline_events_customer_time_idx").on(table.workspaceId, table.customerId, table.eventAt),
+  eventTypeIdx: index("crm_timeline_events_type_idx").on(table.workspaceId, table.eventType)
+}));
+
+export const crmInteractions = pgTable("crm_interactions", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  interactionType: text("interaction_type").notNull(),
+  channel: text("channel").notNull().default("manual"),
+  direction: text("direction").notNull().default("internal"),
+  subject: text("subject"),
+  body: text("body"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  customerIdx: index("crm_interactions_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmNotes = pgTable("crm_notes", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  isPinned: boolean("is_pinned").notNull().default(false)
+}, (table) => ({
+  customerIdx: index("crm_notes_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmTasks = pgTable("crm_tasks", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  priority: text("priority").notNull().default("normal"),
+  assignedOwnerId: text("assigned_owner_id").references(() => users.id)
+}, (table) => ({
+  dueIdx: index("crm_tasks_due_status_idx").on(table.workspaceId, table.status, table.dueAt),
+  customerIdx: index("crm_tasks_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmTaskTemplates = pgTable("crm_task_templates", {
+  ...crmOwnership(),
+  title: text("title").notNull(),
+  description: text("description"),
+  triggerKey: text("trigger_key"),
+  defaultPriority: text("default_priority").notNull().default("normal")
+}, (table) => ({
+  triggerIdx: index("crm_task_templates_trigger_idx").on(table.workspaceId, table.triggerKey)
+}));
+
+export const crmLeads = pgTable("crm_leads", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  company: text("company"),
+  interest: text("interest"),
+  estimatedValue: money("estimated_value"),
+  assignedSegment: text("assigned_segment"),
+  nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
+  consentStatus: text("consent_status").notNull().default("unknown"),
+  notes: text("notes")
+}, (table) => ({
+  emailIdx: index("crm_leads_email_idx").on(table.workspaceId, table.email),
+  statusIdx: index("crm_leads_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmOpportunities = pgTable("crm_opportunities", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  leadId: text("lead_id").references(() => crmLeads.id),
+  title: text("title").notNull(),
+  stage: text("stage").notNull().default("new"),
+  estimatedValue: money("estimated_value"),
+  expectedCloseDate: timestamp("expected_close_date", { withTimezone: true }),
+  productInterest: text("product_interest"),
+  nextAction: text("next_action")
+}, (table) => ({
+  stageIdx: index("crm_opportunities_stage_idx").on(table.workspaceId, table.stage)
+}));
+
+export const crmQuotes = pgTable("crm_quotes", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  leadId: text("lead_id").references(() => crmLeads.id),
+  title: text("title").notNull(),
+  estimatedValue: money("estimated_value"),
+  requestJson: jsonb("request_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  statusIdx: index("crm_quotes_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmDeals = pgTable("crm_deals", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  opportunityId: text("opportunity_id").references(() => crmOpportunities.id),
+  title: text("title").notNull(),
+  stage: text("stage").notNull().default("new"),
+  estimatedValue: money("estimated_value"),
+  nextAction: text("next_action")
+}, (table) => ({
+  stageIdx: index("crm_deals_stage_idx").on(table.workspaceId, table.stage)
+}));
+
+export const crmPipelineStages = pgTable("crm_pipeline_stages", {
+  ...crmOwnership(),
+  pipelineKey: text("pipeline_key").notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0)
+}, (table) => ({
+  pipelineUnique: uniqueIndex("crm_pipeline_stages_unique").on(table.workspaceId, table.pipelineKey, table.name)
+}));
+
+export const crmServiceCases = pgTable("crm_service_cases", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  subject: text("subject").notNull(),
+  issueType: text("issue_type").notNull().default("general"),
+  priority: text("priority").notNull().default("normal"),
+  channel: text("channel").notNull().default("manual"),
+  assignedOwnerId: text("assigned_owner_id").references(() => users.id),
+  resolutionNotes: text("resolution_notes")
+}, (table) => ({
+  customerIdx: index("crm_service_cases_customer_idx").on(table.workspaceId, table.customerId),
+  statusIdx: index("crm_service_cases_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmConversations = pgTable("crm_conversations", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  channel: text("channel").notNull().default("manual"),
+  subject: text("subject"),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true })
+}, (table) => ({
+  statusIdx: index("crm_conversations_status_idx").on(table.workspaceId, table.status),
+  customerIdx: index("crm_conversations_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmConversationMessages = pgTable("crm_conversation_messages", {
+  ...crmOwnership(),
+  conversationId: text("conversation_id").references(() => crmConversations.id),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  direction: text("direction").notNull().default("internal"),
+  body: text("body").notNull(),
+  messageAt: timestamp("message_at", { withTimezone: true }).notNull().defaultNow(),
+  senderLabel: text("sender_label")
+}, (table) => ({
+  conversationIdx: index("crm_conversation_messages_conversation_idx").on(table.workspaceId, table.conversationId)
+}));
+
+export const crmSupportCases = pgTable("crm_support_cases", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  conversationId: text("conversation_id").references(() => crmConversations.id),
+  subject: text("subject").notNull(),
+  priority: text("priority").notNull().default("normal"),
+  resolutionNotes: text("resolution_notes")
+}, (table) => ({
+  statusIdx: index("crm_support_cases_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmHelpTopics = pgTable("crm_help_topics", {
+  ...crmOwnership(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  category: text("category").notNull().default("general"),
+  body: text("body").notNull().default("")
+}, (table) => ({
+  slugUnique: uniqueIndex("crm_help_topics_slug_unique").on(table.workspaceId, table.slug)
+}));
+
+export const crmInboxChannels = pgTable("crm_inbox_channels", {
+  ...crmOwnership(),
+  channelType: text("channel_type").notNull(),
+  displayName: text("display_name").notNull(),
+  setupStatus: text("setup_status").notNull().default("not_configured"),
+  configurationJson: jsonb("configuration_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  channelUnique: uniqueIndex("crm_inbox_channels_unique").on(table.workspaceId, table.channelType)
+}));
+
+export const crmCampaigns = pgTable("crm_campaigns", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  goal: text("goal"),
+  targetSegmentId: text("target_segment_id"),
+  consentRequired: boolean("consent_required").notNull().default(true),
+  campaignJson: jsonb("campaign_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  statusIdx: index("crm_campaigns_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmCampaignMembers = pgTable("crm_campaign_members", {
+  ...crmOwnership(),
+  campaignId: text("campaign_id").references(() => crmCampaigns.id),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  leadId: text("lead_id").references(() => crmLeads.id),
+  enrolledAt: timestamp("enrolled_at", { withTimezone: true })
+}, (table) => ({
+  campaignIdx: index("crm_campaign_members_campaign_idx").on(table.workspaceId, table.campaignId)
+}));
+
+export const crmMessageTemplates = pgTable("crm_message_templates", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("customer_success"),
+  subject: text("subject"),
+  body: text("body").notNull()
+}, (table) => ({
+  categoryIdx: index("crm_message_templates_category_idx").on(table.workspaceId, table.category)
+}));
+
+export const crmLandingPages = pgTable("crm_landing_pages", {
+  ...crmOwnership(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  targetSegmentId: text("target_segment_id"),
+  pageJson: jsonb("page_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  slugUnique: uniqueIndex("crm_landing_pages_slug_unique").on(table.workspaceId, table.slug)
+}));
+
+export const crmForms = pgTable("crm_forms", {
+  ...crmOwnership(),
+  title: text("title").notNull(),
+  description: text("description"),
+  fieldsJson: jsonb("fields_json").$type<Array<Record<string, unknown>>>().notNull().default([]),
+  targetSegmentKey: text("target_segment_key"),
+  suggestedFollowUpTask: text("suggested_follow_up_task"),
+  consentLanguage: text("consent_language"),
+  embedReadinessStatus: text("embed_readiness_status").notNull().default("future_integration"),
+  publicFormId: text("public_form_id")
+}, (table) => ({
+  publicFormIdx: index("crm_forms_public_form_idx").on(table.workspaceId, table.publicFormId),
+  statusIdx: index("crm_forms_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmFormSubmissions = pgTable("crm_form_submissions", {
+  ...crmOwnership(),
+  formId: text("form_id").references(() => crmForms.id),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  leadId: text("lead_id").references(() => crmLeads.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  dataJson: jsonb("data_json").$type<Record<string, unknown>>().notNull().default({}),
+  consentStatus: text("consent_status").notNull().default("unknown")
+}, (table) => ({
+  formIdx: index("crm_form_submissions_form_idx").on(table.workspaceId, table.formId)
+}));
+
+export const crmConsents = pgTable("crm_consents", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  email: text("email"),
+  consentType: text("consent_type").notNull().default("marketing"),
+  consentedAt: timestamp("consented_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+}, (table) => ({
+  customerIdx: index("crm_consents_customer_idx").on(table.workspaceId, table.customerId),
+  emailIdx: index("crm_consents_email_idx").on(table.workspaceId, table.email)
+}));
+
+export const crmUnsubscribePreferences = pgTable("crm_unsubscribe_preferences", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  email: text("email"),
+  channel: text("channel").notNull().default("email"),
+  unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true })
+}, (table) => ({
+  emailIdx: index("crm_unsubscribe_preferences_email_idx").on(table.workspaceId, table.email)
+}));
+
+export const crmEvents = pgTable("crm_events", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  eventType: text("event_type").notNull(),
+  eventName: text("event_name").notNull(),
+  eventAt: timestamp("event_at", { withTimezone: true }).notNull().defaultNow(),
+  propertiesJson: jsonb("properties_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  eventIdx: index("crm_events_type_idx").on(table.workspaceId, table.eventType, table.eventAt)
+}));
+
+export const crmPersonEvents = pgTable("crm_person_events", {
+  ...crmOwnership(),
+  personKey: text("person_key").notNull(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  eventType: text("event_type").notNull(),
+  eventAt: timestamp("event_at", { withTimezone: true }).notNull().defaultNow(),
+  propertiesJson: jsonb("properties_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  personIdx: index("crm_person_events_person_idx").on(table.workspaceId, table.personKey)
+}));
+
+export const crmBehavioralTraits = pgTable("crm_behavioral_traits", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  traitKey: text("trait_key").notNull(),
+  traitValue: text("trait_value"),
+  confidence: confidence("confidence").notNull().default("0")
+}, (table) => ({
+  customerIdx: index("crm_behavioral_traits_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmSurveys = pgTable("crm_surveys", {
+  ...crmOwnership(),
+  title: text("title").notNull(),
+  questionsJson: jsonb("questions_json").$type<Array<Record<string, unknown>>>().notNull().default([])
+}, (table) => ({
+  statusIdx: index("crm_surveys_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmSurveyResponses = pgTable("crm_survey_responses", {
+  ...crmOwnership(),
+  surveyId: text("survey_id").references(() => crmSurveys.id),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  answersJson: jsonb("answers_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  surveyIdx: index("crm_survey_responses_survey_idx").on(table.workspaceId, table.surveyId)
+}));
+
+export const crmFeatureFlags = pgTable("crm_feature_flags", {
+  ...crmOwnership(),
+  flagKey: text("flag_key").notNull(),
+  name: text("name").notNull(),
+  description: text("description")
+}, (table) => ({
+  flagUnique: uniqueIndex("crm_feature_flags_unique").on(table.workspaceId, table.flagKey)
+}));
+
+export const crmCustomerCohorts = pgTable("crm_customer_cohorts", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ruleJson: jsonb("rule_json").$type<Record<string, unknown>>().notNull().default({}),
+  sourceDataRequired: jsonb("source_data_required").$type<string[]>().notNull().default([])
+}, (table) => ({
+  nameIdx: index("crm_customer_cohorts_name_idx").on(table.workspaceId, table.name),
+  statusIdx: index("crm_customer_cohorts_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmBehaviorSegments = pgTable("crm_behavior_segments", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ruleJson: jsonb("rule_json").$type<Record<string, unknown>>().notNull().default({}),
+  memberCount: integer("member_count").notNull().default(0)
+}, (table) => ({
+  nameIdx: index("crm_behavior_segments_name_idx").on(table.workspaceId, table.name)
+}));
+
+export const crmAiInsights = pgTable("crm_ai_insights", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  confidence: confidence("confidence").notNull().default("0"),
+  approvalStatus: text("approval_status").notNull().default("draft")
+}, (table) => ({
+  customerIdx: index("crm_ai_insights_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmNextActions = pgTable("crm_next_actions", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  actionType: text("action_type").notNull(),
+  title: text("title").notNull(),
+  reason: text("reason").notNull(),
+  priority: text("priority").notNull().default("normal"),
+  dueAt: timestamp("due_at", { withTimezone: true })
+}, (table) => ({
+  customerIdx: index("crm_next_actions_customer_idx").on(table.workspaceId, table.customerId),
+  statusIdx: index("crm_next_actions_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmRecommendationEvents = pgTable("crm_recommendation_events", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  recommendationType: text("recommendation_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull()
+}, (table) => ({
+  customerIdx: index("crm_recommendation_events_customer_idx").on(table.workspaceId, table.customerId)
+}));
+
+export const crmAutomationRules = pgTable("crm_automation_rules", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  triggerKey: text("trigger_key").notNull(),
+  conditionsJson: jsonb("conditions_json").$type<Record<string, unknown>>().notNull().default({}),
+  actionsJson: jsonb("actions_json").$type<Array<Record<string, unknown>>>().notNull().default([])
+}, (table) => ({
+  triggerIdx: index("crm_automation_rules_trigger_idx").on(table.workspaceId, table.triggerKey)
+}));
+
+export const crmAutomationRuns = pgTable("crm_automation_runs", {
+  ...crmOwnership(),
+  automationRuleId: text("automation_rule_id").references(() => crmAutomationRules.id),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  resultJson: jsonb("result_json").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  ruleIdx: index("crm_automation_runs_rule_idx").on(table.workspaceId, table.automationRuleId)
+}));
+
+export const crmImportBatches = pgTable("crm_import_batches", {
+  ...crmOwnership(),
+  importType: text("import_type").notNull(),
+  recordsTotal: integer("records_total").notNull().default(0),
+  recordsImported: integer("records_imported").notNull().default(0),
+  sanitizedError: text("sanitized_error")
+}, (table) => ({
+  statusIdx: index("crm_import_batches_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmSyncState = pgTable("crm_sync_state", {
+  ...crmOwnership(),
+  providerKey: text("provider_key").notNull(),
+  syncType: text("sync_type").notNull(),
+  lastCursor: text("last_cursor"),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  sanitizedError: text("sanitized_error")
+}, (table) => ({
+  providerUnique: uniqueIndex("crm_sync_state_unique").on(table.workspaceId, table.providerKey, table.syncType)
+}));
+
+export const crmAppointmentTypes = pgTable("crm_appointment_types", {
+  ...crmOwnership(),
+  name: text("name").notNull(),
+  description: text("description"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  bookingReadiness: text("booking_readiness").notNull().default("manual_setup_required")
+}, (table) => ({
+  nameIdx: index("crm_appointment_types_name_idx").on(table.workspaceId, table.name)
+}));
+
+export const crmBookingRequests = pgTable("crm_booking_requests", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  appointmentTypeId: text("appointment_type_id").references(() => crmAppointmentTypes.id),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  preferredTimesJson: jsonb("preferred_times_json").$type<string[]>().notNull().default([])
+}, (table) => ({
+  statusIdx: index("crm_booking_requests_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmConsultations = pgTable("crm_consultations", {
+  ...crmOwnership(),
+  customerId: text("customer_id").references(() => crmCustomers.id),
+  appointmentTypeId: text("appointment_type_id").references(() => crmAppointmentTypes.id),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  notes: text("notes")
+}, (table) => ({
+  statusIdx: index("crm_consultations_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const crmAvailabilityReadiness = pgTable("crm_availability_readiness", {
+  ...crmOwnership(),
+  calendarProvider: text("calendar_provider").notNull().default("manual"),
+  setupRequiredJson: jsonb("setup_required_json").$type<string[]>().notNull().default([]),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true })
+}, (table) => ({
+  providerIdx: index("crm_availability_readiness_provider_idx").on(table.workspaceId, table.calendarProvider)
+}));
+
 export const tables = {
   users,
   organizations,
@@ -1293,6 +1915,60 @@ export const tables = {
   socialContentItems,
   storefrontThemeSettings,
   storefrontPages,
+  crmCustomers,
+  crmCompanies,
+  crmContactMethods,
+  crmAddresses,
+  crmTags,
+  crmCustomerTags,
+  crmSources,
+  crmCustomerPreferences,
+  crmCustomerProductInterests,
+  crmCustomerMetrics,
+  crmCustomerExternalRefs,
+  crmTimelineEvents,
+  crmInteractions,
+  crmNotes,
+  crmTasks,
+  crmTaskTemplates,
+  crmLeads,
+  crmOpportunities,
+  crmQuotes,
+  crmDeals,
+  crmPipelineStages,
+  crmServiceCases,
+  crmConversations,
+  crmConversationMessages,
+  crmSupportCases,
+  crmHelpTopics,
+  crmInboxChannels,
+  crmCampaigns,
+  crmCampaignMembers,
+  crmMessageTemplates,
+  crmLandingPages,
+  crmForms,
+  crmFormSubmissions,
+  crmConsents,
+  crmUnsubscribePreferences,
+  crmEvents,
+  crmPersonEvents,
+  crmBehavioralTraits,
+  crmSurveys,
+  crmSurveyResponses,
+  crmFeatureFlags,
+  crmCustomerCohorts,
+  crmBehaviorSegments,
+  crmAiInsights,
+  crmNextActions,
+  crmRecommendationEvents,
+  crmAutomationRules,
+  crmAutomationRuns,
+  crmImportBatches,
+  crmSyncState,
+  crmAppointmentTypes,
+  crmBookingRequests,
+  crmConsultations,
+  crmAvailabilityReadiness,
   connectedStores,
   providerConnectionStatus,
   encryptedCredentials,

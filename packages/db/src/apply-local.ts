@@ -13,6 +13,63 @@ export const functionalV1StudioTables = [
   "workspace_channels"
 ];
 
+export const customerCommandCenterTables = [
+  "crm_customers",
+  "crm_companies",
+  "crm_contact_methods",
+  "crm_addresses",
+  "crm_tags",
+  "crm_customer_tags",
+  "crm_sources",
+  "crm_customer_preferences",
+  "crm_customer_product_interests",
+  "crm_customer_metrics",
+  "crm_customer_external_refs",
+  "crm_timeline_events",
+  "crm_interactions",
+  "crm_notes",
+  "crm_tasks",
+  "crm_task_templates",
+  "crm_leads",
+  "crm_opportunities",
+  "crm_quotes",
+  "crm_deals",
+  "crm_pipeline_stages",
+  "crm_service_cases",
+  "crm_conversations",
+  "crm_conversation_messages",
+  "crm_support_cases",
+  "crm_help_topics",
+  "crm_inbox_channels",
+  "crm_campaigns",
+  "crm_campaign_members",
+  "crm_message_templates",
+  "crm_landing_pages",
+  "crm_forms",
+  "crm_form_submissions",
+  "crm_consents",
+  "crm_unsubscribe_preferences",
+  "crm_events",
+  "crm_person_events",
+  "crm_behavioral_traits",
+  "crm_surveys",
+  "crm_survey_responses",
+  "crm_feature_flags",
+  "crm_customer_cohorts",
+  "crm_behavior_segments",
+  "crm_ai_insights",
+  "crm_next_actions",
+  "crm_recommendation_events",
+  "crm_automation_rules",
+  "crm_automation_runs",
+  "crm_import_batches",
+  "crm_sync_state",
+  "crm_appointment_types",
+  "crm_booking_requests",
+  "crm_consultations",
+  "crm_availability_readiness"
+];
+
 export const requiredStudioTables = [
   "users",
   "organizations",
@@ -31,7 +88,8 @@ export const requiredStudioTables = [
   "integration_sync_runs",
   "site_audit_runs",
   "site_audit_findings",
-  ...functionalV1StudioTables
+  ...functionalV1StudioTables,
+  ...customerCommandCenterTables
 ];
 
 export const requiredStudioTableColumns: Record<string, string[]> = {

@@ -23,6 +23,15 @@ export default async function Page() {
     ["Encrypted credential storage", config.CREDENTIAL_ENCRYPTION_KEY ? "Configured" : "Blocked", "CREDENTIAL_ENCRYPTION_KEY must be set server-side"],
     ["Human-approved recommendations", "Required", "Google data may inform drafts only; no automatic publishing or review replies"]
   ];
+  const customerSteps = [
+    ["Connect Shopify", persisted.shopify?.status === "connected" ? "complete" : "needs_owner_action", "Connect and test Shopify before customer/order history appears."],
+    ["Import customers/orders", "not_started", "Customer/order sync must use real Shopify/customer data; no sample customers are created."],
+    ["Create default customer segments", "ready", "Default segment definitions are available; membership requires matching customer data."],
+    ["Create follow-up task templates", "ready", "Task templates are draft workflow records only; no customer messages are sent."],
+    ["Create default email/message templates", "ready", "Templates are editable drafts. Email delivery requires a future provider integration and owner action."],
+    ["Turn on customer capture forms", "needs_owner_action", "Capture forms default to draft; public embeds are a future integration."],
+    ["Review AI-generated customer success plan", "not_started", "Run customer next-action rules after customer or lead data exists."]
+  ];
   return <>
     <PageHeader title="Setup Guide" description="Configure real data sources. Test and sync actions stay disabled until credentials and permissions are present." />
     <div className="sf-grid sf-grid-4">
@@ -31,6 +40,10 @@ export default async function Page() {
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Google Setup Steps</h2>
       <DataTable columns={["Step", "State", "Action"]} rows={steps} />
+    </section>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Customer Command Center Setup</h2>
+      <DataTable columns={["Step", "State", "Action"]} rows={customerSteps} />
     </section>
     <section className="sf-card" style={{ marginTop: 18 }}>
       <h2>Connection Details</h2>

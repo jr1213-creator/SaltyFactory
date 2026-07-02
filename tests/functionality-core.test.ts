@@ -10,6 +10,9 @@ import { POST as printifyConnect } from "../apps/studio/app/api/studio/integrati
 import { POST as printifySync } from "../apps/studio/app/api/studio/integrations/[provider]/sync/route";
 import { POST as printifyTest } from "../apps/studio/app/api/studio/integrations/[provider]/test/route";
 import { POST as runAiEmployees } from "../apps/studio/app/api/studio/ai-employees/route";
+import { GET as accountCenterStatus } from "../apps/studio/app/api/studio/account-center/status/route";
+import { GET as customerSummary } from "../apps/studio/app/api/studio/customer-command-center/summary/route";
+import { GET as crmCustomers, POST as createCrmCustomer } from "../apps/studio/app/api/studio/crm/customers/route";
 import { POST as saveBusinessProfile } from "../apps/studio/app/api/studio/business-profile/route";
 import { POST as createPublishReview } from "../apps/studio/app/api/studio/publish-reviews/route";
 import { evaluatePublishReadiness } from "../apps/studio/app/api/studio/publish-reviews/_readiness";
@@ -126,6 +129,73 @@ describe("provider connection route behavior", () => {
     expect(body.ok).toBe(false);
     expect(body.status).toBe("configured_not_verified");
     expect(JSON.stringify(body)).not.toContain("\"success\"");
+  });
+});
+
+describe("Account Center route behavior", () => {
+  it("requires auth and does not serialize runtime config or provider secrets", async () => {
+    const unauthenticated = await accountCenterStatus(new Request("http://localhost:3001/api/studio/account-center/status"));
+    expect(unauthenticated.status).toBe(401);
+    await expect(unauthenticated.json()).resolves.toMatchObject({ ok: false, status: "unauthorized" });
+
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
+    process.env.SHOPIFY_ADMIN_ENABLED = "true";
+    process.env.SHOPIFY_STORE_DOMAIN = "saltycowhide.myshopify.com";
+    process.env.SHOPIFY_ADMIN_TOKEN = "shpat_super_secret";
+    process.env.PRINTIFY_ENABLED = "true";
+    process.env.PRINTIFY_API_TOKEN = "printify_super_secret";
+    process.env.PRINTIFY_SHOP_ID = "shop_01";
+
+    const response = await accountCenterStatus(new Request("http://localhost:3001/api/studio/account-center/status", {
+      headers: { cookie: `${SUPABASE_ACCESS_COOKIE}=valid` }
+    }));
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.config).toBeUndefined();
+    expect(serialized).not.toMatch(/shpat_super_secret|printify_super_secret|DATABASE_URL|SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN/i);
+    expect(body.shopifySetup.tokenExposed).toBe(false);
+    expect(body.printifySetup.tokenExposed).toBe(false);
+    expect(body.shopifySetup.status).toBe("configured_not_verified");
+    expect(body.printifySetup.status).toBe("configured_not_verified");
+  });
+});
+
+describe("Customer Command Center route behavior", () => {
+  it("requires auth for summary and CRM APIs", async () => {
+    const summary = await customerSummary(new Request("http://localhost:3001/api/studio/customer-command-center/summary"));
+    const customers = await crmCustomers(new Request("http://localhost:3001/api/studio/crm/customers"));
+    expect(summary.status).toBe(401);
+    expect(customers.status).toBe(401);
+    await expect(summary.json()).resolves.toMatchObject({ ok: false, status: "unauthorized" });
+    await expect(customers.json()).resolves.toMatchObject({ ok: false, status: "unauthorized" });
+  });
+
+  it("creates customer records through authenticated workspace APIs without serializing secrets", async () => {
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
+
+    const createResponse = await createCrmCustomer(authedRequest("http://localhost:3001/api/studio/crm/customers", {
+      name: "Customer One",
+      email: "customer@example.com",
+      source_label: "manual_entry",
+      access_token: "must_not_serialize"
+    }));
+    const createBody = await createResponse.json();
+    expect(createResponse.status).toBe(200);
+    expect(createBody).toMatchObject({ ok: true, status: "created", resource: "customers" });
+    expect(JSON.stringify(createBody)).not.toMatch(/must_not_serialize|access_token|refresh_token|client_secret|DATABASE_URL/i);
+
+    const listResponse = await crmCustomers(new Request("http://localhost:3001/api/studio/crm/customers", {
+      headers: { cookie: `${SUPABASE_ACCESS_COOKIE}=valid` }
+    }));
+    const listBody = await listResponse.json();
+    expect(listResponse.status).toBe(200);
+    expect(listBody).toMatchObject({ ok: true, status: "retrieved", resource: "customers" });
+    expect(JSON.stringify(listBody)).not.toMatch(/must_not_serialize|access_token|refresh_token|client_secret|DATABASE_URL/i);
   });
 });
 

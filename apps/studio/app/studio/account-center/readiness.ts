@@ -116,7 +116,6 @@ export async function getAccountCenterReadiness() {
     lastChecked: new Date().toISOString()
   });
   return {
-    config,
     lists,
     latestBusinessProfile,
     workflowPreview,

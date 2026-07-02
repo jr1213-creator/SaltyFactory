@@ -66,7 +66,61 @@ const tableExportByDbName: Record<string, TableName> = {
   subscriptions: "subscriptions",
   plans: "plans",
   billing_events: "billingEvents",
-  feature_limits: "featureLimits"
+  feature_limits: "featureLimits",
+  crm_customers: "crmCustomers",
+  crm_companies: "crmCompanies",
+  crm_contact_methods: "crmContactMethods",
+  crm_addresses: "crmAddresses",
+  crm_tags: "crmTags",
+  crm_customer_tags: "crmCustomerTags",
+  crm_sources: "crmSources",
+  crm_customer_preferences: "crmCustomerPreferences",
+  crm_customer_product_interests: "crmCustomerProductInterests",
+  crm_customer_metrics: "crmCustomerMetrics",
+  crm_customer_external_refs: "crmCustomerExternalRefs",
+  crm_timeline_events: "crmTimelineEvents",
+  crm_interactions: "crmInteractions",
+  crm_notes: "crmNotes",
+  crm_tasks: "crmTasks",
+  crm_task_templates: "crmTaskTemplates",
+  crm_leads: "crmLeads",
+  crm_opportunities: "crmOpportunities",
+  crm_quotes: "crmQuotes",
+  crm_deals: "crmDeals",
+  crm_pipeline_stages: "crmPipelineStages",
+  crm_service_cases: "crmServiceCases",
+  crm_conversations: "crmConversations",
+  crm_conversation_messages: "crmConversationMessages",
+  crm_support_cases: "crmSupportCases",
+  crm_help_topics: "crmHelpTopics",
+  crm_inbox_channels: "crmInboxChannels",
+  crm_campaigns: "crmCampaigns",
+  crm_campaign_members: "crmCampaignMembers",
+  crm_message_templates: "crmMessageTemplates",
+  crm_landing_pages: "crmLandingPages",
+  crm_forms: "crmForms",
+  crm_form_submissions: "crmFormSubmissions",
+  crm_consents: "crmConsents",
+  crm_unsubscribe_preferences: "crmUnsubscribePreferences",
+  crm_events: "crmEvents",
+  crm_person_events: "crmPersonEvents",
+  crm_behavioral_traits: "crmBehavioralTraits",
+  crm_surveys: "crmSurveys",
+  crm_survey_responses: "crmSurveyResponses",
+  crm_feature_flags: "crmFeatureFlags",
+  crm_customer_cohorts: "crmCustomerCohorts",
+  crm_behavior_segments: "crmBehaviorSegments",
+  crm_ai_insights: "crmAiInsights",
+  crm_next_actions: "crmNextActions",
+  crm_recommendation_events: "crmRecommendationEvents",
+  crm_automation_rules: "crmAutomationRules",
+  crm_automation_runs: "crmAutomationRuns",
+  crm_import_batches: "crmImportBatches",
+  crm_sync_state: "crmSyncState",
+  crm_appointment_types: "crmAppointmentTypes",
+  crm_booking_requests: "crmBookingRequests",
+  crm_consultations: "crmConsultations",
+  crm_availability_readiness: "crmAvailabilityReadiness"
 };
 
 const camelToSnake = (value: string) => value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -371,6 +425,121 @@ export class DrizzleBillingRepository extends DrizzleBaseRepository {
   }
 }
 
+export class DrizzleCrmRepository {
+  readonly customers: DrizzleBaseRepository;
+  readonly companies: DrizzleBaseRepository;
+  readonly contactMethods: DrizzleBaseRepository;
+  readonly addresses: DrizzleBaseRepository;
+  readonly tags: DrizzleBaseRepository;
+  readonly customerTags: DrizzleBaseRepository;
+  readonly sources: DrizzleBaseRepository;
+  readonly preferences: DrizzleBaseRepository;
+  readonly productInterests: DrizzleBaseRepository;
+  readonly metrics: DrizzleBaseRepository;
+  readonly externalRefs: DrizzleBaseRepository;
+  readonly timelineEvents: DrizzleBaseRepository;
+  readonly interactions: DrizzleBaseRepository;
+  readonly notes: DrizzleBaseRepository;
+  readonly tasks: DrizzleBaseRepository;
+  readonly taskTemplates: DrizzleBaseRepository;
+  readonly leads: DrizzleBaseRepository;
+  readonly opportunities: DrizzleBaseRepository;
+  readonly quotes: DrizzleBaseRepository;
+  readonly deals: DrizzleBaseRepository;
+  readonly pipelineStages: DrizzleBaseRepository;
+  readonly serviceCases: DrizzleBaseRepository;
+  readonly conversations: DrizzleBaseRepository;
+  readonly conversationMessages: DrizzleBaseRepository;
+  readonly supportCases: DrizzleBaseRepository;
+  readonly helpTopics: DrizzleBaseRepository;
+  readonly inboxChannels: DrizzleBaseRepository;
+  readonly campaigns: DrizzleBaseRepository;
+  readonly campaignMembers: DrizzleBaseRepository;
+  readonly messageTemplates: DrizzleBaseRepository;
+  readonly landingPages: DrizzleBaseRepository;
+  readonly forms: DrizzleBaseRepository;
+  readonly formSubmissions: DrizzleBaseRepository;
+  readonly consents: DrizzleBaseRepository;
+  readonly unsubscribePreferences: DrizzleBaseRepository;
+  readonly events: DrizzleBaseRepository;
+  readonly personEvents: DrizzleBaseRepository;
+  readonly behavioralTraits: DrizzleBaseRepository;
+  readonly surveys: DrizzleBaseRepository;
+  readonly surveyResponses: DrizzleBaseRepository;
+  readonly featureFlags: DrizzleBaseRepository;
+  readonly customerCohorts: DrizzleBaseRepository;
+  readonly behaviorSegments: DrizzleBaseRepository;
+  readonly aiInsights: DrizzleBaseRepository;
+  readonly nextActions: DrizzleBaseRepository;
+  readonly recommendationEvents: DrizzleBaseRepository;
+  readonly automationRules: DrizzleBaseRepository;
+  readonly automationRuns: DrizzleBaseRepository;
+  readonly importBatches: DrizzleBaseRepository;
+  readonly syncState: DrizzleBaseRepository;
+  readonly appointmentTypes: DrizzleBaseRepository;
+  readonly bookingRequests: DrizzleBaseRepository;
+  readonly consultations: DrizzleBaseRepository;
+  readonly availabilityReadiness: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.customers = repo("crm_customers");
+    this.companies = repo("crm_companies");
+    this.contactMethods = repo("crm_contact_methods");
+    this.addresses = repo("crm_addresses");
+    this.tags = repo("crm_tags");
+    this.customerTags = repo("crm_customer_tags");
+    this.sources = repo("crm_sources");
+    this.preferences = repo("crm_customer_preferences");
+    this.productInterests = repo("crm_customer_product_interests");
+    this.metrics = repo("crm_customer_metrics");
+    this.externalRefs = repo("crm_customer_external_refs");
+    this.timelineEvents = repo("crm_timeline_events");
+    this.interactions = repo("crm_interactions");
+    this.notes = repo("crm_notes");
+    this.tasks = repo("crm_tasks");
+    this.taskTemplates = repo("crm_task_templates");
+    this.leads = repo("crm_leads");
+    this.opportunities = repo("crm_opportunities");
+    this.quotes = repo("crm_quotes");
+    this.deals = repo("crm_deals");
+    this.pipelineStages = repo("crm_pipeline_stages");
+    this.serviceCases = repo("crm_service_cases");
+    this.conversations = repo("crm_conversations");
+    this.conversationMessages = repo("crm_conversation_messages");
+    this.supportCases = repo("crm_support_cases");
+    this.helpTopics = repo("crm_help_topics");
+    this.inboxChannels = repo("crm_inbox_channels");
+    this.campaigns = repo("crm_campaigns");
+    this.campaignMembers = repo("crm_campaign_members");
+    this.messageTemplates = repo("crm_message_templates");
+    this.landingPages = repo("crm_landing_pages");
+    this.forms = repo("crm_forms");
+    this.formSubmissions = repo("crm_form_submissions");
+    this.consents = repo("crm_consents");
+    this.unsubscribePreferences = repo("crm_unsubscribe_preferences");
+    this.events = repo("crm_events");
+    this.personEvents = repo("crm_person_events");
+    this.behavioralTraits = repo("crm_behavioral_traits");
+    this.surveys = repo("crm_surveys");
+    this.surveyResponses = repo("crm_survey_responses");
+    this.featureFlags = repo("crm_feature_flags");
+    this.customerCohorts = repo("crm_customer_cohorts");
+    this.behaviorSegments = repo("crm_behavior_segments");
+    this.aiInsights = repo("crm_ai_insights");
+    this.nextActions = repo("crm_next_actions");
+    this.recommendationEvents = repo("crm_recommendation_events");
+    this.automationRules = repo("crm_automation_rules");
+    this.automationRuns = repo("crm_automation_runs");
+    this.importBatches = repo("crm_import_batches");
+    this.syncState = repo("crm_sync_state");
+    this.appointmentTypes = repo("crm_appointment_types");
+    this.bookingRequests = repo("crm_booking_requests");
+    this.consultations = repo("crm_consultations");
+    this.availabilityReadiness = repo("crm_availability_readiness");
+  }
+}
+
 export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBundle {
   const audit = new DrizzleAuditEventRepository(db);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -409,6 +578,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     aiEmployee: new DrizzleAiEmployeeRepository(db, writer),
     marketing: new DrizzleMarketingRepository(db, writer),
     support: new DrizzleSupportRepository(db, writer),
-    billing: new DrizzleBillingRepository(db, writer)
+    billing: new DrizzleBillingRepository(db, writer),
+    crm: new DrizzleCrmRepository(db, writer)
   };
 }

@@ -1218,10 +1218,12 @@ export function createPrintifySetupState(input: {
     !input.shopId && "PRINTIFY_SHOP_ID",
     !input.enabled && "PRINTIFY_ENABLED=true"
   ].filter(Boolean) as string[];
+  const configuredForLiveTest = Boolean(input.enabled && input.hasApiToken && input.shopId);
   const status: LaunchReadinessStatus =
-    input.persistedStatus === "connected" ? "connected" :
     !input.hasApiToken ? "external_signup_required" :
     !input.shopId ? "manual_setup_required" :
+    !input.enabled ? "setup_needed" :
+    input.persistedStatus === "connected" && configuredForLiveTest ? "connected" :
     input.persistedStatus === "access_limited" ? "access_limited" :
     "configured_not_verified";
   return {
@@ -1256,10 +1258,12 @@ export function createShopifySetupState(input: {
     !input.storeDomain && "SHOPIFY_STORE_DOMAIN",
     !input.hasAdminToken && "SHOPIFY_ADMIN_TOKEN"
   ].filter(Boolean) as string[];
+  const configuredForLiveTest = Boolean(input.enabled && input.storeDomain && input.hasAdminToken);
   const status: LaunchReadinessStatus =
-    input.persistedStatus === "connected" ? "connected" :
     !input.storeDomain ? "external_signup_required" :
     !input.hasAdminToken ? "manual_setup_required" :
+    !input.enabled ? "setup_needed" :
+    input.persistedStatus === "connected" && configuredForLiveTest ? "connected" :
     "configured_not_verified";
   return {
     provider: "shopify" as const,
@@ -1517,14 +1521,18 @@ export function createAccountCenterLaunchCards(input: {
     sanitizedError: partial.sanitizedError ?? null
   });
   const businessReady = (input.businessProfileScore ?? 0) >= 90 && Boolean(input.supportEmail && input.productionDisclosure && input.returnPolicy);
-  const shopifyConnected = input.shopifyStatus === "connected";
-  const printifyConnected = input.printifyStatus === "connected";
+  const shopifyCardStatus = (input.shopifyStatus || "external_signup_required") as LaunchReadinessStatus;
+  const printifyCardStatus = (input.printifyStatus || "external_signup_required") as LaunchReadinessStatus;
+  const shopifyConnected = shopifyCardStatus === "connected";
+  const printifyConnected = printifyCardStatus === "connected";
   const productWorkflowReady = Boolean(input.trendReports && input.productIdeas && input.designConcepts && input.assets && input.mockups && input.listingDrafts);
   const dnsReady = (input.dnsRecords ?? []).length > 0 && (input.dnsRecords ?? []).every((record) => record.status === "verified");
+  const shopifySetupRequired = shopifyConnected ? [] : shopifyCardStatus === "configured_not_verified" ? ["shopify_live_test"] : ["shopify_store_setup", "shopify_admin_api_setup"];
+  const printifySetupRequired = printifyConnected ? [] : printifyCardStatus === "configured_not_verified" ? ["printify_live_test"] : ["printify_account_setup", "printify_shop_selection"];
   return [
     card({ section: "Business Foundation", title: "Business Profile", status: businessReady ? "ready" : "setup_needed", importance: "required", whyItMatters: "POD listings, policies, AI drafts, disclosures, and customer trust depend on the saved business profile.", nextOwnerAction: businessReady ? "Review before launch." : "Complete Business Profile, production partner disclosure, return policy, and support email.", actionHref: "/studio/settings/business-profile", detailHref: "/studio/settings/business-profile", blocksPodProductCreation: false, blocksLaunchPublish: !businessReady, setupRequired: businessReady ? [] : ["business_profile", "support_email", "production_partner_disclosure", "return_policy"] }),
-    card({ section: "Commerce", title: "Shopify Store", status: shopifyConnected ? "connected" : "external_signup_required", importance: "required", whyItMatters: "Shopify hosts SaltyCowhide.com products and guarded draft product exports.", nextOwnerAction: shopifyConnected ? "Prepare approved draft product payloads." : "Create/open Shopify, configure domain/admin app/token, then test connection.", actionHref: "/studio/account-center#shopify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !shopifyConnected, setupRequired: shopifyConnected ? [] : ["SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] }),
-    card({ section: "Commerce", title: "Printify Fulfillment", status: printifyConnected ? "connected" : "external_signup_required", importance: "required", whyItMatters: "Printify provides blueprints, variants, costs, product drafts, and production-accurate mockups.", nextOwnerAction: printifyConnected ? "Fetch catalog and map approved artwork." : "Create/open Printify, configure API token/shop ID, then test connection.", actionHref: "/studio/account-center#printify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !printifyConnected, setupRequired: printifyConnected ? [] : ["PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"] }),
+    card({ section: "Commerce", title: "Shopify Store", status: shopifyCardStatus, importance: "required", whyItMatters: "Shopify hosts SaltyCowhide.com products and guarded draft product exports.", nextOwnerAction: shopifyConnected ? "Prepare approved draft product payloads." : shopifyCardStatus === "configured_not_verified" ? "Run Test Shopify connection." : "Create/open Shopify, configure domain/admin app/token, then test connection.", actionHref: "/studio/account-center#shopify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !shopifyConnected, setupRequired: shopifySetupRequired }),
+    card({ section: "Commerce", title: "Printify Fulfillment", status: printifyCardStatus, importance: "required", whyItMatters: "Printify provides blueprints, variants, costs, product drafts, and production-accurate mockups.", nextOwnerAction: printifyConnected ? "Fetch catalog and map approved artwork." : printifyCardStatus === "configured_not_verified" ? "Run Test Printify connection." : "Create/open Printify, configure API token/shop ID, then test connection.", actionHref: "/studio/account-center#printify", detailHref: "/studio/integrations", blocksPodProductCreation: false, blocksLaunchPublish: !printifyConnected, setupRequired: printifySetupRequired }),
     card({ section: "Product Workflow", title: "Trend Reports", status: input.trendReports ? "ready" : "setup_needed", importance: "recommended", whyItMatters: "Trend reports feed product ideas and design prompts without inventing trend data.", nextOwnerAction: input.trendReports ? "Approve or generate product ideas." : "Add manual trends or run AI employees from stored sources.", actionHref: "/studio/trends", detailHref: "/studio/trends", blocksPodProductCreation: false, blocksLaunchPublish: false, setupRequired: input.trendReports ? [] : ["trend_report"] }),
     card({ section: "Product Workflow", title: "Product Ideas", status: input.productIdeas ? "ready" : "setup_needed", importance: "required", whyItMatters: "Product ideas start the POD build path.", nextOwnerAction: input.productIdeas ? "Create/approve design concepts." : "Generate or manually create product ideas.", actionHref: "/studio/pod-migration", detailHref: "/studio/pod-migration", blocksPodProductCreation: !input.productIdeas, blocksLaunchPublish: !input.productIdeas, setupRequired: input.productIdeas ? [] : ["product_idea"] }),
     card({ section: "Product Workflow", title: "Artwork Assets", status: input.approvedAssets ? "approved" : input.assets ? "approval_required" : "prompt_draft", importance: "required", whyItMatters: "Approved print artwork is required before Printify products or mockups.", nextOwnerAction: input.approvedAssets ? "Create Printify/product mockups." : input.assets ? "Run QA and approve artwork." : "Generate prompt drafts or upload artwork manually.", actionHref: "/studio/assets", detailHref: "/studio/assets", blocksPodProductCreation: false, blocksLaunchPublish: !input.approvedAssets, setupRequired: input.approvedAssets ? [] : ["approved_artwork"] }),

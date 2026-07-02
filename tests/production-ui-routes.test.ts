@@ -14,6 +14,17 @@ import IntegrationsPage from "../apps/studio/app/studio/integrations/page";
 import AiEmployeesPage from "../apps/studio/app/studio/ai-employees/page";
 import BusinessProfilePage from "../apps/studio/app/studio/settings/business-profile/page";
 import AccountCenterPage from "../apps/studio/app/studio/account-center/page";
+import CustomerCommandCenterPage from "../apps/studio/app/studio/customer-command-center/page";
+import CustomersPage from "../apps/studio/app/studio/customers/page";
+import CustomerSegmentsPage from "../apps/studio/app/studio/customer-segments/page";
+import CustomerCapturePage from "../apps/studio/app/studio/customer-capture/page";
+import CustomerInboxPage from "../apps/studio/app/studio/customer-inbox/page";
+import CustomerCampaignsPage from "../apps/studio/app/studio/customer-campaigns/page";
+import CustomerIntelligencePage from "../apps/studio/app/studio/customer-intelligence/page";
+import CustomerSchedulingPage from "../apps/studio/app/studio/customer-scheduling/page";
+import LeadsPage from "../apps/studio/app/studio/leads/page";
+import OpportunitiesPage from "../apps/studio/app/studio/opportunities/page";
+import ServiceCasesPage from "../apps/studio/app/studio/service-cases/page";
 import SettingsSetupPage from "../apps/studio/app/studio/settings/setup/page";
 import PodBuilderPage from "../apps/studio/app/studio/pod-migration/page";
 import SetupGuidePage from "../apps/studio/app/studio/migration-guide/page";
@@ -36,6 +47,9 @@ describe("production UI routes", () => {
     expect(source).toContain('label: "POD Studio"');
     expect(source).toContain('["Product Builder", "/studio/pod-migration"]');
     expect(source).toContain('["Pricing & Margins", "/studio/pricing"]');
+    expect(source).toContain('label: "Customer"');
+    expect(source).toContain('["Customer Command Center", "/studio/customer-command-center"]');
+    expect(source).toContain('["Customer Intelligence", "/studio/customer-intelligence"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
     expect(source).toContain('label: "Expansion"');
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
@@ -72,6 +86,14 @@ describe("production UI routes", () => {
       "/studio/pricing",
       "/studio/publish",
       "/studio/ai-employees",
+      "/studio/customer-command-center",
+      "/studio/customers",
+      "/studio/customer-segments",
+      "/studio/customer-capture",
+      "/studio/customer-inbox",
+      "/studio/customer-campaigns",
+      "/studio/customer-intelligence",
+      "/studio/customer-scheduling",
       "/studio/products",
       "/studio/integrations",
       "/studio/drafts",
@@ -116,6 +138,46 @@ describe("production UI routes", () => {
     expect(html).toContain("Product creation blockers");
     expect(html).not.toMatch(/access_token|refresh_token|client_secret|postgres:\/\/|shpat_|sk_live_/i);
     expect(html).not.toContain("fake");
+  });
+
+  it("Customer Command Center renders premium empty states without fake data", async () => {
+    const html = renderToStaticMarkup(await CustomerCommandCenterPage());
+    expect(html).toContain("Customer Command Center");
+    expect(html).toContain("Connect Shopify, import customers, or turn on capture widgets");
+    expect(html).toContain("Today&#x27;s Customer Actions");
+    expect(html).toContain("Customer Capture Readiness");
+    expect(html).toContain("Segments &amp; Audiences");
+    expect(html).toContain("No fake intent scoring");
+    expect(html).toContain("No live email sending is implemented");
+    expect(html).not.toMatch(/access_token|refresh_token|client_secret|DATABASE_URL|shpat_|printify_/i);
+  });
+
+  it("Customer success pages render honest foundation states", async () => {
+    const customersHtml = renderToStaticMarkup(await CustomersPage());
+    const segmentsHtml = renderToStaticMarkup(await CustomerSegmentsPage());
+    const captureHtml = renderToStaticMarkup(await CustomerCapturePage());
+    const inboxHtml = renderToStaticMarkup(await CustomerInboxPage());
+    const campaignsHtml = renderToStaticMarkup(await CustomerCampaignsPage());
+    const intelligenceHtml = renderToStaticMarkup(await CustomerIntelligencePage());
+    const schedulingHtml = renderToStaticMarkup(await CustomerSchedulingPage());
+    const leadsHtml = renderToStaticMarkup(await LeadsPage());
+    const opportunitiesHtml = renderToStaticMarkup(await OpportunitiesPage());
+    const serviceCasesHtml = renderToStaticMarkup(await ServiceCasesPage());
+
+    expect(customersHtml).toContain("No customers yet");
+    expect(segmentsHtml).toContain("Abandoned Cart Candidates");
+    expect(segmentsHtml).toContain("Needs Shopify/cart event data");
+    expect(captureHtml).toContain("Embed code generation is a future integration");
+    expect(inboxHtml).toContain("Website chat");
+    expect(inboxHtml).toContain("not configured");
+    expect(campaignsHtml).toContain("No live emails are sent");
+    expect(campaignsHtml).toContain("disabled");
+    expect(intelligenceHtml).toContain("Website/customer behavior tracking is not configured yet");
+    expect(intelligenceHtml).toContain("No fake analytics");
+    expect(schedulingHtml).toContain("Calendar sync is not configured");
+    expect(leadsHtml).toContain("Manual/imported only");
+    expect(opportunitiesHtml).toContain("No fake revenue");
+    expect(serviceCasesHtml).toContain("No fake support data");
   });
 
   it("Trends page renders filters and queue sections", async () => {

@@ -224,12 +224,22 @@ describe("functional complete v1 domain rules", () => {
     const printifyNeedsTest = createPrintifySetupState({ enabled: true, hasApiToken: true, shopId: "shop_1" });
     expect(printifyNeedsTest.status).toBe("configured_not_verified");
     expect(printifyNeedsTest.checklist.map((item) => item.label)).toContain("Discover catalog blueprints/providers/variants");
+    const stalePrintifyConnected = createPrintifySetupState({ enabled: false, hasApiToken: true, shopId: "shop_1", persistedStatus: "connected" });
+    expect(stalePrintifyConnected.status).toBe("setup_needed");
+    expect(stalePrintifyConnected.connected).toBe(false);
+    const verifiedPrintify = createPrintifySetupState({ enabled: true, hasApiToken: true, shopId: "shop_1", persistedStatus: "connected" });
+    expect(verifiedPrintify.status).toBe("connected");
 
     const shopifyMissing = createShopifySetupState({ enabled: false, storeDomain: "", hasAdminToken: false });
     expect(shopifyMissing.status).toBe("external_signup_required");
     expect(shopifyMissing.setupRequired).toEqual(expect.arrayContaining(["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]));
     expect(shopifyMissing.tokenExposed).toBe(false);
     expect(shopifyMissing.connected).toBe(false);
+    const staleShopifyConnected = createShopifySetupState({ enabled: false, storeDomain: "saltycowhide.myshopify.com", hasAdminToken: true, persistedStatus: "connected" });
+    expect(staleShopifyConnected.status).toBe("setup_needed");
+    expect(staleShopifyConnected.connected).toBe(false);
+    const verifiedShopify = createShopifySetupState({ enabled: true, storeDomain: "saltycowhide.myshopify.com", hasAdminToken: true, persistedStatus: "connected" });
+    expect(verifiedShopify.status).toBe("connected");
   });
 
   it("builds Shopify draft metafields for approved sync payloads only", () => {
@@ -315,6 +325,14 @@ describe("functional complete v1 domain rules", () => {
     expect(productIdeas).toMatchObject({ status: "setup_needed", blocksPodProductCreation: true });
     expect(merchant).toMatchObject({ importance: "recommended", blocksPodProductCreation: false });
     expect(JSON.stringify(cards)).not.toMatch(/access_token|refresh_token|client_secret/i);
+
+    const configuredCards = createAccountCenterLaunchCards({
+      shopifyStatus: "configured_not_verified",
+      printifyStatus: "configured_not_verified"
+    });
+    expect(configuredCards.find((card) => card.title === "Shopify Store")).toMatchObject({ status: "configured_not_verified", setupRequired: ["shopify_live_test"] });
+    expect(configuredCards.find((card) => card.title === "Printify Fulfillment")).toMatchObject({ status: "configured_not_verified", setupRequired: ["printify_live_test"] });
+    expect(JSON.stringify(configuredCards)).not.toMatch(/SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN/);
   });
 });
 

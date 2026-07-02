@@ -431,6 +431,121 @@ export class BillingRepository extends BaseRepository {
   readonly featureLimits = new BaseRepository("feature_limits", this.store, this.audit);
 }
 
+export class CrmRepository {
+  readonly customers: BaseRepository;
+  readonly companies: BaseRepository;
+  readonly contactMethods: BaseRepository;
+  readonly addresses: BaseRepository;
+  readonly tags: BaseRepository;
+  readonly customerTags: BaseRepository;
+  readonly sources: BaseRepository;
+  readonly preferences: BaseRepository;
+  readonly productInterests: BaseRepository;
+  readonly metrics: BaseRepository;
+  readonly externalRefs: BaseRepository;
+  readonly timelineEvents: BaseRepository;
+  readonly interactions: BaseRepository;
+  readonly notes: BaseRepository;
+  readonly tasks: BaseRepository;
+  readonly taskTemplates: BaseRepository;
+  readonly leads: BaseRepository;
+  readonly opportunities: BaseRepository;
+  readonly quotes: BaseRepository;
+  readonly deals: BaseRepository;
+  readonly pipelineStages: BaseRepository;
+  readonly serviceCases: BaseRepository;
+  readonly conversations: BaseRepository;
+  readonly conversationMessages: BaseRepository;
+  readonly supportCases: BaseRepository;
+  readonly helpTopics: BaseRepository;
+  readonly inboxChannels: BaseRepository;
+  readonly campaigns: BaseRepository;
+  readonly campaignMembers: BaseRepository;
+  readonly messageTemplates: BaseRepository;
+  readonly landingPages: BaseRepository;
+  readonly forms: BaseRepository;
+  readonly formSubmissions: BaseRepository;
+  readonly consents: BaseRepository;
+  readonly unsubscribePreferences: BaseRepository;
+  readonly events: BaseRepository;
+  readonly personEvents: BaseRepository;
+  readonly behavioralTraits: BaseRepository;
+  readonly surveys: BaseRepository;
+  readonly surveyResponses: BaseRepository;
+  readonly featureFlags: BaseRepository;
+  readonly customerCohorts: BaseRepository;
+  readonly behaviorSegments: BaseRepository;
+  readonly aiInsights: BaseRepository;
+  readonly nextActions: BaseRepository;
+  readonly recommendationEvents: BaseRepository;
+  readonly automationRules: BaseRepository;
+  readonly automationRuns: BaseRepository;
+  readonly importBatches: BaseRepository;
+  readonly syncState: BaseRepository;
+  readonly appointmentTypes: BaseRepository;
+  readonly bookingRequests: BaseRepository;
+  readonly consultations: BaseRepository;
+  readonly availabilityReadiness: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.customers = repo("crm_customers");
+    this.companies = repo("crm_companies");
+    this.contactMethods = repo("crm_contact_methods");
+    this.addresses = repo("crm_addresses");
+    this.tags = repo("crm_tags");
+    this.customerTags = repo("crm_customer_tags");
+    this.sources = repo("crm_sources");
+    this.preferences = repo("crm_customer_preferences");
+    this.productInterests = repo("crm_customer_product_interests");
+    this.metrics = repo("crm_customer_metrics");
+    this.externalRefs = repo("crm_customer_external_refs");
+    this.timelineEvents = repo("crm_timeline_events");
+    this.interactions = repo("crm_interactions");
+    this.notes = repo("crm_notes");
+    this.tasks = repo("crm_tasks");
+    this.taskTemplates = repo("crm_task_templates");
+    this.leads = repo("crm_leads");
+    this.opportunities = repo("crm_opportunities");
+    this.quotes = repo("crm_quotes");
+    this.deals = repo("crm_deals");
+    this.pipelineStages = repo("crm_pipeline_stages");
+    this.serviceCases = repo("crm_service_cases");
+    this.conversations = repo("crm_conversations");
+    this.conversationMessages = repo("crm_conversation_messages");
+    this.supportCases = repo("crm_support_cases");
+    this.helpTopics = repo("crm_help_topics");
+    this.inboxChannels = repo("crm_inbox_channels");
+    this.campaigns = repo("crm_campaigns");
+    this.campaignMembers = repo("crm_campaign_members");
+    this.messageTemplates = repo("crm_message_templates");
+    this.landingPages = repo("crm_landing_pages");
+    this.forms = repo("crm_forms");
+    this.formSubmissions = repo("crm_form_submissions");
+    this.consents = repo("crm_consents");
+    this.unsubscribePreferences = repo("crm_unsubscribe_preferences");
+    this.events = repo("crm_events");
+    this.personEvents = repo("crm_person_events");
+    this.behavioralTraits = repo("crm_behavioral_traits");
+    this.surveys = repo("crm_surveys");
+    this.surveyResponses = repo("crm_survey_responses");
+    this.featureFlags = repo("crm_feature_flags");
+    this.customerCohorts = repo("crm_customer_cohorts");
+    this.behaviorSegments = repo("crm_behavior_segments");
+    this.aiInsights = repo("crm_ai_insights");
+    this.nextActions = repo("crm_next_actions");
+    this.recommendationEvents = repo("crm_recommendation_events");
+    this.automationRules = repo("crm_automation_rules");
+    this.automationRuns = repo("crm_automation_runs");
+    this.importBatches = repo("crm_import_batches");
+    this.syncState = repo("crm_sync_state");
+    this.appointmentTypes = repo("crm_appointment_types");
+    this.bookingRequests = repo("crm_booking_requests");
+    this.consultations = repo("crm_consultations");
+    this.availabilityReadiness = repo("crm_availability_readiness");
+  }
+}
+
 export function createMemoryRepositories(store = createRepositoryStore()) {
   const audit = new AuditEventRepository(store);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -469,7 +584,8 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     aiEmployee: new AiEmployeeRepository(store, writer),
     marketing: new MarketingRepository(store, writer),
     support: new SupportRepository(store, writer),
-    billing: new BillingRepository(store, writer)
+    billing: new BillingRepository(store, writer),
+    crm: new CrmRepository(store, writer)
   };
 }
 

@@ -2,6 +2,17 @@
 
 SaltyFactory v1 is an AI-run, human-approved POD business operating system for launching and operating SaltyCowhide.com. It is built around real workspace-owned records, provider honesty, encrypted credential storage, provider setup guidance, AI employee draft workflows, and owner approval gates.
 
+## Customer Command Center
+
+Customer Command Center v1 is the native customer success foundation for SaltyCowhide.com.
+
+- Route: `/studio/customer-command-center`
+- Related routes: `/studio/customers`, `/studio/customer-segments`, `/studio/customer-capture`, `/studio/customer-inbox`, `/studio/customer-campaigns`, `/studio/customer-intelligence`, `/studio/customer-scheduling`, `/studio/leads`, `/studio/opportunities`, `/studio/service-cases`
+- APIs: `/api/studio/customer-command-center/summary` and `/api/studio/crm/*`
+- Docs: `docs/customer-command-center-v1.md`
+
+This module is functional for workspace-owned CRM records, default definitions, source labels, rule-based next actions, and honest readiness/empty states. Live Shopify customer/order sync, email/SMS sending, live support inboxes, public embed scripts, customer behavior tracking, and calendar sync require future provider integrations and must not be claimed as active until implemented and verified.
+
 ## Provider Status Definitions
 
 - `connected`: a live provider call succeeded.
