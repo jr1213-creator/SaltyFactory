@@ -4,9 +4,15 @@ import { createMemoryRepositories } from "../packages/db/src/repositories/memory
 import { decryptCredential } from "@saltyfactory/security";
 import {
   GOOGLE_OAUTH_SCOPES,
+  GOOGLE_ANALYTICS_SETUP_SCOPES,
+  GOOGLE_MERCHANT_CENTER_SETUP_SCOPES,
+  GOOGLE_SEARCH_CONSOLE_SETUP_SCOPES,
   autoDetectGoogleSetup,
   configureGoogleWorkspace,
   googleOAuthSetupRequired,
+  setupGoogleAnalyticsForSaltyCowhide,
+  setupMerchantCenterForSaltyCowhide,
+  setupSearchConsoleForSaltyCowhide,
   storeVerifiedGoogleOAuth,
   syncGoogleAnalytics,
   syncGoogleBusinessProfile,
@@ -48,7 +54,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-async function seedGoogleConnection(repos = createMemoryRepositories(), overrides: Record<string, string | undefined> = {}) {
+async function seedGoogleConnection(repos = createMemoryRepositories(), overrides: Record<string, string | undefined> = {}, scopes = GOOGLE_OAUTH_SCOPES) {
   const config = googleConfig(overrides);
   const fetcher: GoogleFetch = async (url) => {
     if (String(url).includes("userinfo")) return jsonResponse({ email: "owner@saltycowhide.com", verified_email: true });
@@ -63,7 +69,7 @@ async function seedGoogleConnection(repos = createMemoryRepositories(), override
       access_token: "google-access-token",
       refresh_token: "google-refresh-token",
       expires_at: new Date(Date.now() + 3600_000).toISOString(),
-      scope: GOOGLE_OAUTH_SCOPES.join(" ")
+      scope: scopes.join(" ")
     },
     fetcher
   });
@@ -296,12 +302,12 @@ describe("Google auto-detect setup", () => {
     expect(gsc?.status).toBe("configured_not_verified");
   });
 
-  it("multiple GA4 candidates require owner selection and do not fake connected status", async () => {
+  it("multiple matching GA4 candidates require owner selection and do not fake connected status", async () => {
     const { repos, config } = await seedGoogleConnection();
     const fetcher: GoogleFetch = async (url) => {
       const text = String(url);
       if (text.includes("analyticsadmin.googleapis.com/v1beta/accounts")) return jsonResponse({ accounts: [{ name: "accounts/1", displayName: "Owner" }] });
-      if (text.includes("analyticsadmin.googleapis.com/v1beta/properties")) return jsonResponse({ properties: [{ name: "properties/111", displayName: "Shop A" }, { name: "properties/222", displayName: "Shop B" }] });
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/properties")) return jsonResponse({ properties: [{ name: "properties/111", displayName: "Salty Cowhide A" }, { name: "properties/222", displayName: "Salty Cowhide B" }] });
       if (text.includes("dataStreams")) return jsonResponse({ dataStreams: [] });
       if (text.includes("webmasters")) return jsonResponse({ siteEntry: [] });
       if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ accounts: [] });
@@ -313,6 +319,32 @@ describe("Google auto-detect setup", () => {
     expect(result.dataSources.ga4.status).toBe("needs_selection");
     expect(result.autoSaved.ga4PropertyId).toBeUndefined();
     expect(await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4")).toBeNull();
+  });
+
+  it("unrelated and historically related Google resources are not auto-saved for Salty Cowhide", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const fetcher: GoogleFetch = async (url) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/accounts")) return jsonResponse({ accounts: [{ name: "accounts/1", displayName: "Old projects" }] });
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/properties")) return jsonResponse({ properties: [{ name: "properties/111", displayName: "Ruffles and Pixie Dust" }] });
+      if (text.includes("dataStreams")) return jsonResponse({ dataStreams: [{ webStreamData: { defaultUri: "https://rufflesandpixiedust.com/" } }] });
+      if (text.includes("webmasters")) return jsonResponse({ siteEntry: [
+        { siteUrl: "https://sellerinsiderhub.com/", permissionLevel: "siteOwner" },
+        { siteUrl: "https://thelocalupgrade.com/", permissionLevel: "siteOwner" },
+        { siteUrl: "https://rufflesandpixiedust.com/", permissionLevel: "siteOwner" },
+        { siteUrl: "https://oldblog.blogspot.com/", permissionLevel: "siteOwner" }
+      ] });
+      if (text.includes("mybusinessaccountmanagement")) return jsonResponse({ accounts: [] });
+      return jsonResponse({});
+    };
+    const result = await autoDetectGoogleSetup({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("auto-detect failed");
+    expect(result.autoSaved.ga4PropertyId).toBeUndefined();
+    expect(result.autoSaved.searchConsoleSiteUrl).toBeUndefined();
+    expect(result.dataSources.searchConsole.candidates.map((candidate) => candidate.matchStrength)).toEqual(expect.arrayContaining(["unrelated", "likely_related"]));
+    expect(await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4")).toBeNull();
+    expect(await repos.integration.getProviderConnectionForWorkspace(workspaceId, "google_search_console")).toBeNull();
   });
 
   it("Search Console properties are listed with sanitized candidate data", async () => {
@@ -345,5 +377,70 @@ describe("Google auto-detect setup", () => {
     if (!result.ok) throw new Error("auto-detect failed");
     expect(result.dataSources.businessProfile.status).toBe("access_limited");
     expect(result.dataSources.businessProfile.message).toContain("not a hard blocker");
+  });
+
+  it("GA4 create setup requires explicit analytics edit scope before creating anything", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const result = await setupGoogleAnalyticsForSaltyCowhide({ repos, workspaceId, actorId: actor.id, config, authorizationUrl: "https://accounts.google.com/setup" });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("requires_scope");
+    expect(result.authorizationUrl).toContain("accounts.google.com");
+    expect(result.setupRequired).toEqual(expect.arrayContaining(GOOGLE_ANALYTICS_SETUP_SCOPES));
+    expect(await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4")).toBeNull();
+  });
+
+  it("GA4 create setup saves property and web stream as configured_not_verified", async () => {
+    const scopes = [...GOOGLE_OAUTH_SCOPES, ...GOOGLE_ANALYTICS_SETUP_SCOPES];
+    const { repos, config } = await seedGoogleConnection(createMemoryRepositories(), {}, scopes);
+    const fetcher: GoogleFetch = async (url, init) => {
+      const text = String(url);
+      if (text.includes("analyticsadmin.googleapis.com/v1beta/accounts")) return jsonResponse({ accounts: [{ name: "accounts/1", displayName: "Salty Cowhide" }] });
+      if (text.endsWith("/properties") && init?.method === "POST") return jsonResponse({ name: "properties/123456789", displayName: "Salty Cowhide - GA4" });
+      if (text.includes("dataStreams") && init?.method === "POST") return jsonResponse({ name: "properties/123456789/dataStreams/987", webStreamData: { defaultUri: "https://saltycowhide.com/" } });
+      return jsonResponse({});
+    };
+    const result = await setupGoogleAnalyticsForSaltyCowhide({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("configured_not_verified");
+    const ga4 = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "ga4");
+    expect(ga4?.status).toBe("configured_not_verified");
+    expect((ga4?.configuration as any).webStreamDefaultUri).toBe("https://saltycowhide.com/");
+  });
+
+  it("Search Console setup requires explicit write scope and handles verification_required", async () => {
+    const { repos, config } = await seedGoogleConnection();
+    const missingScope = await setupSearchConsoleForSaltyCowhide({ repos, workspaceId, actorId: actor.id, config, authorizationUrl: "https://accounts.google.com/search-console" });
+    expect(missingScope.status).toBe("requires_scope");
+    expect(missingScope.setupRequired).toEqual(expect.arrayContaining(GOOGLE_SEARCH_CONSOLE_SETUP_SCOPES));
+
+    const scoped = await seedGoogleConnection(createMemoryRepositories(), {}, [...GOOGLE_OAUTH_SCOPES, ...GOOGLE_SEARCH_CONSOLE_SETUP_SCOPES]);
+    const fetcher: GoogleFetch = async () => jsonResponse({});
+    const result = await setupSearchConsoleForSaltyCowhide({ repos: scoped.repos, workspaceId, actorId: actor.id, config: scoped.config, fetcher });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("verification_required");
+    const gsc = await scoped.repos.integration.getProviderConnectionForWorkspace(workspaceId, "google_search_console");
+    expect(gsc?.status).toBe("configured_not_verified");
+  });
+
+  it("Merchant Center setup tracks owner actions and does not submit feeds", async () => {
+    const { repos, config } = await seedGoogleConnection(createMemoryRepositories(), {}, [...GOOGLE_OAUTH_SCOPES, ...GOOGLE_MERCHANT_CENTER_SETUP_SCOPES]);
+    const fetcher: GoogleFetch = async () => jsonResponse({ accountIdentifiers: [{ merchantId: "1234567" }] });
+    const result = await setupMerchantCenterForSaltyCowhide({ repos, workspaceId, actorId: actor.id, config, fetcher });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("configured_not_verified");
+    expect(result.ownerActions).toEqual(expect.arrayContaining(["Product feed needed"]));
+    expect(JSON.stringify(result)).not.toMatch(/feed submitted|access_token|refresh_token/i);
+    const merchant = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "google_merchant_center");
+    expect((merchant?.configuration as any).feedSubmissionEnabled).toBe(false);
+  });
+
+  it("Google Business Profile online-only path is optional and not a Salty Cowhide launch blocker", async () => {
+    const { checkGoogleBusinessProfileEligibilityForSaltyCowhide } = await import("@saltyfactory/integrations");
+    const { repos, config } = await seedGoogleConnection();
+    const result = await checkGoogleBusinessProfileEligibilityForSaltyCowhide({ repos, workspaceId, actorId: actor.id, config, eligibility: "online_only_ecommerce_pod" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("GBP eligibility failed");
+    expect(result.status).toBe("optional_for_online_only");
+    expect(result.configuration).toMatchObject({ launchBlocker: false });
   });
 });

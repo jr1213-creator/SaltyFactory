@@ -23,6 +23,7 @@ type GoogleCandidate = {
   label: string;
   type: "ga4_property" | "search_console_site" | "gbp_location";
   confidence: "high" | "medium" | "low";
+  matchStrength: "exact_domain_match" | "brand_match" | "likely_related" | "unrelated" | "unknown";
   matchReason: string;
   url?: string | null;
   accountId?: string | null;
@@ -35,6 +36,7 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
   const [result, setResult] = useState<any>(null);
   const [busyProvider, setBusyProvider] = useState("");
   const [manualSetupOpen, setManualSetupOpen] = useState(false);
+  const [gbpEligibility, setGbpEligibility] = useState("online_only_ecommerce_pod");
   const google = integrations.find((item) => item.key === "google_oauth");
   const ga4 = integrations.find((item) => item.key === "ga4");
   const gsc = integrations.find((item) => item.key === "google_search_console");
@@ -103,6 +105,26 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
     }
   }
 
+  async function googleSetupAction(action: "ga4_create" | "search_console_add" | "merchant_center_setup" | "gbp_eligibility") {
+    setBusyProvider(`google:${action}`);
+    try {
+      const response = await fetch("/api/studio/integrations/google/setup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, eligibility: gbpEligibility })
+      });
+      const data = await response.json();
+      setResult(data);
+      if (data?.authorizationUrl) window.location.href = data.authorizationUrl;
+      if (data?.configuration?.propertyId) setGa4PropertyId(String(data.configuration.propertyId));
+      if (data?.configuration?.selectedSiteUrl) setSiteUrl(String(data.configuration.selectedSiteUrl));
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to run Google setup action." });
+    } finally {
+      setBusyProvider("");
+    }
+  }
+
   const googleConnected = google?.status === "connected" && google.credentialStored !== false;
   const googleDisabledReason = googleConnected ? "" : "Connect and verify Google OAuth first.";
   const detected = result?.provider === "google_oauth" && result?.dataSources ? result : null;
@@ -111,9 +133,20 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
   const gbpCandidates = (detected?.dataSources?.businessProfile?.candidates ?? []) as GoogleCandidate[];
 
   function candidateLabel(candidate: GoogleCandidate) {
-    const details = [candidate.url, candidate.confidence, candidate.matchReason].filter(Boolean).join(" - ");
+    const details = [candidate.url, candidate.matchStrength, candidate.matchReason].filter(Boolean).join(" - ");
     return details ? `${candidate.label} (${details})` : candidate.label;
   }
+
+  function selectedCandidateWarning() {
+    const selected = [
+      ...ga4Candidates.filter((candidate) => (candidate.propertyId ?? candidate.id) === ga4PropertyId),
+      ...gscCandidates.filter((candidate) => (candidate.siteUrl ?? candidate.id) === siteUrl),
+      ...gbpCandidates.filter((candidate) => candidate.locationId === gbpLocationId)
+    ].find((candidate) => !["exact_domain_match", "brand_match"].includes(candidate.matchStrength));
+    return selected ? "This property does not appear to match Salty Cowhide. Only use it if you intentionally want to connect this workspace to that property." : "";
+  }
+
+  const warning = selectedCandidateWarning();
 
   return <section className="sf-card" style={{ marginTop: 18 }}>
     <h2>Provider Actions</h2>
@@ -138,6 +171,44 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
           <div><strong>Google Business Profile</strong><p className="sf-muted">{detected.dataSources.businessProfile.message}</p></div>
         </div> : null}
       </div>
+      <section className="sf-panel" style={{ display: "grid", gap: 12 }}>
+        <div>
+          <strong>Create Google setup for SaltyCowhide.com</strong>
+          <p className="sf-muted">Use this when auto-detect finds other Google projects but no matching SaltyCowhide.com resources. Nothing is marked connected until a live sync or verification succeeds.</p>
+        </div>
+        <div className="sf-grid sf-grid-4">
+          <div className="sf-panel" style={{ display: "grid", gap: 8 }}>
+            <strong>Create GA4 setup</strong>
+            <p className="sf-muted">Recommended. Creates a GA4 property and web stream for https://saltycowhide.com/ where Google Analytics edit permission allows it. Owner terms or account selection may be required.</p>
+            <button className="sf-button sf-button-secondary" disabled={busyProvider !== "" || !googleConnected} title={googleConnected ? "Create GA4 setup for SaltyCowhide.com." : googleDisabledReason} onClick={() => googleSetupAction("ga4_create")}>Create GA4 setup for SaltyCowhide.com</button>
+            <p className="sf-muted">Manual fallback: create a GA4 property in Google Analytics, add a web stream for https://saltycowhide.com/, then save the numeric property ID.</p>
+          </div>
+          <div className="sf-panel" style={{ display: "grid", gap: 8 }}>
+            <strong>Add Search Console property</strong>
+            <p className="sf-muted">Recommended. Adds https://saltycowhide.com/ and sc-domain:saltycowhide.com where Search Console write permission allows it. Ownership verification is still required.</p>
+            <button className="sf-button sf-button-secondary" disabled={busyProvider !== "" || !googleConnected} title={googleConnected ? "Add SaltyCowhide.com to Search Console." : googleDisabledReason} onClick={() => googleSetupAction("search_console_add")}>Add SaltyCowhide.com to Search Console</button>
+            <p className="sf-muted">Manual fallback: verify with DNS TXT, HTML file, meta tag, or Google Analytics verification if available.</p>
+          </div>
+          <div className="sf-panel" style={{ display: "grid", gap: 8 }}>
+            <strong>Set up Merchant Center</strong>
+            <p className="sf-muted">Important for ecommerce. Detects Merchant Center access and tracks business info, website claim, shipping, tax, product feed, and policy actions. It does not submit product feeds.</p>
+            <button className="sf-button sf-button-secondary" disabled={busyProvider !== "" || !googleConnected} title={googleConnected ? "Set up Merchant Center for SaltyCowhide.com." : googleDisabledReason} onClick={() => googleSetupAction("merchant_center_setup")}>Set up Merchant Center for SaltyCowhide.com</button>
+            <p className="sf-muted">Manual fallback: create Merchant Center, claim SaltyCowhide.com, complete shipping/tax, then return for feed readiness.</p>
+          </div>
+          <div className="sf-panel" style={{ display: "grid", gap: 8 }}>
+            <strong>Google Business Profile eligibility check</strong>
+            <p className="sf-muted">Optional for online-only POD. Only proceed if Salty Cowhide has an eligible local presence.</p>
+            <label>Which best describes Salty Cowhide?<select value={gbpEligibility} onChange={(event) => setGbpEligibility(event.target.value)}>
+              <option value="online_only_ecommerce_pod">Online-only ecommerce/POD</option>
+              <option value="local_storefront">Local storefront</option>
+              <option value="service_area_business">Service-area business</option>
+              <option value="local_pickup_studio_showroom">Local pickup/studio/showroom</option>
+              <option value="markets_popups_events">Markets/pop-ups/events</option>
+            </select></label>
+            <button className="sf-button sf-button-secondary" disabled={busyProvider !== ""} onClick={() => googleSetupAction("gbp_eligibility")}>Check Business Profile eligibility</button>
+          </div>
+        </div>
+      </section>
       {ga4Candidates.length || gscCandidates.length || gbpCandidates.length ? <div className="sf-form-grid">
         {ga4Candidates.length ? <label>Detected GA4 property<select value={ga4PropertyId} onChange={(event) => setGa4PropertyId(event.target.value)}>
           <option value="">Select GA4 property</option>
@@ -156,6 +227,7 @@ export function IntegrationActionsClient({ integrations }: { integrations: Integ
           {gbpCandidates.map((candidate) => <option key={candidate.id} value={`${candidate.accountId ?? ""}:${candidate.locationId ?? ""}`}>{candidateLabel(candidate)}</option>)}
         </select></label> : null}
       </div> : null}
+      {warning ? <p className="sf-alert">{warning}</p> : null}
       <div className="sf-form-grid">
         {manualSetupOpen ? <>
           <label>GA4 property ID<input value={ga4PropertyId} onChange={(event) => setGa4PropertyId(event.target.value)} placeholder="123456789" /></label>

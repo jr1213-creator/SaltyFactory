@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireProviderMutationPermission } from "@saltyfactory/auth";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
-import { exchangeGoogleOAuthCode, googleOAuthSetupRequired, storeVerifiedGoogleOAuth } from "@saltyfactory/integrations";
+import { exchangeGoogleOAuthCode, getGoogleConnectionBundle, googleOAuthSetupRequired, storeVerifiedGoogleOAuth } from "@saltyfactory/integrations";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { setupResponse, verifyOAuthState, workspaceId } from "../../../_shared";
 import { studioAuthErrorResponse } from "../../../../_auth";
@@ -30,8 +30,10 @@ export async function GET(req: Request) {
     if (error) return NextResponse.json({ ok: false, status: "error", message: "Google authorization failed.", errorCode: sanitizeProviderError(error) }, { status: 400 });
     if (!code) return NextResponse.json({ ok: false, status: "blocked", message: "Google callback did not include an authorization code." }, { status: 400 });
 
-    const tokens = await exchangeGoogleOAuthCode({ code, config });
-    const stored = await storeVerifiedGoogleOAuth({ repos: createRepositories(), workspaceId, actorId: user.id, config, tokens });
+    const repos = createRepositories();
+    const existing = await getGoogleConnectionBundle({ repos, workspaceId, config });
+    const tokens = await exchangeGoogleOAuthCode({ code, config, existingRefreshToken: existing.ok ? existing.tokens.refresh_token : undefined });
+    const stored = await storeVerifiedGoogleOAuth({ repos, workspaceId, actorId: user.id, config, tokens });
     return NextResponse.json({ ok: true, status: "connected", provider: "google_oauth", connection: stored.safeConnection });
   } catch (error) {
     const message = sanitizeProviderError(error);

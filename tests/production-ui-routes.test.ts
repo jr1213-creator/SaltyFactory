@@ -162,6 +162,12 @@ describe("production UI routes", () => {
     expect(html).toContain("AI Tools Configuration");
     expect(html).toContain("Auto-detect Google setup");
     expect(html).toContain("optional for online-only Salty Cowhide POD launch readiness");
+    expect(html).toContain("Create Google setup for SaltyCowhide.com");
+    expect(html).toContain("Create GA4 setup for SaltyCowhide.com");
+    expect(html).toContain("Add SaltyCowhide.com to Search Console");
+    expect(html).toContain("Set up Merchant Center for SaltyCowhide.com");
+    expect(html).toContain("Check Business Profile eligibility");
+    expect(readFileSync(join(process.cwd(), "apps/studio/app/studio/integrations/IntegrationActionsClient.tsx"), "utf8")).toContain("This property does not appear to match Salty Cowhide");
   });
 
   it("AI employees page renders employee cards", async () => {
@@ -189,6 +195,8 @@ describe("production UI routes", () => {
     expect(baselineHtml).not.toContain("Baseline + Impact");
     expect(settingsSetupHtml).toContain("Auto-detect Google setup");
     expect(settingsSetupHtml).toContain("Optional for online-only Salty Cowhide POD launch");
+    expect(settingsSetupHtml).toContain("Merchant Center");
+    expect(settingsSetupHtml).toContain("product feeds remain disabled until approval gates pass");
   });
 
   it("Expansion and pricing pages render POD workflow labels", async () => {

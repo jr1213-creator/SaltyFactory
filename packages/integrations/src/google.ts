@@ -11,6 +11,10 @@ export const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
   "https://www.googleapis.com/auth/business.manage"
 ];
+export const GOOGLE_ANALYTICS_SETUP_SCOPES = ["https://www.googleapis.com/auth/analytics.edit"];
+export const GOOGLE_SEARCH_CONSOLE_SETUP_SCOPES = ["https://www.googleapis.com/auth/webmasters"];
+export const GOOGLE_MERCHANT_CENTER_SETUP_SCOPES = ["https://www.googleapis.com/auth/content"];
+export const SALTY_COWHIDE_TARGET_DOMAIN = "saltycowhide.com";
 
 type GoogleIntegrationStatus = "connected" | "configured_not_verified" | "disconnected";
 
@@ -51,6 +55,7 @@ export type GoogleWorkspaceConfig = {
   searchConsoleSiteUrl: string;
   businessProfileAccountId: string;
   businessProfileLocationId: string;
+  merchantCenterAccountId?: string;
 };
 
 export type GoogleConnectionBundle =
@@ -62,6 +67,7 @@ export type GoogleDiscoveryCandidate = {
   label: string;
   type: "ga4_property" | "search_console_site" | "gbp_location";
   confidence: "high" | "medium" | "low";
+  matchStrength: "exact_domain_match" | "brand_match" | "likely_related" | "unrelated" | "unknown";
   matchReason: string;
   url?: string | null;
   accountId?: string | null;
@@ -94,6 +100,32 @@ export type GoogleAutoDetectResult =
       };
     }
   | { ok: false; status: "not_configured" | "configured_not_verified" | "auth_required" | "access_limited" | "error"; provider: "google_oauth"; message: string; setupRequired: string[] };
+
+export type GoogleLaunchSetupAction = "ga4_create" | "search_console_add" | "merchant_center_setup" | "gbp_eligibility";
+export type GoogleLaunchSetupResult =
+  | {
+      ok: true;
+      status: "configured_not_verified" | "verification_required" | "optional_for_online_only" | "requires_owner_action" | "requires_scope";
+      provider: string;
+      message: string;
+      targetDomain: string;
+      authorizationUrl?: string | undefined;
+      setupRequired: string[];
+      ownerActions: string[];
+      configuration?: Record<string, unknown>;
+      warnings?: string[];
+    }
+  | {
+      ok: false;
+      status: "not_configured" | "configured_not_verified" | "auth_required" | "access_limited" | "requires_scope" | "requires_owner_action" | "manual_setup_needed" | "error";
+      provider: string;
+      message: string;
+      targetDomain: string;
+      authorizationUrl?: string | undefined;
+      setupRequired: string[];
+      ownerActions?: string[];
+      warnings?: string[];
+    };
 
 export class GoogleProviderError extends Error {
   constructor(
@@ -131,7 +163,7 @@ export function googleOAuthReady(config: RuntimeConfig) {
   return googleOAuthSetupRequired(config).length === 0;
 }
 
-export function buildGoogleAuthorizationUrl(config: RuntimeConfig, state: string) {
+export function buildGoogleAuthorizationUrl(config: RuntimeConfig, state: string, scopes = GOOGLE_OAUTH_SCOPES) {
   const oauth = googleOAuthConfig(config);
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", oauth.clientId);
@@ -140,7 +172,7 @@ export function buildGoogleAuthorizationUrl(config: RuntimeConfig, state: string
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "true");
-  url.searchParams.set("scope", GOOGLE_OAUTH_SCOPES.join(" "));
+  url.searchParams.set("scope", Array.from(new Set(scopes)).join(" "));
   url.searchParams.set("state", state);
   return url;
 }
@@ -202,7 +234,7 @@ function tokenFromResponse(body: Record<string, any>, existingRefreshToken = "")
   };
 }
 
-export async function exchangeGoogleOAuthCode(input: { code: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined }) {
+export async function exchangeGoogleOAuthCode(input: { code: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined; existingRefreshToken?: string | undefined }) {
   const oauth = googleOAuthConfig(input.config);
   const body = new URLSearchParams({
     code: input.code,
@@ -218,7 +250,7 @@ export async function exchangeGoogleOAuthCode(input: { code: string; config: Run
   });
   const json = await readJson(response);
   if (!response.ok) throw classifyGoogleError(response.status, json);
-  return tokenFromResponse(json);
+  return tokenFromResponse(json, input.existingRefreshToken);
 }
 
 export async function refreshGoogleAccessToken(input: { refreshToken: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined }) {
@@ -263,7 +295,8 @@ export function workspaceGoogleConfig(config: RuntimeConfig, connection?: Worksp
     ga4PropertyId: String(stored.ga4PropertyId ?? stored.selectedPropertyId ?? config.GA4_PROPERTY_ID ?? ""),
     searchConsoleSiteUrl: String(stored.searchConsoleSiteUrl ?? stored.selectedSiteUrl ?? config.GSC_SITE_URL ?? ""),
     businessProfileAccountId: String(stored.businessProfileAccountId ?? stored.selectedAccountId ?? config.GBP_ACCOUNT_ID ?? ""),
-    businessProfileLocationId: String(stored.businessProfileLocationId ?? stored.selectedLocationId ?? config.GBP_LOCATION_ID ?? "")
+    businessProfileLocationId: String(stored.businessProfileLocationId ?? stored.selectedLocationId ?? config.GBP_LOCATION_ID ?? ""),
+    merchantCenterAccountId: String(stored.merchantCenterAccountId ?? stored.selectedMerchantCenterAccountId ?? "")
   };
 }
 
@@ -947,6 +980,10 @@ async function googleDetectionHints(input: { repos: RepositoryBundle; workspaceI
   const profile = (await input.repos.businessProfileV1.listByWorkspace(input.workspaceId))[0] as any;
   const profileJson = (profile?.profile_json ?? profile?.profileJson ?? {}) as Record<string, unknown>;
   const brandValues = [
+    SALTY_COWHIDE_TARGET_DOMAIN,
+    `https://${SALTY_COWHIDE_TARGET_DOMAIN}/`,
+    `https://www.${SALTY_COWHIDE_TARGET_DOMAIN}/`,
+    `sc-domain:${SALTY_COWHIDE_TARGET_DOMAIN}`,
     "Salty Cowhide",
     "SaltyCowhide.com",
     input.config.NEXT_PUBLIC_STOREFRONT_BASE_URL,
@@ -955,24 +992,38 @@ async function googleDetectionHints(input: { repos: RepositoryBundle; workspaceI
     String(profileJson.businessName ?? ""),
     String(profileJson.websiteUrl ?? profileJson.storefrontUrl ?? "")
   ].filter(Boolean);
-  const domains = Array.from(new Set(brandValues.map((value) => hostFromUrl(String(value))).filter(Boolean)));
+  const domains = Array.from(new Set([SALTY_COWHIDE_TARGET_DOMAIN, ...brandValues.map((value) => hostFromUrl(String(value))).filter(Boolean)]));
   const terms = Array.from(new Set(brandValues.map((value) => normalizeText(String(value))).filter((value) => value.length > 2)));
   return { domains, terms };
 }
 
+function candidateDomain(value: string | null | undefined) {
+  return hostFromUrl(value ?? "");
+}
+
+function isStrongGoogleMatch(matchStrength: GoogleDiscoveryCandidate["matchStrength"]) {
+  return matchStrength === "exact_domain_match" || matchStrength === "brand_match";
+}
+
 function scoreCandidate(text: string, url: string | null | undefined, hints: Awaited<ReturnType<typeof googleDetectionHints>>) {
   const normalizedText = normalizeText(`${text} ${url ?? ""}`);
-  const host = hostFromUrl(url ?? "");
-  const domainMatch = hints.domains.find((domain) => host === domain || normalizedText.includes(normalizeText(domain)));
-  if (domainMatch) return { confidence: "high" as const, matchReason: `Matched ${domainMatch}.` };
-  const termMatch = hints.terms.find((term) => term && normalizedText.includes(term));
-  if (termMatch) return { confidence: "high" as const, matchReason: "Matched Salty Cowhide business profile hints." };
-  return { confidence: "low" as const, matchReason: "Available to this Google account." };
+  const host = candidateDomain(url);
+  const domainMatch = hints.domains.find((domain) => host === domain || host === `www.${domain}`);
+  if (domainMatch) return { confidence: "high" as const, matchStrength: "exact_domain_match" as const, matchReason: `Matched ${domainMatch}.` };
+  const primaryDomainText = normalizeText(SALTY_COWHIDE_TARGET_DOMAIN);
+  if (normalizedText.includes(primaryDomainText)) return { confidence: "high" as const, matchStrength: "exact_domain_match" as const, matchReason: `Matched ${SALTY_COWHIDE_TARGET_DOMAIN}.` };
+  if (/\bsalty\s*cowhide\b/i.test(text) || normalizedText.includes("salty cowhide")) return { confidence: "high" as const, matchStrength: "brand_match" as const, matchReason: "Matched Salty Cowhide brand name." };
+  if (/ruffles\s*and\s*pixie\s*dust|rufflesandpixiedust/i.test(text + " " + (url ?? ""))) return { confidence: "low" as const, matchStrength: "likely_related" as const, matchReason: "Historically related account, but not the primary Salty Cowhide target." };
+  if (/blogspot|sellerinsiderhub|thelocalupgrade/i.test(text + " " + (url ?? ""))) return { confidence: "low" as const, matchStrength: "unrelated" as const, matchReason: "Does not match the Salty Cowhide target domain." };
+  if (host && host !== SALTY_COWHIDE_TARGET_DOMAIN) return { confidence: "low" as const, matchStrength: "unrelated" as const, matchReason: "Different domain than SaltyCowhide.com." };
+  const termMatch = hints.terms.find((term) => term && normalizedText.includes(term) && /salty|cowhide/i.test(term));
+  if (termMatch) return { confidence: "medium" as const, matchStrength: "brand_match" as const, matchReason: "Matched Salty Cowhide business profile hints." };
+  return { confidence: "low" as const, matchStrength: "unknown" as const, matchReason: "Available to this Google account, but not matched to Salty Cowhide." };
 }
 
 function finalizeDiscovery(candidates: GoogleDiscoveryCandidate[], options: { emptyStatus?: GoogleDiscoverySourceResult["status"]; emptyMessage: string; multiMessage: string; singleMessage: string }) {
-  const high = candidates.filter((candidate) => candidate.confidence === "high");
-  const selected = high.length === 1 ? high[0] : candidates.length === 1 ? { ...candidates[0]!, confidence: candidates[0]!.confidence === "low" ? "medium" as const : candidates[0]!.confidence, matchReason: candidates[0]!.confidence === "low" ? "Only accessible candidate found." : candidates[0]!.matchReason } : null;
+  const strong = candidates.filter((candidate) => isStrongGoogleMatch(candidate.matchStrength));
+  const selected = strong.length === 1 ? strong[0] : null;
   if (selected) {
     return {
       status: "auto_detected" as const,
@@ -983,8 +1034,18 @@ function finalizeDiscovery(candidates: GoogleDiscoveryCandidate[], options: { em
       setupRequired: ["Run sync to verify live provider access."]
     };
   }
-  if (candidates.length > 1) {
+  if (strong.length > 1) {
     return { status: "needs_selection" as const, message: options.multiMessage, candidates, selected: null, saved: false, setupRequired: ["Select the correct Google resource, then sync."] };
+  }
+  if (candidates.length) {
+    return {
+      status: "manual_setup" as const,
+      message: `${options.emptyMessage} Other Google resources are available on this account, but they do not appear to match Salty Cowhide.`,
+      candidates,
+      selected: null,
+      saved: false,
+      setupRequired: ["Create or verify SaltyCowhide.com Google resources, or manually override with owner intent."]
+    };
   }
   return { status: options.emptyStatus ?? "manual_setup", message: options.emptyMessage, candidates: [], selected: null, saved: false, setupRequired: ["Manual setup required."] };
 }
@@ -1011,7 +1072,7 @@ async function discoverGa4Properties(input: { fetcher: GoogleFetch; accessToken:
         }
         const label = String(property.displayName ?? propertyName);
         const score = scoreCandidate(`${label} ${account.displayName}`, url, input.hints);
-        candidates.push({ id: propertyId, propertyId, label, type: "ga4_property", url, confidence: score.confidence, matchReason: score.matchReason, accountId: account.name });
+        candidates.push({ id: propertyId, propertyId, label, type: "ga4_property", url, confidence: score.confidence, matchStrength: score.matchStrength, matchReason: score.matchReason, accountId: account.name });
       }
     }
     return finalizeDiscovery(candidates, {
@@ -1038,6 +1099,7 @@ async function discoverSearchConsoleSites(input: { fetcher: GoogleFetch; accessT
         siteUrl,
         url: siteUrl.startsWith("sc-domain:") ? null : siteUrl,
         confidence: score.confidence,
+        matchStrength: score.matchStrength,
         matchReason: `${score.matchReason} Permission: ${String(site.permissionLevel ?? "available")}.`
       };
     }).filter((candidate: GoogleDiscoveryCandidate) => candidate.siteUrl);
@@ -1068,7 +1130,7 @@ async function discoverBusinessProfileLocations(input: { fetcher: GoogleFetch; a
         const label = String(location.title ?? locationId);
         const url = typeof location.websiteUri === "string" ? location.websiteUri : null;
         const score = scoreCandidate(`${label} ${account.accountName}`, url, input.hints);
-        candidates.push({ id: `${account.name}:${locationId}`, label, type: "gbp_location", accountId: account.name, locationId, url, confidence: score.confidence, matchReason: score.matchReason });
+        candidates.push({ id: `${account.name}:${locationId}`, label, type: "gbp_location", accountId: account.name, locationId, url, confidence: score.confidence, matchStrength: score.matchStrength, matchReason: score.matchReason });
       }
     }
     const result = finalizeDiscovery(candidates, {
@@ -1135,6 +1197,329 @@ export async function autoDetectGoogleSetup(input: { repos: RepositoryBundle; wo
     googleEmail: bundle.googleEmail ?? null,
     autoSaved,
     dataSources: { ga4, searchConsole, businessProfile }
+  };
+}
+
+function hasGoogleScope(scopes: string[], scope: string) {
+  return scopes.includes(scope);
+}
+
+function scopeResult(input: { provider: string; targetDomain?: string; scope: string; authorizationUrl?: string | undefined; message: string }): GoogleLaunchSetupResult {
+  return {
+    ok: false,
+    status: "requires_scope",
+    provider: input.provider,
+    targetDomain: input.targetDomain ?? SALTY_COWHIDE_TARGET_DOMAIN,
+    message: input.message,
+    authorizationUrl: input.authorizationUrl,
+    setupRequired: [input.scope],
+    ownerActions: ["Approve the additional Google permission, then retry this setup action."]
+  };
+}
+
+async function upsertGoogleSetupConnection(input: {
+  repos: RepositoryBundle;
+  workspaceId: string;
+  actorId: string;
+  providerKey: string;
+  providerName: string;
+  status: string;
+  enabled?: boolean;
+  configuration: Record<string, unknown>;
+}) {
+  const existing = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, input.providerKey);
+  const row: WorkspaceRow = {
+    id: existing?.id ? String(existing.id) : `conn_${input.providerKey}_${Date.now()}`,
+    workspace_id: input.workspaceId,
+    provider_type: input.providerKey,
+    provider_name: input.providerName,
+    enabled: input.enabled ?? false,
+    status: input.status,
+    last_health_check_status: input.status,
+    configuration: { ...connectionConfig(existing), ...input.configuration },
+    created_by: input.actorId,
+    updated_by: input.actorId
+  };
+  return existing
+    ? input.repos.integration.updateProviderConnectionStatus(input.workspaceId, input.providerKey, row)
+    : input.repos.integration.createProviderConnection(row);
+}
+
+function safeLaunchError(input: { provider: string; error: unknown; fallback: string; targetDomain?: string }): GoogleLaunchSetupResult {
+  const result = resultFromGoogleError(input.error);
+  const status = result.status === "auth_required" ? "auth_required" : result.status === "access_denied" || result.status === "access_limited" ? "access_limited" : "error";
+  return {
+    ok: false,
+    status,
+    provider: input.provider,
+    targetDomain: input.targetDomain ?? SALTY_COWHIDE_TARGET_DOMAIN,
+    message: status === "access_limited" ? input.fallback : result.message,
+    setupRequired: result.setupRequired,
+    ownerActions: status === "access_limited" ? ["Use manual setup in Google, then save the resulting IDs in SaltyFactory."] : result.setupRequired
+  };
+}
+
+async function bestAnalyticsAccount(input: { fetcher: GoogleFetch; accessToken: string; hints: Awaited<ReturnType<typeof googleDetectionHints>> }) {
+  const accountsResponse = await googleJson(input.fetcher, "https://analyticsadmin.googleapis.com/v1beta/accounts", bearer(input.accessToken, { method: "GET" }));
+  const accounts = (accountsResponse.accounts ?? []).map((account: any) => ({ name: String(account.name ?? ""), displayName: String(account.displayName ?? account.name ?? "") })).filter((account: any) => account.name);
+  const scored = accounts.map((account: any) => ({ ...account, score: scoreCandidate(account.displayName, null, input.hints) }));
+  const strong = scored.filter((account: any) => isStrongGoogleMatch(account.score.matchStrength));
+  return { accounts: scored, selected: strong[0] ?? (scored.length === 1 ? scored[0] : null) };
+}
+
+export async function setupGoogleAnalyticsForSaltyCowhide(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined; authorizationUrl?: string | undefined }): Promise<GoogleLaunchSetupResult> {
+  const bundle = await getUsableTokens(input);
+  if (!bundle.ok) return { ok: false, status: bundle.status, provider: "ga4", targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, message: bundle.message, setupRequired: bundle.setupRequired };
+  const editScope = GOOGLE_ANALYTICS_SETUP_SCOPES[0]!;
+  if (!hasGoogleScope(bundle.scopes, editScope)) {
+    return scopeResult({ provider: "ga4", scope: editScope, authorizationUrl: input.authorizationUrl, message: "Creating a GA4 property requires Google Analytics edit permission. SaltyFactory requests this only after the owner clicks setup." });
+  }
+  const fetcher = input.fetcher ?? fetch;
+  try {
+    const hints = await googleDetectionHints({ repos: input.repos, workspaceId: input.workspaceId, config: input.config });
+    const { accounts, selected } = await bestAnalyticsAccount({ fetcher, accessToken: bundle.tokens.access_token, hints });
+    if (!selected) {
+      await upsertGoogleSetupConnection({
+        repos: input.repos,
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        providerKey: "ga4",
+        providerName: "Google Analytics 4",
+        status: "requires_owner_action",
+        configuration: { targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, availableAccounts: accounts.map((account: any) => ({ name: account.name, displayName: account.displayName, matchStrength: account.score.matchStrength })) }
+      });
+      return {
+        ok: false,
+        status: "requires_owner_action",
+        provider: "ga4",
+        targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+        message: "Choose or create a Google Analytics account for Salty Cowhide before SaltyFactory can create the GA4 property.",
+        setupRequired: ["Google Analytics account selection or Terms acceptance."],
+        ownerActions: ["Open Google Analytics Admin, create or choose the Salty Cowhide account, accept required terms, then retry."]
+      };
+    }
+    const property = await googleJson(fetcher, "https://analyticsadmin.googleapis.com/v1beta/properties", bearer(bundle.tokens.access_token, {
+      method: "POST",
+      body: JSON.stringify({
+        parent: selected.name,
+        displayName: "Salty Cowhide - GA4",
+        timeZone: "America/New_York",
+        currencyCode: "USD"
+      })
+    }));
+    const propertyName = String(property.name ?? "");
+    const propertyId = normalizeGa4PropertyId(propertyName);
+    const stream = await googleJson(fetcher, `https://analyticsadmin.googleapis.com/v1beta/${propertyName}/dataStreams`, bearer(bundle.tokens.access_token, {
+      method: "POST",
+      body: JSON.stringify({
+        type: "WEB_DATA_STREAM",
+        displayName: "SaltyCowhide.com web stream",
+        webStreamData: { defaultUri: `https://${SALTY_COWHIDE_TARGET_DOMAIN}/` }
+      })
+    }));
+    await configureGoogleWorkspace({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, config: input.config, values: { ga4PropertyId: propertyId } });
+    await upsertGoogleDataSourceConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "ga4",
+      providerName: "Google Analytics 4",
+      configuration: {
+        selectedPropertyId: propertyId,
+        ga4PropertyId: propertyId,
+        webDataStreamName: String(stream.name ?? ""),
+        webStreamDefaultUri: `https://${SALTY_COWHIDE_TARGET_DOMAIN}/`,
+        targetDomain: SALTY_COWHIDE_TARGET_DOMAIN
+      }
+    });
+    await syncRun({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, providerKey: "ga4", syncType: "setup_create", status: "configured_not_verified", recordsWritten: 2, resultSummary: { propertyId, streamName: String(stream.name ?? ""), targetDomain: SALTY_COWHIDE_TARGET_DOMAIN } });
+    return {
+      ok: true,
+      status: "configured_not_verified",
+      provider: "ga4",
+      targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+      message: "GA4 property and web data stream were created for SaltyCowhide.com. Run Sync GA4 to verify live data access.",
+      setupRequired: ["Run Sync GA4 to verify the property."],
+      ownerActions: ["Install the GA4 tag or connect it through Shopify/Google tag manager before traffic can appear."],
+      configuration: { propertyId, streamName: String(stream.name ?? ""), defaultUri: `https://${SALTY_COWHIDE_TARGET_DOMAIN}/` }
+    };
+  } catch (error) {
+    return safeLaunchError({ provider: "ga4", error, fallback: "GA4 setup could not be completed through the API. Manual Google Analytics setup may be required." });
+  }
+}
+
+export async function setupSearchConsoleForSaltyCowhide(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined; authorizationUrl?: string | undefined }): Promise<GoogleLaunchSetupResult> {
+  const bundle = await getUsableTokens(input);
+  if (!bundle.ok) return { ok: false, status: bundle.status, provider: "google_search_console", targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, message: bundle.message, setupRequired: bundle.setupRequired };
+  const writeScope = GOOGLE_SEARCH_CONSOLE_SETUP_SCOPES[0]!;
+  if (!hasGoogleScope(bundle.scopes, writeScope)) {
+    return scopeResult({ provider: "google_search_console", scope: writeScope, authorizationUrl: input.authorizationUrl, message: "Adding Search Console properties requires Search Console write permission. SaltyFactory requests this only after the owner clicks setup." });
+  }
+  const fetcher = input.fetcher ?? fetch;
+  const properties = [`https://${SALTY_COWHIDE_TARGET_DOMAIN}/`, `sc-domain:${SALTY_COWHIDE_TARGET_DOMAIN}`];
+  const added: string[] = [];
+  const failed: string[] = [];
+  for (const property of properties) {
+    try {
+      await googleJson(fetcher, `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}`, bearer(bundle.tokens.access_token, { method: "PUT" }));
+      added.push(property);
+    } catch (error) {
+      failed.push(sanitizeProviderError(error));
+    }
+  }
+  if (!added.length) {
+    await upsertGoogleSetupConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "google_search_console",
+      providerName: "Google Search Console",
+      status: "verification_required",
+      configuration: { targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, attemptedProperties: properties, failedSetup: failed }
+    });
+    return {
+      ok: false,
+      status: "manual_setup_needed",
+      provider: "google_search_console",
+      targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+      message: "Search Console properties could not be added through the API. Add SaltyCowhide.com manually, verify ownership, then retry sync.",
+      setupRequired: ["Search Console ownership verification."],
+      ownerActions: ["Add a DNS TXT record, upload the HTML verification file, add the verification meta tag, or verify through Google Analytics if available."],
+      warnings: failed.slice(0, 2)
+    };
+  }
+  const selectedSiteUrl = added[0]!;
+  await configureGoogleWorkspace({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, config: input.config, values: { searchConsoleSiteUrl: selectedSiteUrl } });
+  await upsertGoogleDataSourceConnection({
+    repos: input.repos,
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    providerKey: "google_search_console",
+    providerName: "Google Search Console",
+    configuration: { selectedSiteUrl, searchConsoleSiteUrl: selectedSiteUrl, addedProperties: added, targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, verificationRequired: true }
+  });
+  await syncRun({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, providerKey: "google_search_console", syncType: "setup_add_property", status: "verification_required", recordsWritten: added.length, resultSummary: { addedProperties: added, targetDomain: SALTY_COWHIDE_TARGET_DOMAIN } });
+  return {
+    ok: true,
+    status: "verification_required",
+      provider: "google_search_console",
+    targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+    message: "SaltyCowhide.com was added to Search Console where Google allowed it. Ownership verification is still required before it is connected.",
+    setupRequired: ["Verify Search Console ownership, then run Sync Search Console."],
+    ownerActions: ["DNS TXT verification", "HTML file verification", "Meta tag verification", "Google Analytics verification if available"],
+    configuration: { selectedSiteUrl, addedProperties: added }
+  };
+}
+
+export async function setupMerchantCenterForSaltyCowhide(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined; authorizationUrl?: string | undefined }): Promise<GoogleLaunchSetupResult> {
+  const bundle = await getUsableTokens(input);
+  if (!bundle.ok) return { ok: false, status: bundle.status, provider: "google_merchant_center", targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, message: bundle.message, setupRequired: bundle.setupRequired };
+  const contentScope = GOOGLE_MERCHANT_CENTER_SETUP_SCOPES[0]!;
+  if (!hasGoogleScope(bundle.scopes, contentScope)) {
+    return scopeResult({ provider: "google_merchant_center", scope: contentScope, authorizationUrl: input.authorizationUrl, message: "Merchant Center setup requires explicit Merchant Center permission. No product feeds are submitted by this action." });
+  }
+  try {
+    const fetcher = input.fetcher ?? fetch;
+    const authInfo = await googleJson(fetcher, "https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", bearer(bundle.tokens.access_token, { method: "GET" }));
+    const accounts = (authInfo.accountIdentifiers ?? []).map((account: any) => ({ merchantId: String(account.merchantId ?? ""), aggregatorId: String(account.aggregatorId ?? "") })).filter((account: any) => account.merchantId);
+    if (!accounts.length) {
+      await upsertGoogleSetupConnection({
+        repos: input.repos,
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        providerKey: "google_merchant_center",
+        providerName: "Google Merchant Center",
+        status: "requires_owner_action",
+        configuration: { targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, requiredOwnerActions: ["business_info_required", "website_claim_required", "shipping_required", "tax_required", "product_feed_needed", "policy_terms_required"] }
+      });
+      return {
+        ok: false,
+        status: "requires_owner_action",
+        provider: "google_merchant_center",
+        targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+        message: "No Merchant Center account is available to this Google account. Create or grant access in Google Merchant Center, then retry.",
+        setupRequired: ["Merchant Center account access."],
+        ownerActions: ["Business info required", "Website claim required", "Shipping required", "Tax required", "Product feed needed", "Policy/terms required"]
+      };
+    }
+    const selected = accounts[0]!;
+    await upsertGoogleSetupConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "google_merchant_center",
+      providerName: "Google Merchant Center",
+      status: "configured_not_verified",
+      enabled: true,
+      configuration: {
+        selectedMerchantCenterAccountId: selected.merchantId,
+        merchantCenterAccountId: selected.merchantId,
+        targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+        requiredOwnerActions: ["business_info_required", "website_claim_required", "shipping_required", "tax_required", "product_feed_needed", "policy_terms_required"],
+        feedSubmissionEnabled: false
+      }
+    });
+    await syncRun({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, providerKey: "google_merchant_center", syncType: "setup_detect", status: "configured_not_verified", recordsRead: accounts.length, recordsWritten: 1, resultSummary: { merchantId: selected.merchantId, targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, feedSubmissionEnabled: false } });
+    return {
+      ok: true,
+      status: "configured_not_verified",
+      provider: "google_merchant_center",
+      targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+      message: "Merchant Center account access was found and saved for setup tracking. No product feed was submitted.",
+      setupRequired: ["Verify Merchant Center account readiness before product feeds."],
+      ownerActions: ["Business info required", "Website claim required", "Shipping required", "Tax required", "Product feed needed", "Policy/terms required"],
+      configuration: { merchantCenterAccountId: selected.merchantId, feedSubmissionEnabled: false }
+    };
+  } catch (error) {
+    return safeLaunchError({ provider: "google_merchant_center", error, fallback: "Merchant Center setup could not be completed through the API. Manual Merchant Center setup may be required." });
+  }
+}
+
+export async function checkGoogleBusinessProfileEligibilityForSaltyCowhide(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; eligibility: string; fetcher?: GoogleFetch | undefined }): Promise<GoogleLaunchSetupResult> {
+  const onlineOnly = input.eligibility === "online_only_ecommerce_pod";
+  if (onlineOnly) {
+    await upsertGoogleSetupConnection({
+      repos: input.repos,
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      providerKey: "google_business_profile",
+      providerName: "Google Business Profile",
+      status: "optional_for_online_only",
+      configuration: { targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, eligibility: input.eligibility, launchBlocker: false }
+    });
+    return {
+      ok: true,
+      status: "optional_for_online_only",
+      provider: "google_business_profile",
+      targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+      message: "Google Business Profile is optional for an online-only ecommerce/POD launch and should not block Salty Cowhide.",
+      setupRequired: [],
+      ownerActions: ["Set up GBP later only if Salty Cowhide has an eligible local storefront, service area, pickup location, showroom, market, or event presence."],
+      configuration: { launchBlocker: false, eligibility: input.eligibility }
+    };
+  }
+  const bundle = await getUsableTokens(input);
+  if (!bundle.ok) return { ok: false, status: bundle.status, provider: "google_business_profile", targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, message: bundle.message, setupRequired: bundle.setupRequired };
+  const hints = await googleDetectionHints({ repos: input.repos, workspaceId: input.workspaceId, config: input.config });
+  const discovery = await discoverBusinessProfileLocations({ fetcher: input.fetcher ?? fetch, accessToken: bundle.tokens.access_token, hints });
+  await upsertGoogleSetupConnection({
+    repos: input.repos,
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    providerKey: "google_business_profile",
+    providerName: "Google Business Profile",
+    status: discovery.candidates.length ? "configured_not_verified" : "requires_owner_action",
+    configuration: { targetDomain: SALTY_COWHIDE_TARGET_DOMAIN, eligibility: input.eligibility, candidates: discovery.candidates, launchBlocker: false }
+  });
+  return {
+    ok: true,
+    status: discovery.candidates.length ? "configured_not_verified" : "requires_owner_action",
+    provider: "google_business_profile",
+    targetDomain: SALTY_COWHIDE_TARGET_DOMAIN,
+    message: discovery.candidates.length ? "Eligible GBP path selected. Choose an existing eligible location before syncing." : "Eligible GBP path selected, but no existing eligible location was found through the API.",
+    setupRequired: discovery.candidates.length ? ["Select and verify an eligible GBP location."] : ["Create or verify an eligible GBP location in Google if applicable."],
+    ownerActions: ["Google may require profile verification. Do not create a local profile unless Salty Cowhide has an eligible local presence."],
+    configuration: { candidates: discovery.candidates, eligibility: input.eligibility, launchBlocker: false }
   };
 }
 
