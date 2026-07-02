@@ -8,7 +8,9 @@ import {
   tablesCreatedByMigration
 } from "../packages/db/src/apply-local";
 import {
+  businessProfileSetupStateForError,
   classifyStudioDataError,
+  getBusinessProfileStudioData,
   getStudioLists,
   isSchemaIncompleteError,
   sanitizeStudioDataError
@@ -111,6 +113,38 @@ describe("local database schema apply", () => {
       else process.env.REPOSITORY_ADAPTER = originalRepositoryAdapter;
       if (originalAppEnv === undefined) delete process.env.APP_ENV;
       else process.env.APP_ENV = originalAppEnv;
+    }
+  });
+
+  it("Business Profile setup state only uses schema warning for true schema errors", async () => {
+    const missingBusinessProfileTable = Object.assign(new Error('relation "workspace_business_profiles_v1" does not exist'), { code: "42P01" });
+    const repositoryFailure = Object.assign(new Error("unexpected business profile repository failure"), { code: "XX000" });
+
+    expect(businessProfileSetupStateForError(missingBusinessProfileTable)).toMatchObject({
+      schemaIncomplete: true,
+      setupMessage: "Database schema incomplete. Apply migrations to enable this feature."
+    });
+    expect(businessProfileSetupStateForError(repositoryFailure)).toMatchObject({
+      schemaIncomplete: false,
+      setupMessage: "Business profile unavailable. Check database access and workspace setup."
+    });
+  });
+
+  it("Business Profile scoped loader does not show schema warning when repository is available", async () => {
+    const originalRepositoryAdapter = process.env.REPOSITORY_ADAPTER;
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+    process.env.REPOSITORY_ADAPTER = "memory";
+    delete process.env.DATABASE_URL;
+    try {
+      const result = await getBusinessProfileStudioData();
+      expect(result.schemaIncomplete).toBe(false);
+      expect(result.setupMessage).toBe("");
+      expect(result.businessProfiles).toEqual([]);
+    } finally {
+      if (originalRepositoryAdapter === undefined) delete process.env.REPOSITORY_ADAPTER;
+      else process.env.REPOSITORY_ADAPTER = originalRepositoryAdapter;
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
     }
   });
 

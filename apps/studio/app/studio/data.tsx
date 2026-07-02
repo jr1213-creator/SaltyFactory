@@ -18,6 +18,7 @@ const setupMessages: Record<StudioDataSetupKind, string> = {
   workspace_setup_required: "Studio workspace setup is incomplete. Confirm the configured workspace exists and the signed-in user is a member.",
   data_unavailable: "Studio data is unavailable. Check the database connection and workspace setup."
 };
+const businessProfileUnavailableMessage = "Business profile unavailable. Check database access and workspace setup.";
 
 function collectErrorInfo(error: unknown) {
   const parts: string[] = [];
@@ -77,28 +78,54 @@ export function isSchemaIncompleteError(error: unknown) {
   return classifyStudioDataError(error) === "schema_incomplete";
 }
 
-function setupState(kind: StudioDataSetupKind) {
+function setupState(kind: StudioDataSetupKind, setupMessage = setupMessages[kind]) {
   return {
     ...emptyLists,
     schemaIncomplete: kind === "schema_incomplete",
-    setupMessage: setupMessages[kind]
+    setupMessage
   };
 }
 
-function logStudioDataDiagnostic(kind: StudioDataSetupKind, error: unknown) {
+function logStudioDataDiagnostic(kind: StudioDataSetupKind, error: unknown, source = "studio_data") {
   if (process.env.STUDIO_DATA_DIAGNOSTICS !== "true") return;
   console.warn(JSON.stringify({
-    component: "studio_data",
+    component: source,
     setupKind: kind,
     error: sanitizeStudioDataError(error)
   }));
 }
 
-function handleStudioDataError(error: unknown) {
+export function businessProfileSetupStateForError(error: unknown) {
+  const kind = classifyStudioDataError(error);
+  const message = kind === "data_unavailable" ? businessProfileUnavailableMessage : setupMessages[kind];
+  return setupState(kind, message);
+}
+
+function handleStudioDataError(error: unknown, source?: string) {
   if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") throw error;
   const kind = classifyStudioDataError(error);
-  logStudioDataDiagnostic(kind, error);
+  logStudioDataDiagnostic(kind, error, source);
   return setupState(kind);
+}
+
+function handleBusinessProfileDataError(error: unknown) {
+  if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") throw error;
+  const state = businessProfileSetupStateForError(error);
+  logStudioDataDiagnostic(classifyStudioDataError(error), error, "business_profile_loader");
+  return state;
+}
+
+export async function getBusinessProfileStudioData() {
+  if (!process.env.DATABASE_URL && process.env.REPOSITORY_ADAPTER !== "memory") {
+    return setupState("database_not_configured");
+  }
+  try {
+    const repos = createRepositories();
+    const businessProfiles = await repos.businessProfileV1.listByWorkspace(studioWorkspaceId);
+    return { ...emptyLists, businessProfiles, schemaIncomplete: false, setupMessage: "" };
+  } catch (error) {
+    return handleBusinessProfileDataError(error);
+  }
 }
 
 export async function getStudioLists() {
@@ -134,7 +161,7 @@ export async function getStudioLists() {
     ]);
     return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, activity, schemaIncomplete: false, setupMessage: "" };
   } catch (error) {
-    return handleStudioDataError(error);
+    return handleStudioDataError(error, "studio_lists_loader");
   }
 }
 

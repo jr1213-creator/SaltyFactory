@@ -1,9 +1,9 @@
 import { PageHeader, MetricCard, DataTable, StatusBadge } from "@saltyfactory/ui";
 import { scoreBusinessProfile } from "@saltyfactory/domain";
-import { getStudioLists, SchemaSetupState } from "../../data";
+import { getBusinessProfileStudioData, SchemaSetupState } from "../../data";
 
 export default async function BusinessProfilePage() {
-  const lists = await getStudioLists();
+  const lists = await getBusinessProfileStudioData();
   const profile = lists.businessProfiles[0] as any;
   const profileJson = (profile?.profile_json ?? profile?.profileJson ?? {}) as Record<string, any>;
   const readiness = scoreBusinessProfile(profileJson);
@@ -43,4 +43,3 @@ export default async function BusinessProfilePage() {
     <DataTable columns={["Readiness blocker"]} rows={readiness.blockers.length ? readiness.blockers.map((blocker) => [blocker]) : [["No blockers"]]} />
   </>;
 }
-

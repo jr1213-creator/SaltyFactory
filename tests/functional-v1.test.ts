@@ -35,6 +35,31 @@ describe("functional complete v1 domain rules", () => {
     expect(readiness.blockers).toContain("Add at least one brand color.");
   });
 
+  it("saves and reloads a Business Profile record", async () => {
+    const repos = createMemoryRepositories();
+    await repos.businessProfileV1.create({
+      id: "bizprof_reload",
+      workspace_id: workspaceId,
+      business_name: "Salty Factory",
+      public_brand_name: "Salty Cowhide",
+      business_type: "hybrid",
+      fulfillment_model: "POD",
+      profile_json: { businessName: "Salty Factory", publicBrandName: "Salty Cowhide" },
+      status: "draft",
+      created_by: actorId
+    });
+    await repos.businessProfileV1.update("bizprof_reload", {
+      public_brand_name: "Salty Cowhide Studio",
+      profile_json: { businessName: "Salty Factory", publicBrandName: "Salty Cowhide Studio" },
+      updated_by: actorId
+    });
+
+    const [saved] = await repos.businessProfileV1.listByWorkspace(workspaceId);
+    if (!saved) throw new Error("Business Profile record was not persisted");
+    expect(saved.public_brand_name).toBe("Salty Cowhide Studio");
+    expect((saved.profile_json as any).publicBrandName).toBe("Salty Cowhide Studio");
+  });
+
   it("validates channel URLs, custom channels, and completeness", () => {
     expect(() => channelSchema.parse({ channelType: "instagram", displayName: "IG", url: "javascript:bad" })).toThrow();
     const score = scoreChannelCompleteness([{ channelType: "shopify", status: "configured" }, { channelType: "custom", displayName: "Pop-up", status: "configured" }]);

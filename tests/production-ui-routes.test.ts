@@ -10,6 +10,7 @@ import AnalyticsPage from "../apps/studio/app/studio/analytics/page";
 import GeneratePage from "../apps/studio/app/studio/generate/page";
 import IntegrationsPage from "../apps/studio/app/studio/integrations/page";
 import AiEmployeesPage from "../apps/studio/app/studio/ai-employees/page";
+import BusinessProfilePage from "../apps/studio/app/studio/settings/business-profile/page";
 import StorefrontHome from "../apps/storefront/app/page";
 import ProductPage from "../apps/storefront/app/products/[handle]/page";
 
@@ -90,6 +91,13 @@ describe("production UI routes", () => {
     const html = renderToStaticMarkup(await AiEmployeesPage());
     expect(html).toContain("AI Migration Guide");
     expect(html).toContain("Drafts and recommendations only");
+  });
+
+  it("Business Profile page renders without schema warning when scoped repository is available", async () => {
+    const html = renderToStaticMarkup(await BusinessProfilePage());
+    expect(html).toContain("Business Profile");
+    expect(html).toContain("Save Business Profile");
+    expect(html).not.toContain("Database schema incomplete");
   });
 
   it("Storefront home renders hero and product sections", async () => {
