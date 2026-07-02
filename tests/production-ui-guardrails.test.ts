@@ -14,6 +14,7 @@ import {
 import { GET as loginGet, POST as loginPost } from "../apps/studio/app/api/studio/login/route";
 import { GET as callbackGet } from "../apps/studio/app/auth/callback/route";
 import { GET as authDebugGet } from "../apps/studio/app/api/studio/auth/debug/route";
+import { GET as dbHealthGet } from "../apps/studio/app/api/studio/db/health/route";
 import { POST as approveDraftPost } from "../apps/studio/app/api/studio/drafts/approve/route";
 import { POST as shopifyPublishPost } from "../apps/studio/app/api/studio/publish/shopify/route";
 import { POST as printifyPublishPost } from "../apps/studio/app/api/studio/publish/printify/route";
@@ -171,16 +172,28 @@ describe("production UI guardrails", () => {
     expect(productionResponse.status).toBe(404);
   });
 
+  it("Studio DB health route is auth-protected and does not expose connection strings", async () => {
+    const response = await dbHealthGet(new Request("http://localhost:3001/api/studio/db/health"));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, status: "unauthorized" });
+
+    const route = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/db/health/route.ts"), "utf8");
+    expect(route).not.toContain("DATABASE_URL");
+    expect(route).not.toContain("DIRECT_DATABASE_URL");
+    expect(route).toContain("sanitizeStudioDataError");
+  });
+
   it("Studio login API is public enough to create a session", async () => {
     const response = await proxy(request("/api/studio/login"));
     expect(response.status).toBe(200);
   });
 
-  it("Valid Supabase session and workspace membership passes proxy protection", async () => {
-    setSupabaseUserVerifierForTests(async (token) => token === "valid" ? { id: "auth_user_01", email, emailVerified: true } : null);
-    setWorkspaceAuthorizerForTests(async (user, workspaceId) => ({ id: user.id, email: user.email, role: "owner", workspaceId, supabaseUserId: user.id }));
+  it("Supabase session cookie passes proxy; Studio layout keeps workspace enforcement", async () => {
     const response = await proxy(request("/studio", `${SUPABASE_ACCESS_COOKIE}=valid`));
     expect(response.status).toBe(200);
+
+    const layout = readFileSync(join(process.cwd(), "apps/studio/app/studio/layout.tsx"), "utf8");
+    expect(layout).toContain("requireStudioUser");
   });
 
   it("Supabase callback success establishes Supabase cookies", async () => {

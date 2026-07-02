@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRuntimeRepositories, selectRepositoryAdapter } from "@saltyfactory/db";
+import { createRuntimeRepositories, resolveRuntimeDatabaseUrl, selectRepositoryAdapter } from "@saltyfactory/db";
 
 describe("repository factory selection", () => {
   it("production config rejects memory repository mode", () => {
@@ -16,6 +16,18 @@ describe("repository factory selection", () => {
 
   it("repository factory returns Drizzle repos when DATABASE_URL exists", () => {
     expect(createRuntimeRepositories({ NODE_ENV: "development", APP_ENV: "development", DATABASE_URL: "postgres://user:pass@localhost:5432/saltyfactory" }).adapter).toBe("drizzle");
+  });
+
+  it("runtime database URL preserves the configured pooler unless DIRECT_DATABASE_URL is explicit", () => {
+    const pooler = "postgres://postgres.project:secret@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
+    const direct = "postgres://postgres:secret@db.project.supabase.co:5432/postgres";
+
+    expect(resolveRuntimeDatabaseUrl({
+      DATABASE_URL: pooler,
+      SUPABASE_URL: "https://project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co"
+    })).toBe(pooler);
+    expect(resolveRuntimeDatabaseUrl({ DATABASE_URL: pooler, DIRECT_DATABASE_URL: direct })).toBe(direct);
   });
 
   it("development memory requires explicit adapter", () => {

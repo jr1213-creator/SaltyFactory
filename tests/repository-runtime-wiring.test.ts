@@ -28,4 +28,18 @@ describe("repository runtime wiring", () => {
     expect(script).toContain("production allowed memory repository adapter");
     expect(script).toContain("selectRepositoryAdapter");
   });
+
+  it("Studio proxy does not import DB-backed auth and DB pages/routes use Node runtime", () => {
+    const proxy = readFileSync(join(process.cwd(), "apps", "studio", "proxy.ts"), "utf8");
+    const layout = readFileSync(join(process.cwd(), "apps", "studio", "app", "studio", "layout.tsx"), "utf8");
+    const healthRoute = readFileSync(join(process.cwd(), "apps", "studio", "app", "api", "studio", "db", "health", "route.ts"), "utf8");
+
+    expect(proxy).not.toContain("@saltyfactory/auth");
+    expect(proxy).not.toContain("requireStudioUser");
+    expect(proxy).not.toContain("createRepositories");
+    expect(layout).toContain('runtime = "nodejs"');
+    expect(healthRoute).toContain('runtime = "nodejs"');
+    expect(healthRoute).toContain("checkRuntimeDatabaseConnection");
+    expect(healthRoute).toContain("sanitizeStudioDataError");
+  });
 });
