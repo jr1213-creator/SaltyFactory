@@ -2,7 +2,18 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import postgres from "postgres";
 
-const requiredStudioTables = [
+export const functionalV1StudioTables = [
+  "baseline_snapshots",
+  "dropship_product_candidates",
+  "listing_drafts_v1",
+  "migration_wizard_runs",
+  "pod_migration_candidates",
+  "social_content_items",
+  "workspace_business_profiles_v1",
+  "workspace_channels"
+];
+
+export const requiredStudioTables = [
   "users",
   "organizations",
   "workspaces",
@@ -18,7 +29,15 @@ const requiredStudioTables = [
   "encrypted_credentials",
   "integration_sync_runs",
   "site_audit_runs",
-  "site_audit_findings"
+  "site_audit_findings",
+  ...functionalV1StudioTables
+];
+
+const envKeysThatMustMatch = [
+  "DATABASE_URL",
+  "DIRECT_DATABASE_URL",
+  "SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_URL"
 ];
 
 function repoRoot() {
@@ -32,20 +51,45 @@ function repoRoot() {
   return process.cwd();
 }
 
-function loadRootEnvLocal(root = repoRoot()) {
-  const envPath = resolve(root, ".env.local");
-  if (!existsSync(envPath)) return;
+function parseEnvFile(envPath: string) {
+  const values = new Map<string, string>();
+  if (!existsSync(envPath)) return values;
   for (const rawLine of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
     const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
     if (!match?.[1]) continue;
-    if (process.env[match[1]] !== undefined) continue;
-    process.env[match[1]] = (match[2] || "").trim().replace(/^(['"])(.*)\1$/, "$2");
+    values.set(match[1], (match[2] || "").trim().replace(/^(['"])(.*)\1$/, "$2"));
+  }
+  return values;
+}
+
+function loadLocalEnvFiles(root = repoRoot()) {
+  const envFiles = [
+    { label: ".env.local", path: resolve(root, ".env.local") },
+    { label: "apps/studio/.env.local", path: resolve(root, "apps/studio/.env.local") }
+  ].map((file) => ({ ...file, values: parseEnvFile(file.path) }));
+  const explicitProcessEnv = new Set(envKeysThatMustMatch.filter((key) => process.env[key] !== undefined));
+
+  const [rootEnv, studioEnv] = envFiles;
+  for (const key of envKeysThatMustMatch) {
+    if (explicitProcessEnv.has(key)) continue;
+    const rootValue = rootEnv?.values.get(key);
+    const studioValue = studioEnv?.values.get(key);
+    if (rootValue !== undefined && studioValue !== undefined && rootValue !== studioValue) {
+      throw new Error(`${key} differs between .env.local and apps/studio/.env.local; align them before running db:migrate`);
+    }
+  }
+
+  for (const file of envFiles) {
+    for (const [key, value] of file.values) {
+      if (process.env[key] !== undefined) continue;
+      process.env[key] = value;
+    }
   }
 }
 
-function migrationStatements(sqlText: string) {
+export function migrationStatements(sqlText: string) {
   return sqlText
     .split("--> statement-breakpoint")
     .map((statement) => statement.trim())
@@ -57,20 +101,45 @@ function migrationStatements(sqlText: string) {
       .replace(/^\s*CREATE INDEX\s+(?!IF NOT EXISTS)/i, "CREATE INDEX IF NOT EXISTS "));
 }
 
-async function existingTables(sql: postgres.Sql) {
+export function tablesCreatedByMigration(sqlText: string) {
+  const tables = new Set<string>();
+  const tablePattern = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/gi;
+  for (const match of sqlText.matchAll(tablePattern)) {
+    const table = match[1] || match[2];
+    if (table) tables.add(table);
+  }
+  return Array.from(tables);
+}
+
+async function missingTables(sql: postgres.Sql, tables: string[]) {
+  if (!tables.length) return [];
   const rows = await sql<{ table_name: string }[]>`
     select table_name
     from information_schema.tables
     where table_schema = 'public'
-      and table_name in ${sql(requiredStudioTables)}
+      and table_name in ${sql(tables)}
   `;
-  return new Set(rows.map((row) => row.table_name));
+  const present = new Set(rows.map((row) => row.table_name));
+  return tables.filter((table) => !present.has(table));
 }
 
 async function assertRequiredTables(sql: postgres.Sql) {
-  const tables = await existingTables(sql);
-  const missing = requiredStudioTables.filter((table) => !tables.has(table));
+  const missing = await missingTables(sql, requiredStudioTables);
   if (missing.length) throw new Error(`Required Studio tables are missing after schema apply: ${missing.join(", ")}`);
+}
+
+async function applyMigrationStatements(sql: postgres.Sql, sqlText: string) {
+  let statementsApplied = 0;
+  for (const statement of migrationStatements(sqlText)) {
+    try {
+      await sql.unsafe(statement);
+      statementsApplied += 1;
+    } catch (error) {
+      if (isSkippableLocalSchemaConflict(error, statement)) continue;
+      throw error;
+    }
+  }
+  return statementsApplied;
 }
 
 function sanitizeError(error: unknown) {
@@ -79,7 +148,7 @@ function sanitizeError(error: unknown) {
 }
 
 export async function applyLocalSchema() {
-  loadRootEnvLocal();
+  loadLocalEnvFiles();
   const databaseUrls = candidateDatabaseUrls();
   if (!databaseUrls.length) throw new Error("DATABASE_URL is required");
 
@@ -89,6 +158,7 @@ export async function applyLocalSchema() {
 
   const sql = await connect(databaseUrls);
   const applied: string[] = [];
+  const repaired: { file: string; missingTables: string[] }[] = [];
   let statementsApplied = 0;
   try {
     await sql`create table if not exists saltyfactory_schema_applied (
@@ -97,19 +167,17 @@ export async function applyLocalSchema() {
     )`;
 
     for (const file of files) {
-      const existing = await sql<{ filename: string }[]>`select filename from saltyfactory_schema_applied where filename = ${file} limit 1`;
-      if (existing.length) continue;
-
       const text = readFileSync(resolve(migrationsDir, file), "utf8");
-      for (const statement of migrationStatements(text)) {
-        try {
-          await sql.unsafe(statement);
-          statementsApplied += 1;
-        } catch (error) {
-          if (isSkippableLocalSchemaConflict(error, statement)) continue;
-          throw error;
-        }
+      const existing = await sql<{ filename: string }[]>`select filename from saltyfactory_schema_applied where filename = ${file} limit 1`;
+      if (existing.length) {
+        const missingCreatedTables = await missingTables(sql, tablesCreatedByMigration(text));
+        if (!missingCreatedTables.length) continue;
+        statementsApplied += await applyMigrationStatements(sql, text);
+        repaired.push({ file, missingTables: missingCreatedTables });
+        continue;
       }
+
+      statementsApplied += await applyMigrationStatements(sql, text);
       await sql`insert into saltyfactory_schema_applied (filename) values (${file}) on conflict (filename) do nothing`;
       applied.push(file);
     }
@@ -118,6 +186,7 @@ export async function applyLocalSchema() {
     return {
       ok: true,
       applied,
+      repaired,
       statementsApplied,
       requiredTablesVerified: requiredStudioTables,
       note: "Foreign-key statements are skipped for local apply so existing Supabase-owned/incompatible tables are preserved."

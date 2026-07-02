@@ -3,14 +3,34 @@ import { createRepositories } from "@saltyfactory/db";
 export const studioWorkspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], publishReviews: [], products: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], activity: [] };
 
-function isMissingTableError(error: unknown) {
-  const text = error instanceof Error ? error.message : String(error);
-  return /relation .* does not exist|42P01|Failed query/i.test(text);
+function collectErrorText(error: unknown) {
+  const parts: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof Error) parts.push(current.message);
+    if (typeof current === "object") {
+      const record = current as { code?: unknown; cause?: unknown; detail?: unknown };
+      if (record.code) parts.push(String(record.code));
+      if (record.detail) parts.push(String(record.detail));
+      current = record.cause;
+      continue;
+    }
+    parts.push(String(current));
+    break;
+  }
+  return parts.join("\n");
+}
+
+export function isSchemaIncompleteError(error: unknown) {
+  const text = collectErrorText(error);
+  return /relation .* does not exist|column .* does not exist|42P01|42703/i.test(text);
 }
 
 function schemaIncomplete(error: unknown) {
   if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") throw error;
-  if (!isMissingTableError(error)) throw error;
+  if (!isSchemaIncompleteError(error)) throw error;
   return {
     ...emptyLists,
     schemaIncomplete: true,
