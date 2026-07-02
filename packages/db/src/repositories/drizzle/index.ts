@@ -41,6 +41,15 @@ const tableExportByDbName: Record<string, TableName> = {
   integration_sync_runs: "integrationSyncRuns",
   provider_connection_status: "providerConnectionStatus",
   workspace_provider_connections: "workspaceProviderConnections",
+  workspace_metrics: "workspaceMetrics",
+  workspace_business_profiles_v1: "workspaceBusinessProfilesV1",
+  workspace_channels: "workspaceChannels",
+  migration_wizard_runs: "migrationWizardRuns",
+  baseline_snapshots: "baselineSnapshots",
+  pod_migration_candidates: "podMigrationCandidates",
+  dropship_product_candidates: "dropshipProductCandidates",
+  listing_drafts_v1: "listingDraftsV1",
+  social_content_items: "socialContentItems",
   shopify_product_refs: "shopifyProductRefs",
   printify_product_refs: "printifyProductRefs",
   fulfillment_events: "fulfillmentEvents",
@@ -297,6 +306,16 @@ export class DrizzleIntegrationRepository extends DrizzleBaseRepository {
   async writeIntegrationAuditEvent(event: WorkspaceRow | AuditEvent) { await this.createAuditEvent(event); }
 }
 
+export class DrizzleWorkspaceMetricRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("workspace_metrics", db, audit); } }
+export class DrizzleBusinessProfileV1Repository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("workspace_business_profiles_v1", db, audit); } }
+export class DrizzleChannelRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("workspace_channels", db, audit); } }
+export class DrizzleMigrationWizardRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("migration_wizard_runs", db, audit); } }
+export class DrizzleBaselineSnapshotRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("baseline_snapshots", db, audit); } }
+export class DrizzlePodMigrationRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("pod_migration_candidates", db, audit); } }
+export class DrizzleDropshippingRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("dropship_product_candidates", db, audit); } }
+export class DrizzleListingDraftV1Repository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("listing_drafts_v1", db, audit); } }
+export class DrizzleSocialContentRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("social_content_items", db, audit); } }
+
 export class DrizzleShopifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("shopify_product_refs", db, audit); } }
 export class DrizzlePrintifyProductRefRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("printify_product_refs", db, audit); } }
 export class DrizzleFulfillmentEventRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("fulfillment_events", db, audit); } async listByOrder(workspaceId: string, orderId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => row.shopify_order_id === orderId || row.printify_order_id === orderId); } }
@@ -375,6 +394,15 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     publish: new DrizzlePublishReviewRepository(db, writer),
     siteAudit: new DrizzleSiteAuditRepository(db, writer),
     integration: new DrizzleIntegrationRepository(db, writer),
+    workspaceMetric: new DrizzleWorkspaceMetricRepository(db, writer),
+    businessProfileV1: new DrizzleBusinessProfileV1Repository(db, writer),
+    channel: new DrizzleChannelRepository(db, writer),
+    migrationWizard: new DrizzleMigrationWizardRepository(db, writer),
+    baseline: new DrizzleBaselineSnapshotRepository(db, writer),
+    podMigration: new DrizzlePodMigrationRepository(db, writer),
+    dropshipping: new DrizzleDropshippingRepository(db, writer),
+    listingDraftV1: new DrizzleListingDraftV1Repository(db, writer),
+    socialContent: new DrizzleSocialContentRepository(db, writer),
     shopify: new DrizzleShopifyProductRefRepository(db, writer),
     printify: new DrizzlePrintifyProductRefRepository(db, writer),
     fulfillment: new DrizzleFulfillmentEventRepository(db, writer),

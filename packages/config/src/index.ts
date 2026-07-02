@@ -43,13 +43,19 @@ const envSchema = z.object({
   PRINTIFY_API_TOKEN: z.string().optional().default(""),
   PRINTIFY_SHOP_ID: z.string().optional().default(""),
   GA4_ENABLED: asBool(false),
+  GOOGLE_ANALYTICS_ENABLED: asBool(false),
   GA4_PROPERTY_ID: z.string().optional().default(""),
   GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional().default(""),
   GSC_ENABLED: asBool(false),
+  GOOGLE_SEARCH_CONSOLE_ENABLED: asBool(false),
   GSC_SITE_URL: z.string().optional().default(""),
   GBP_ENABLED: asBool(false),
+  GOOGLE_BUSINESS_PROFILE_ENABLED: asBool(false),
   GBP_ACCOUNT_ID: z.string().optional().default(""),
   GBP_LOCATION_ID: z.string().optional().default(""),
+  GOOGLE_INTEGRATIONS_ENABLED: asBool(false),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional().default(""),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional().default(""),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().optional().default(""),
@@ -81,6 +87,12 @@ const state = (flag: boolean, ...required: string[]): ProviderStatus =>
 
 export function parseEnv(input: Record<string, string | undefined> = process.env): RuntimeConfig {
   const c = envSchema.parse(input);
+  const googleClientId = c.GOOGLE_OAUTH_CLIENT_ID || c.GOOGLE_CLIENT_ID;
+  const googleClientSecret = c.GOOGLE_OAUTH_CLIENT_SECRET || c.GOOGLE_CLIENT_SECRET;
+  const googleEnabled = c.GOOGLE_INTEGRATIONS_ENABLED || c.GA4_ENABLED || c.GSC_ENABLED || c.GBP_ENABLED || c.GOOGLE_ANALYTICS_ENABLED || c.GOOGLE_SEARCH_CONSOLE_ENABLED || c.GOOGLE_BUSINESS_PROFILE_ENABLED;
+  const ga4Enabled = googleEnabled && (c.GA4_ENABLED || c.GOOGLE_ANALYTICS_ENABLED);
+  const gscEnabled = googleEnabled && (c.GSC_ENABLED || c.GOOGLE_SEARCH_CONSOLE_ENABLED);
+  const gbpEnabled = googleEnabled && (c.GBP_ENABLED || c.GOOGLE_BUSINESS_PROFILE_ENABLED);
   return {
     ...c,
     providers: {
@@ -91,9 +103,9 @@ export function parseEnv(input: Record<string, string | undefined> = process.env
       shopifyStorefront: state(c.SHOPIFY_STOREFRONT_ENABLED, c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_STOREFRONT_TOKEN),
       shopifyAdmin: state(c.SHOPIFY_ADMIN_ENABLED, c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_ADMIN_TOKEN),
       printify: state(c.PRINTIFY_ENABLED, c.PRINTIFY_API_TOKEN, c.PRINTIFY_SHOP_ID),
-      ga4: state(c.GA4_ENABLED, c.GA4_PROPERTY_ID, c.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-      gsc: state(c.GSC_ENABLED, c.GSC_SITE_URL, c.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-      googleBusinessProfile: state(c.GBP_ENABLED, c.GBP_ACCOUNT_ID, c.GBP_LOCATION_ID, c.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+      ga4: state(ga4Enabled, googleClientId, googleClientSecret, c.GOOGLE_OAUTH_REDIRECT_URI),
+      gsc: state(gscEnabled, googleClientId, googleClientSecret, c.GOOGLE_OAUTH_REDIRECT_URI),
+      googleBusinessProfile: state(gbpEnabled, googleClientId, googleClientSecret, c.GOOGLE_OAUTH_REDIRECT_URI)
     }
   };
 }

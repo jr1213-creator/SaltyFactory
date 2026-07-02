@@ -1,7 +1,7 @@
 import { createRepositories } from "@saltyfactory/db";
 
 export const studioWorkspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
-const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], publishReviews: [], products: [] };
+const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], publishReviews: [], products: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], activity: [] };
 
 function isMissingTableError(error: unknown) {
   const text = error instanceof Error ? error.message : String(error);
@@ -24,7 +24,7 @@ export async function getStudioLists() {
   }
   try {
     const repos = createRepositories();
-    const [trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products] = await Promise.all([
+    const [trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, activity] = await Promise.all([
       repos.trend.listByWorkspace(studioWorkspaceId),
       repos.cluster.listByWorkspace(studioWorkspaceId),
       repos.phrase.listByWorkspace(studioWorkspaceId),
@@ -34,9 +34,22 @@ export async function getStudioLists() {
       repos.mockup.listByWorkspace(studioWorkspaceId),
       repos.draft.listByWorkspace(studioWorkspaceId),
       repos.publish.listByWorkspace(studioWorkspaceId),
-      repos.shopify.listByWorkspace(studioWorkspaceId)
+      repos.shopify.listByWorkspace(studioWorkspaceId),
+      repos.integration.listProviderConnectionsForWorkspace(studioWorkspaceId),
+      repos.integration.listIntegrationSyncRuns(studioWorkspaceId),
+      repos.workspaceMetric.listByWorkspace(studioWorkspaceId),
+      repos.businessProfileV1.listByWorkspace(studioWorkspaceId),
+      repos.channel.listByWorkspace(studioWorkspaceId),
+      repos.migrationWizard.listByWorkspace(studioWorkspaceId),
+      repos.baseline.listByWorkspace(studioWorkspaceId),
+      repos.podMigration.listByWorkspace(studioWorkspaceId),
+      repos.dropshipping.listByWorkspace(studioWorkspaceId),
+      repos.listingDraftV1.listByWorkspace(studioWorkspaceId),
+      repos.socialContent.listByWorkspace(studioWorkspaceId),
+      repos.aiEmployee.listByWorkspace(studioWorkspaceId),
+      repos.audit.listByWorkspace(studioWorkspaceId)
     ]);
-    return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, schemaIncomplete: false, setupMessage: "" };
+    return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, publishReviews, products, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, activity, schemaIncomplete: false, setupMessage: "" };
   } catch (error) {
     return schemaIncomplete(error);
   }

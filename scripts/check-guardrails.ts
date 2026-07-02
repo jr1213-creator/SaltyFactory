@@ -33,10 +33,12 @@ if (deps.includes("anthropic")) failures.push("Anthropic dependency found");
 for (const file of files) {
   const content = text(file);
   const normalized = file.replace(/\\/g, "/");
-  const publicSecret = /NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY|HF_API_TOKEN|REPLICATE_API_TOKEN|REMOVE_BG_API_KEY)/.test(content);
+  const publicSecret = /NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY|HF_API_TOKEN|REPLICATE_API_TOKEN|REMOVE_BG_API_KEY|GOOGLE_OAUTH_CLIENT_SECRET|GOOGLE_CLIENT_SECRET|GOOGLE_ACCESS_TOKEN|GOOGLE_REFRESH_TOKEN)/.test(content);
   if (publicSecret) failures.push(`${file}: secret-like NEXT_PUBLIC exposure`);
   if (/app\/api\/(generate|publish)/.test(normalized) && !/app\/api\/studio\//.test(normalized)) failures.push(`${file}: public generation or publish route`);
   if (!normalized.endsWith("scripts/check-guardrails.ts") && /href=\{?["']#["']|javascript:void\(0\)/.test(content)) failures.push(`${file}: disabled or placeholder links must not use # or javascript:void(0)`);
+  const frontendFile = /apps\/(studio\/app\/studio|storefront\/app)|packages\/ui\//.test(normalized);
+  if (frontendFile && /GOOGLE_OAUTH_CLIENT_SECRET|GOOGLE_CLIENT_SECRET|access_token|refresh_token|google-access-token|google-refresh-token/.test(content)) failures.push(`${file}: Google secrets or tokens must not be rendered in frontend code`);
 }
 
 const generationSubmitRoute = text(join(root, "apps/studio/app/api/studio/design-briefs/[id]/send-to-generation/route.ts"));
@@ -71,8 +73,10 @@ for (const path of ["publish/shopify", "publish/printify"]) {
   if (!routeText.includes("requirePublishPermission")) failures.push(`${path}: publish route must require publish permission`);
   if (/requireStudioUser\s*\(/.test(routeText) || /requireAuditActor\s*\(/.test(routeText)) failures.push(`${path}: publish route uses generic auth`);
   if (!post.includes("evaluatePublishReviewGates")) failures.push(`${path}: publish POST gate evaluator missing`);
-  if (/ok:\s*true/.test(post)) failures.push(`${path}: publish POST must not return fixture-only success`);
-  if (!/not_implemented|provider_disabled/.test(post)) failures.push(`${path}: publish POST must fail honestly until persisted provider flow exists`);
+  if (!post.includes("getByProductDraftId")) failures.push(`${path}: publish POST must load persisted publish review`);
+  if (!post.includes("blocked_by_guardrail")) failures.push(`${path}: publish POST must return blocked_by_guardrail for unsafe requests`);
+  if (!post.includes("createCommerceProviders")) failures.push(`${path}: publish POST must use real commerce provider adapter`);
+  if (/fixtures\.publishReviewBlocked/.test(routeText)) failures.push(`${path}: publish POST must not use fixture publish review`);
 }
 
 const approveRoute = studioRoute("drafts/approve");
@@ -113,6 +117,57 @@ if (generatePage.includes("Submit Generation")) failures.push("generation page m
 const assetClient = text(join(root, "apps/studio/app/studio/assets/AssetWorkflowClient.tsx"));
 if (assetClient.includes("aria-disabled")) failures.push("Assets page must not use aria-disabled for clickable disabled workflow links");
 if (!assetClient.includes("/studio/mockups?asset_id=")) failures.push("Approved asset workflow should route to mockups with source asset preselected");
+
+const googleOauthStart = text(join(root, "apps/studio/app/api/studio/integrations/google/oauth/start/route.ts"));
+const googleOauthCallback = text(join(root, "apps/studio/app/api/studio/integrations/google/oauth/callback/route.ts"));
+const googleAdapter = text(join(root, "packages/integrations/src/google.ts"));
+if (!googleOauthStart.includes("requireProviderMutationPermission")) failures.push("Google OAuth start must require owner/admin provider permission");
+if (!googleOauthCallback.includes("requireProviderMutationPermission")) failures.push("Google OAuth callback must require owner/admin provider permission");
+if (!googleOauthCallback.includes("exchangeGoogleOAuthCode") || !googleOauthCallback.includes("storeVerifiedGoogleOAuth")) failures.push("Google OAuth callback must exchange code and store verified encrypted credentials server-side");
+if (!googleAdapter.includes("verifyGoogleOAuthToken") || !googleAdapter.includes("credentialSecret") || !googleAdapter.includes("encryptCredential")) failures.push("Google provider must verify live API access and store encrypted credentials before connected status");
+for (const path of [
+  "integrations/google/test",
+  "integrations/google/analytics/sync",
+  "integrations/google/search-console/sync",
+  "integrations/google/business-profile/sync",
+  "integrations/google/configure",
+  "integrations/google/disconnect"
+]) {
+  const routeText = studioRoute(path);
+  if (!routeText.includes("requireProviderMutationPermission")) failures.push(`${path}: Google integration route must require owner/admin provider permission`);
+}
+const googleStatusRoute = studioRoute("integrations/google/status");
+if (!googleStatusRoute.includes("requireWorkspaceMember")) failures.push("Google status route must require workspace membership");
+if (/replyReview|createPost|localPosts|locations\.patch|updateLocation|accounts\.locations\.patch/i.test(googleAdapter + googleOauthCallback)) failures.push("Google Business Profile write actions must remain disabled");
+const analyticsPage = text(join(root, "apps/studio/app/studio/analytics/page.tsx"));
+if (/Organic Search|Demo|1,234|4\.9|fake/i.test(analyticsPage)) failures.push("Analytics page must not contain fake Google metrics or fake review data");
+
+for (const path of [
+  "business-profile",
+  "channels",
+  "migration-guide",
+  "baseline",
+  "pod-migration",
+  "dropshipping",
+  "listing-drafts",
+  "social-planner",
+  "ai-employees/configure",
+  "integrations/shopify/test",
+  "integrations/printify/test",
+  "integrations/supabase-storage/test"
+]) {
+  const routeText = studioRoute(path);
+  if (!routeText.includes("requireProviderMutationPermission") && !routeText.includes("_v1")) failures.push(`${path}: v1 mutation route must require owner/admin permission`);
+}
+const socialRoute = studioRoute("social-planner");
+if (/auto.?post|publishTo|createPost/i.test(socialRoute) && !socialRoute.includes("autoPosting: false")) failures.push("Social planner must not expose auto-posting");
+const storageText = text(join(root, "packages/storage/src/index.ts"));
+if (!storageText.includes("asset_not_approved_for_public_url")) failures.push("Storage adapter must block public URLs for unapproved assets");
+if (/serviceRoleKey[\s\S]{0,300}return .*serviceRoleKey/.test(storageText)) failures.push("Storage adapter must not return service role key");
+const commerceText = text(join(root, "packages/commerce/src/index.ts"));
+if (!commerceText.includes("assertPublishAllowedForShopify") || !commerceText.includes("assertPublishAllowedForPrintify")) failures.push("Commerce adapters must preserve publish gate assertions");
+const aiGatewayText = text(join(root, "packages/ai-free/src/index.ts"));
+if (!aiGatewayText.includes("sourceLabel") || !aiGatewayText.includes("detectPromptSafetyIssues")) failures.push("AI gateway must label outputs and run prompt safety checks");
 
 const publicServiceRoleName = "NEXT_PUBLIC_SUPABASE_" + "SERVICE_ROLE_KEY";
 if ((env + files.map((file) => text(file)).join("\n")).includes(publicServiceRoleName)) failures.push("Service role key must never be public");

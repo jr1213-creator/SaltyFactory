@@ -210,6 +210,12 @@ importers:
       '@saltyfactory/db':
         specifier: workspace:*
         version: link:../db
+      '@saltyfactory/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@saltyfactory/security':
+        specifier: workspace:*
+        version: link:../security
 
   packages/auth:
     dependencies:

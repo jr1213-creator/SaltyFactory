@@ -67,8 +67,8 @@ describe("production UI routes", () => {
     expect(html).toContain("Use Review Workflow Below");
   });
 
-  it("Analytics page renders provider status panels", () => {
-    const html = renderToStaticMarkup(AnalyticsPage());
+  it("Analytics page renders provider status panels", async () => {
+    const html = renderToStaticMarkup(await AnalyticsPage());
     expect(html).toContain("Google Analytics 4");
     expect(html).toContain("Google Search Console");
     expect(html).toContain("Analytics export is disabled until real provider data is imported.");
@@ -80,16 +80,16 @@ describe("production UI routes", () => {
     expect(html).not.toContain("Submit Generation");
   });
 
-  it("Integrations/AI readiness page renders score cards", () => {
-    const html = renderToStaticMarkup(IntegrationsPage());
+  it("Integrations/AI readiness page renders score cards", async () => {
+    const html = renderToStaticMarkup(await IntegrationsPage());
     expect(html).toContain("Overall AI Readiness Score");
     expect(html).toContain("AI Tools Configuration");
   });
 
-  it("AI employees page renders employee cards", () => {
-    const html = renderToStaticMarkup(AiEmployeesPage());
-    expect(html).toContain("Trend Analyst");
-    expect(html).toContain("No autonomous publish permissions");
+  it("AI employees page renders employee cards", async () => {
+    const html = renderToStaticMarkup(await AiEmployeesPage());
+    expect(html).toContain("AI Migration Guide");
+    expect(html).toContain("Drafts and recommendations only");
   });
 
   it("Storefront home renders hero and product sections", async () => {

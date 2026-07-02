@@ -250,25 +250,21 @@ describe("production UI guardrails", () => {
       const shopify = await shopifyPublishPost(apiRequest("/api/studio/publish/shopify"));
       const printify = await printifyPublishPost(apiRequest("/api/studio/publish/printify"));
       const generate = await generateSubmitPost(apiRequest("/api/studio/generate/submit"));
-      expect(shopify.status).toBe(501);
-      expect(printify.status).toBe(501);
+      expect(shopify.status).toBe(400);
+      expect(printify.status).toBe(400);
       expect(generate.status).toBe(503);
       await expect(shopify.json()).resolves.toMatchObject({
         ok: false,
-        status: "not_implemented",
+        status: "blocked_by_guardrail",
         blockingReasons: expect.arrayContaining([
-          "Persisted publish review lookup is not implemented for this route.",
-          "Provider sync is disabled until Shopify connection is configured.",
-          "Live publishing remains disabled by default."
+          "productDraftId required."
         ])
       });
       await expect(printify.json()).resolves.toMatchObject({
         ok: false,
-        status: "not_implemented",
+        status: "blocked_by_guardrail",
         blockingReasons: expect.arrayContaining([
-          "Persisted publish review lookup is not implemented for this route.",
-          "Provider sync is disabled until Printify connection is configured.",
-          "Live publishing remains disabled by default."
+          "productDraftId required."
         ])
       });
       await expect(generate.json()).resolves.toMatchObject({ ok: false, status: "provider_disabled" });
@@ -280,12 +276,16 @@ describe("production UI guardrails", () => {
     const publishPrintify = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/publish/printify/route.ts"), "utf8");
     const shopifyPost = publishShopify.split("export async function POST")[1];
     const printifyPost = publishPrintify.split("export async function POST")[1];
-    expect(shopifyPost).not.toMatch(/ok:\s*true/);
-    expect(printifyPost).not.toMatch(/ok:\s*true/);
     expect(shopifyPost).toContain("evaluatePublishReviewGates");
     expect(printifyPost).toContain("evaluatePublishReviewGates");
-    expect(shopifyPost).not.toMatch(/SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY/);
-    expect(printifyPost).not.toMatch(/SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY/);
+    expect(shopifyPost).toContain("getByProductDraftId");
+    expect(printifyPost).toContain("getByProductDraftId");
+    expect(shopifyPost).toContain("createCommerceProviders");
+    expect(printifyPost).toContain("createCommerceProviders");
+    expect(shopifyPost).not.toContain("fixtures.publishReviewBlocked");
+    expect(printifyPost).not.toContain("fixtures.publishReviewBlocked");
+    expect(shopifyPost).not.toMatch(/config\.SHOPIFY_ADMIN_TOKEN|config\.PRINTIFY_API_TOKEN|config\.SUPABASE_SERVICE_ROLE_KEY/);
+    expect(printifyPost).not.toMatch(/config\.SHOPIFY_ADMIN_TOKEN|config\.PRINTIFY_API_TOKEN|config\.SUPABASE_SERVICE_ROLE_KEY/);
   });
 
   it("Authenticated user without workspace membership is forbidden", async () => {

@@ -6,6 +6,14 @@ import { NotificationBell, ProgressBar, SearchCommand, UserMenu, WorkspaceSwitch
 
 const links = [
   ["Dashboard", "/studio"],
+  ["Business Profile", "/studio/settings/business-profile"],
+  ["Channels", "/studio/channels"],
+  ["Migration Guide", "/studio/migration-guide"],
+  ["Baseline", "/studio/baseline"],
+  ["POD Migration", "/studio/pod-migration"],
+  ["Dropshipping", "/studio/dropshipping"],
+  ["Listing Drafts", "/studio/listing-drafts"],
+  ["Social Planner", "/studio/social-planner"],
   ["Designs", "/studio/designs"],
   ["Trends", "/studio/trends"],
   ["Briefs", "/studio/briefs"],

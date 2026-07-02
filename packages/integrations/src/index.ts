@@ -23,7 +23,7 @@ export type IntegrationKey =
   | "shopify_admin"
   | "shopify_storefront";
 
-export type IntegrationStatus = "connected" | "configured" | "configured_not_verified" | "disconnected" | "missing_credentials" | "needs_reauth" | "error" | "disabled" | "provider_disabled" | "not_configured" | "unsupported" | "not_implemented";
+export type IntegrationStatus = "connected" | "configured" | "configured_not_verified" | "disconnected" | "missing_credentials" | "needs_reauth" | "auth_required" | "access_denied" | "access_limited" | "error" | "disabled" | "provider_disabled" | "not_configured" | "unsupported" | "not_implemented";
 
 export type IntegrationState = {
   key: IntegrationKey;
@@ -45,7 +45,7 @@ export type IntegrationState = {
 
 export type IntegrationResult<T> =
   | { ok: true; status: "success"; data: T }
-  | { ok: false; status: "disabled" | "provider_disabled" | "configured_not_verified" | "not_configured" | "missing_credentials" | "unsupported" | "not_implemented" | "needs_reauth" | "blocked" | "error"; message: string; setupRequired?: string[]; blockingReasons?: string[] };
+  | { ok: false; status: "disabled" | "provider_disabled" | "configured_not_verified" | "not_configured" | "missing_credentials" | "unsupported" | "not_implemented" | "needs_reauth" | "auth_required" | "access_denied" | "access_limited" | "blocked" | "error"; message: string; setupRequired?: string[]; blockingReasons?: string[] };
 
 const stateFromProvider = (enabled: boolean, reason: string | undefined, required: string[]): IntegrationStatus => {
   if (enabled) return "configured_not_verified";
@@ -55,6 +55,7 @@ const stateFromProvider = (enabled: boolean, reason: string | undefined, require
 const setupIfMissing = (enabled: boolean, required: string[]) => enabled ? [] : required;
 
 export const googleScopes = {
+  identity: ["openid", "email", "profile"],
   ga4: ["https://www.googleapis.com/auth/analytics.readonly"],
   searchConsole: ["https://www.googleapis.com/auth/webmasters.readonly"],
   businessProfile: ["https://www.googleapis.com/auth/business.manage"]
@@ -63,10 +64,10 @@ export const googleScopes = {
 export function getIntegrationStates(config: RuntimeConfig): IntegrationState[] {
   return [
     { key: "website_url", label: "Website URL", status: "configured", capabilities: ["site_audit", "robots_detection", "sitemap_detection", "llms_txt_detection"], setupRequired: [] },
-    { key: "google_oauth", label: "Google OAuth", status: config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET ? "configured_not_verified" : "missing_credentials", capabilities: ["oauth_authorization", "token_refresh"], setupRequired: config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET ? [] : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], scopes: [...googleScopes.ga4, ...googleScopes.searchConsole] },
-    { key: "ga4", label: "Google Analytics 4", status: stateFromProvider(config.providers.ga4.enabled, config.providers.ga4.reason, ["GA4_ENABLED", "GA4_PROPERTY_ID", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), capabilities: ["daily_metrics_import", "channel_metrics", "landing_pages", "item_metrics"], setupRequired: setupIfMissing(config.providers.ga4.enabled, ["GA4_ENABLED=true", "GA4_PROPERTY_ID", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), scopes: [...googleScopes.ga4], selectedPropertyId: config.GA4_PROPERTY_ID || null },
-    { key: "google_search_console", label: "Google Search Console", status: stateFromProvider(config.providers.gsc.enabled, config.providers.gsc.reason, ["GSC_ENABLED", "GSC_SITE_URL", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), capabilities: ["query_metrics", "page_metrics", "sitemap_status", "url_inspection_when_scoped"], setupRequired: setupIfMissing(config.providers.gsc.enabled, ["GSC_ENABLED=true", "GSC_SITE_URL", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), scopes: [...googleScopes.searchConsole], selectedSiteUrl: config.GSC_SITE_URL || null },
-    { key: "google_business_profile", label: "Google Business Profile", status: stateFromProvider(config.providers.googleBusinessProfile.enabled, config.providers.googleBusinessProfile.reason, ["GBP_ENABLED", "GBP_ACCOUNT_ID", "GBP_LOCATION_ID", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), capabilities: ["profile_audit", "review_import", "draft_review_responses"], setupRequired: setupIfMissing(config.providers.googleBusinessProfile.enabled, ["GBP_ENABLED=true", "GBP_ACCOUNT_ID", "GBP_LOCATION_ID", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]), scopes: [...googleScopes.businessProfile], selectedAccountId: config.GBP_ACCOUNT_ID || null, selectedLocationId: config.GBP_LOCATION_ID || null },
+    { key: "google_oauth", label: "Google OAuth", status: (config.GOOGLE_OAUTH_CLIENT_ID || config.GOOGLE_CLIENT_ID) && (config.GOOGLE_OAUTH_CLIENT_SECRET || config.GOOGLE_CLIENT_SECRET) && config.GOOGLE_OAUTH_REDIRECT_URI ? "configured_not_verified" : "missing_credentials", capabilities: ["oauth_authorization", "token_refresh", "read_only_google_data_sync"], setupRequired: (config.GOOGLE_OAUTH_CLIENT_ID || config.GOOGLE_CLIENT_ID) && (config.GOOGLE_OAUTH_CLIENT_SECRET || config.GOOGLE_CLIENT_SECRET) && config.GOOGLE_OAUTH_REDIRECT_URI ? [] : ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"], scopes: [...googleScopes.identity, ...googleScopes.ga4, ...googleScopes.searchConsole, ...googleScopes.businessProfile] },
+    { key: "ga4", label: "Google Analytics 4", status: stateFromProvider(config.providers.ga4.enabled, config.providers.ga4.reason, ["GOOGLE_INTEGRATIONS_ENABLED", "GOOGLE_ANALYTICS_ENABLED", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]), capabilities: ["daily_metrics_import", "channel_metrics", "landing_pages", "item_metrics"], setupRequired: setupIfMissing(config.providers.ga4.enabled, ["GOOGLE_INTEGRATIONS_ENABLED=true", "GOOGLE_ANALYTICS_ENABLED=true", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI", "Configure GA4 property ID"]), scopes: [...googleScopes.ga4], selectedPropertyId: config.GA4_PROPERTY_ID || null },
+    { key: "google_search_console", label: "Google Search Console", status: stateFromProvider(config.providers.gsc.enabled, config.providers.gsc.reason, ["GOOGLE_INTEGRATIONS_ENABLED", "GOOGLE_SEARCH_CONSOLE_ENABLED", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]), capabilities: ["query_metrics", "page_metrics", "sitemap_status"], setupRequired: setupIfMissing(config.providers.gsc.enabled, ["GOOGLE_INTEGRATIONS_ENABLED=true", "GOOGLE_SEARCH_CONSOLE_ENABLED=true", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI", "Configure Search Console site URL"]), scopes: [...googleScopes.searchConsole], selectedSiteUrl: config.GSC_SITE_URL || null },
+    { key: "google_business_profile", label: "Google Business Profile", status: stateFromProvider(config.providers.googleBusinessProfile.enabled, config.providers.googleBusinessProfile.reason, ["GOOGLE_INTEGRATIONS_ENABLED", "GOOGLE_BUSINESS_PROFILE_ENABLED", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]), capabilities: ["account_list_read", "location_list_read", "profile_read", "review_summary_read", "performance_read_when_available"], setupRequired: setupIfMissing(config.providers.googleBusinessProfile.enabled, ["GOOGLE_INTEGRATIONS_ENABLED=true", "GOOGLE_BUSINESS_PROFILE_ENABLED=true", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI", "Configure GBP account/location IDs"]), scopes: [...googleScopes.businessProfile], selectedAccountId: config.GBP_ACCOUNT_ID || null, selectedLocationId: config.GBP_LOCATION_ID || null },
     { key: "shopify", label: "Shopify", status: stateFromProvider(config.providers.shopifyAdmin.enabled, config.providers.shopifyAdmin.reason, ["SHOPIFY_ADMIN_ENABLED", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]), capabilities: ["catalog_import", "draft_export_guarded", "webhook_verification"], setupRequired: setupIfMissing(config.providers.shopifyAdmin.enabled, ["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]) },
     { key: "printify", label: "Printify", status: stateFromProvider(config.providers.printify.enabled, config.providers.printify.reason, ["PRINTIFY_ENABLED", "PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"]), capabilities: ["shops", "blueprints", "variants", "shipping_profiles", "guarded_product_sync"], setupRequired: setupIfMissing(config.providers.printify.enabled, ["PRINTIFY_ENABLED=true", "PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"]), selectedShopId: config.PRINTIFY_SHOP_ID || null },
     { key: "supabase_storage", label: "Supabase Storage", status: config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY ? "configured_not_verified" : "missing_credentials", capabilities: ["private_assets", "public_approved_assets"], setupRequired: config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY ? [] : ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] },
@@ -214,3 +215,5 @@ export function createIntegrationProviders(config: RuntimeConfig) {
     printify: new ConfiguredReadOnlyProvider(states.printify)
   };
 }
+
+export * from "./google";

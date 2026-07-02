@@ -21,3 +21,5 @@ yarn-debug.log*
 
 .vercel
 .netlify
+
+.private-notes/

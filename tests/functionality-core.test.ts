@@ -217,6 +217,13 @@ describe("provider adapters stay honest", () => {
       PRINTIFY_ENABLED: "true",
       PRINTIFY_API_TOKEN: "configured",
       PRINTIFY_SHOP_ID: "shop_01",
+      GOOGLE_INTEGRATIONS_ENABLED: "true",
+      GOOGLE_ANALYTICS_ENABLED: "true",
+      GOOGLE_SEARCH_CONSOLE_ENABLED: "true",
+      GOOGLE_BUSINESS_PROFILE_ENABLED: "true",
+      GOOGLE_OAUTH_CLIENT_ID: "client",
+      GOOGLE_OAUTH_CLIENT_SECRET: "secret",
+      GOOGLE_OAUTH_REDIRECT_URI: "http://localhost:3001/api/studio/integrations/google/oauth/callback",
       GA4_ENABLED: "true",
       GA4_PROPERTY_ID: "123",
       GOOGLE_APPLICATION_CREDENTIALS_JSON: "{}",
@@ -238,8 +245,10 @@ describe("provider adapters stay honest", () => {
       SHOPIFY_ADMIN_ENABLED: "true",
       SHOPIFY_STORE_DOMAIN: "saltycowhide.myshopify.com",
       SHOPIFY_ADMIN_TOKEN: "configured",
-      GOOGLE_CLIENT_ID: "client",
-      GOOGLE_CLIENT_SECRET: "secret"
+      GOOGLE_INTEGRATIONS_ENABLED: "true",
+      GOOGLE_OAUTH_CLIENT_ID: "client",
+      GOOGLE_OAUTH_CLIENT_SECRET: "secret",
+      GOOGLE_OAUTH_REDIRECT_URI: "http://localhost:3001/api/studio/integrations/google/oauth/callback"
     }));
     expect(states.find((state) => state.key === "shopify")?.status).toBe("configured_not_verified");
     expect(states.find((state) => state.key === "google_oauth")?.status).toBe("configured_not_verified");

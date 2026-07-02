@@ -94,6 +94,15 @@ export interface RepositoryBundle {
   publish: PublishReviewRepositoryContract;
   siteAudit: SiteAuditRepositoryContract;
   integration: IntegrationRepositoryContract;
+  workspaceMetric: BaseRepositoryContract;
+  businessProfileV1: BaseRepositoryContract;
+  channel: BaseRepositoryContract;
+  migrationWizard: BaseRepositoryContract;
+  baseline: BaseRepositoryContract;
+  podMigration: BaseRepositoryContract;
+  dropshipping: BaseRepositoryContract;
+  listingDraftV1: BaseRepositoryContract;
+  socialContent: BaseRepositoryContract;
   shopify: BaseRepositoryContract;
   printify: BaseRepositoryContract;
   fulfillment: BaseRepositoryContract & { listByOrder(workspaceId: string, orderId: string): Promise<WorkspaceRow[]> };

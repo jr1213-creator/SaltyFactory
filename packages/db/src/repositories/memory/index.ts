@@ -346,6 +346,42 @@ export class IntegrationRepository extends BaseRepository {
   async writeIntegrationAuditEvent(event: WorkspaceRow | AuditEvent) { await this.createAuditEvent(event); }
 }
 
+export class WorkspaceMetricRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("workspace_metrics", store, audit); }
+}
+
+export class BusinessProfileV1Repository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("workspace_business_profiles_v1", store, audit); }
+}
+
+export class ChannelRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("workspace_channels", store, audit); }
+}
+
+export class MigrationWizardRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("migration_wizard_runs", store, audit); }
+}
+
+export class BaselineSnapshotRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("baseline_snapshots", store, audit); }
+}
+
+export class PodMigrationRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("pod_migration_candidates", store, audit); }
+}
+
+export class DropshippingRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("dropship_product_candidates", store, audit); }
+}
+
+export class ListingDraftV1Repository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("listing_drafts_v1", store, audit); }
+}
+
+export class SocialContentRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("social_content_items", store, audit); }
+}
+
 export class ShopifyProductRefRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("shopify_product_refs", store, audit); }
 }
@@ -418,6 +454,15 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     publish: new PublishReviewRepository(store, writer),
     siteAudit: new SiteAuditRepository(store, writer),
     integration: new IntegrationRepository(store, writer),
+    workspaceMetric: new WorkspaceMetricRepository(store, writer),
+    businessProfileV1: new BusinessProfileV1Repository(store, writer),
+    channel: new ChannelRepository(store, writer),
+    migrationWizard: new MigrationWizardRepository(store, writer),
+    baseline: new BaselineSnapshotRepository(store, writer),
+    podMigration: new PodMigrationRepository(store, writer),
+    dropshipping: new DropshippingRepository(store, writer),
+    listingDraftV1: new ListingDraftV1Repository(store, writer),
+    socialContent: new SocialContentRepository(store, writer),
     shopify: new ShopifyProductRefRepository(store, writer),
     printify: new PrintifyProductRefRepository(store, writer),
     fulfillment: new FulfillmentEventRepository(store, writer),
