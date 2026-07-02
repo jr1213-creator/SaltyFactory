@@ -3,25 +3,34 @@
 import { useState } from "react";
 
 const roles = [
-  ["trend_scout", "Trend Scout"],
-  ["product_strategist", "Product Strategist"],
-  ["design_brief_writer", "Design Brief Writer"],
-  ["image_qa_assistant", "Image QA Assistant"],
-  ["listing_manager", "Listing Manager"],
-  ["seo_specialist", "SEO Specialist"],
-  ["aeo_specialist", "AEO Specialist"],
-  ["geo_specialist", "GEO Specialist"],
-  ["analytics_analyst", "Analytics Analyst"],
-  ["publishing_assistant", "Publishing Assistant"],
-  ["margin_manager", "Margin Manager"]
+  ["trend_research_analyst", "Trend Research Analyst"],
+  ["trend_report_writer", "Trend Report Writer"],
+  ["product_strategy_assistant", "Product Strategy Assistant"],
+  ["pod_migration_assistant", "POD Product Builder Assistant"],
+  ["design_concept_assistant", "Design Concept Assistant"],
+  ["image_generation_assistant", "Image Generation Assistant"],
+  ["product_listing_assistant", "Product Listing Assistant"],
+  ["pricing_margin_assistant", "Pricing & Margin Assistant"],
+  ["social_content_assistant", "Social Content Assistant"],
+  ["operations_checklist_assistant", "Operations Checklist Assistant"]
+] as const;
+
+const runModes = [
+  ["daily_pod_planning", "Daily POD planning"],
+  ["trend_report_generation", "Trend report generation"],
+  ["product_idea_generation", "Product idea generation"],
+  ["listing_draft_generation", "Listing draft generation"],
+  ["launch_readiness_check", "Launch readiness check"],
+  ["marketing_draft_generation", "Marketing draft generation"]
 ] as const;
 
 export function AiEmployeeWorkflowClient() {
-  const [role, setRole] = useState("trend_scout");
+  const [role, setRole] = useState("trend_research_analyst");
+  const [runMode, setRunMode] = useState("daily_pod_planning");
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
-  async function run() {
+  async function runSingleEmployee() {
     setBusy(true);
     try {
       const response = await fetch("/api/studio/ai-employees", {
@@ -37,13 +46,34 @@ export function AiEmployeeWorkflowClient() {
     }
   }
 
+  async function runAgenticWorkflow() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/studio/ai-employees", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentic: true, run_mode: runMode })
+      });
+      setResult(await response.json());
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to run AI employees." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <section className="sf-card" style={{ marginTop: 18 }}>
-    <h2>Run Deterministic Worker</h2>
-    <p className="sf-muted">Runs create draft recommendations/tasks only. They cannot publish, provider-sync, send, or spend.</p>
+    <h2>Run AI Employees</h2>
+    <p className="sf-muted">Runs safe internal draft tasks only. AI employees cannot publish, sync, post, submit feeds, send messages, change DNS, or spend money.</p>
     <div className="sf-form-grid">
-      <label>Employee role<select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <button className="sf-button sf-button-primary" disabled={busy} onClick={run}>Run Employee</button>
+      <label>Run mode<select value={runMode} onChange={(event) => setRunMode(event.target.value)}>{runModes.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      <button className="sf-button sf-button-primary" disabled={busy} onClick={runAgenticWorkflow}>Run AI Employees</button>
+      <label>Single employee<select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      <button className="sf-button" disabled={busy} onClick={runSingleEmployee}>Run Single Draft</button>
     </div>
-    {result && <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
+    {result && <div className="sf-stack" style={{ marginTop: 12 }}>
+      <p className="sf-muted">Status: {result.status || "unknown"}{result.workflow?.approvalQueue ? ` - ${result.workflow.approvalQueue.length} approval items` : ""}</p>
+      <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>
+    </div>}
   </section>;
 }

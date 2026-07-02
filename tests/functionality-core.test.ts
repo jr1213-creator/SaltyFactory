@@ -9,6 +9,7 @@ import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAu
 import { POST as printifyConnect } from "../apps/studio/app/api/studio/integrations/[provider]/connect/route";
 import { POST as printifySync } from "../apps/studio/app/api/studio/integrations/[provider]/sync/route";
 import { POST as printifyTest } from "../apps/studio/app/api/studio/integrations/[provider]/test/route";
+import { POST as runAiEmployees } from "../apps/studio/app/api/studio/ai-employees/route";
 import { POST as saveBusinessProfile } from "../apps/studio/app/api/studio/business-profile/route";
 import { POST as createPublishReview } from "../apps/studio/app/api/studio/publish-reviews/route";
 import { evaluatePublishReadiness } from "../apps/studio/app/api/studio/publish-reviews/_readiness";
@@ -201,6 +202,20 @@ describe("POD image QA pipeline", () => {
 });
 
 describe("deterministic AI employee workflows", () => {
+  it("runs agentic POD employees as safe draft outputs through the Studio API", async () => {
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
+    const response = await runAiEmployees(authedRequest("http://localhost:3001/api/studio/ai-employees", { agentic: true, run_mode: "daily_pod_planning" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, status: "draft_outputs_created" });
+    expect(body.workflow.outputs.map((output: any) => output.outputType)).toEqual(expect.arrayContaining(["trend_report", "image_generation_request", "listing_draft", "launch_readiness_check"]));
+    expect(body.workflow.outputs.find((output: any) => output.outputType === "image_generation_request").status).toBe("provider_not_configured");
+    expect(body.workflow.costGuardrails.repeatedProviderLoopsAllowed).toBe(false);
+    expect(JSON.stringify(body)).not.toMatch(/access_token|refresh_token|client_secret|DATABASE_URL|failed query/i);
+  });
+
   it("creates draft outputs from workspace data and records forbidden actions", async () => {
     const repos = createMemoryRepositories();
     await repos.trend.create({

@@ -1,9 +1,12 @@
+import { createTrendReportDraft } from "@saltyfactory/domain";
 import { AiEmployeeCard, BarList, ChartCard, DataTable, EmptyState, FilterBar, LineChartCard, MetricCard, PageHeader, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
 import { TrendSourcesClient } from "./TrendSourcesClient";
 
 export default async function Page() {
-  const { trends, clusters, phrases } = await getStudioLists();
+  const { trends, clusters, phrases, businessProfiles } = await getStudioLists();
+  const businessProfile = (businessProfiles[0] as any)?.profile_json ?? (businessProfiles[0] as any)?.profileJson ?? businessProfiles[0] ?? null;
+  const report = createTrendReportDraft({ trends, clusters, businessProfile: businessProfile as any });
   return <>
     <PageHeader title="Trend Intelligence" description="Discover emerging POD opportunities before they move into production.">
       <button className="sf-button sf-button-secondary" disabled title="Trend export is disabled until persisted reporting support is implemented.">Export Disabled</button>
@@ -25,13 +28,23 @@ export default async function Page() {
     <div className="sf-layout-rail" style={{ marginTop: 18 }}>
       <div className="sf-grid">
         <TrendSourcesClient />
+        <ChartCard title="Trend Report Workflow">
+          <DataTable columns={["Report", "Source", "Status", "Next action"]} rows={[[
+            report.reportTitle,
+            report.sourceSummary,
+            <StatusBadge key="report-status" status={report.approvalStatus.replace(/_/g, " ")} tone={report.blockers.length ? "warning" : "primary"} />,
+            report.recommendedNextActions[0] ?? "Review report draft."
+          ]]} />
+          <p className="sf-muted">Trend reports are drafts for owner review. If no sources exist, SaltyFactory will not invent trend data.</p>
+          <a className="sf-button sf-button-secondary" href="/studio/ai-employees">Run AI Employees</a>
+        </ChartCard>
         <LineChartCard title="Trend velocity" />
         <ChartCard title="Trend sources"><DataTable columns={["Source", "Signals", "Freshness", "Top topic"]} rows={trends.length ? trends.slice(0, 6).map((trend: any) => [trend.source_id ?? trend.sourceId ?? "Manual", trend.keyword ?? trend.id, <StatusBadge key="fresh" status={trend.status ?? "new"} tone="primary" />, trend.category ?? "fashion_pod"]) : [["No sources", "0", <StatusBadge key="empty" status="Empty" />, "Connect sources or import manually"]]} /></ChartCard>
         <ChartCard title="Top trend clusters">{clusters.length ? <BarList items={clusters.slice(0, 5).map((cluster: any) => ({ label: cluster.name ?? cluster.id, value: cluster.status ?? "review", percent: Number(cluster.confidence ?? cluster.relevance_score ?? 0) * 100 }))} /> : <EmptyState title="No trend clusters" description="Ingest allowed sources first, then create clusters from stored signals." />}</ChartCard>
       </div>
       <div className="sf-grid">
-        <AiEmployeeCard name="AI Trend Analyst" role="Recommendations disabled until provider configured" status="Disabled" tasks="0" />
-        <RecommendationCard title="Next actions" description="Review backlog, approve top clusters, then create briefs. No provider calls run while AI is disabled." action={<a className="sf-button sf-button-secondary" href="/studio/briefs">View recommendations</a>} />
+        <AiEmployeeCard name="Trend Research Analyst" role="Stored trend signals and approved sources" status={trends.length ? "Ready for report draft" : "Needs source data"} tasks={String(trends.length)} />
+        <RecommendationCard title="Next actions" description={report.blockers.length ? "Add manual trend signals or configure an approved source. No fake trend report will be generated." : "Generate a trend report draft, approve product ideas, then create design concepts."} action={<a className="sf-button sf-button-secondary" href="/studio/ai-employees">Open AI Work Queue</a>} />
         <EmptyState title="Recent ingestion log" description="No live ingestion records found for this workspace." />
       </div>
     </div>

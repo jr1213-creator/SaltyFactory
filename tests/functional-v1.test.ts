@@ -5,12 +5,18 @@ import {
   calculatePricing,
   channelSchema,
   compareBaseline,
+  createAgenticApprovalQueue,
   createBaselineMetrics,
+  createDesignConceptDraft,
+  createImageGenerationPlan,
+  createProductIdeasFromTrendReport,
   createSocialDraft,
+  createTrendReportDraft,
   deriveNextBestActions,
   evaluateDropshipCandidate,
   evaluatePodCandidate,
   exportListingDraft,
+  runAgenticPodWorkflow,
   scoreBusinessProfile,
   scoreChannelCompleteness,
   validateEmployeeConfiguration,
@@ -122,17 +128,80 @@ describe("functional complete v1 domain rules", () => {
   it("derives dashboard next best actions from honest missing setup", () => {
     const actions = deriveNextBestActions({ businessProfileScore: 10, channelScore: 10, googleStatus: "not_configured", baselineStatus: "missing", podCandidates: 0, listingDrafts: 0, storageStatus: "not_configured", shopifyStatus: "not_configured", printifyStatus: "not_configured", assets: 0, mockups: 0, approvedProducts: 0 });
     expect(actions.slice(0, 9).map((action) => action.title)).toEqual([
-      "Complete Business Profile",
-      "Configure Shopify / Printify",
-      "Create first product idea",
-      "Upload artwork",
-      "Create mockup",
+      "Generate or approve trend report",
+      "Create or approve product ideas",
+      "Generate or approve design concepts",
+      "Generate or upload artwork",
+      "Approve assets and mockups",
       "Create listing draft",
       "Check margin",
-      "Approve product",
-      "Track impact"
+      "Configure Shopify / Printify / Google / Merchant",
+      "Approve exports or guarded syncs"
     ]);
-    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/settings/business-profile", "/studio/pod-migration", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/publish", "/studio/baseline"]));
+    expect(actions.map((action) => action.href)).toEqual(expect.arrayContaining(["/studio/trends", "/studio/pod-migration", "/studio/briefs", "/studio/assets", "/studio/mockups", "/studio/listing-drafts", "/studio/pricing", "/studio/integrations", "/studio/publish", "/studio/baseline"]));
+  });
+
+  it("creates trend reports only from stored trend data", () => {
+    const emptyReport = createTrendReportDraft({ trends: [], clusters: [], businessProfile: { publicBrandName: "Salty Cowhide" } });
+    expect(emptyReport.approvalStatus).toBe("blocked_by_missing_source");
+    expect(emptyReport.blockers).toContain("no_trend_source_data");
+    const report = createTrendReportDraft({
+      trends: [{ id: "tsig_1", keyword: "coastal cowgirl", confidence: 0.72, status: "new", category: "fashion_pod" }],
+      businessProfile: { publicBrandName: "Salty Cowhide", productCategories: ["tees"] }
+    });
+    expect(report.approvalStatus).toBe("needs_review");
+    expect(report.generatedBy).toBe("rules_based");
+    expect(report.productIdeaRecommendations[0]?.title).toContain("coastal cowgirl");
+  });
+
+  it("feeds trend reports into product ideas and design prompt drafts", () => {
+    const report = createTrendReportDraft({
+      trends: [{ id: "tsig_1", keyword: "turquoise rodeo", confidence: 0.8, status: "reviewed" }],
+      businessProfile: { publicBrandName: "Salty Cowhide", targetCustomer: "coastal western shoppers" }
+    });
+    const ideas = createProductIdeasFromTrendReport({ trendReport: report, businessProfile: { targetCustomer: "coastal western shoppers" } });
+    const concept = createDesignConceptDraft({ productIdea: ideas[0], businessProfile: { brandColors: ["teal"], designStyleNotes: "coastal western" } });
+    expect(ideas[0]?.approvalStatus).toBe("draft");
+    expect(concept.generationStatus).toBe("prompt_draft");
+    expect(concept.approvalStatus).toBe("needs_review");
+    expect(concept.prompt).not.toMatch(/access_token|refresh_token|client_secret/i);
+  });
+
+  it("does not fake image generation when provider is disabled", () => {
+    const concept = createDesignConceptDraft({ productIdea: { title: "Coastal tote", targetProductTypes: ["tote"] } });
+    const plan = createImageGenerationPlan({ designConcept: concept, imageProviderConfigured: false });
+    expect(plan.status).toBe("provider_not_configured");
+    expect(plan.generatedAssetCreated).toBe(false);
+  });
+
+  it("creates agentic POD draft outputs and approval queue without live actions", () => {
+    const workflow = runAgenticPodWorkflow({
+      trends: [{ id: "tsig_1", keyword: "beach rodeo", confidence: 0.7, status: "new" }],
+      businessProfile: { publicBrandName: "Salty Cowhide", targetCustomer: "coastal western shoppers", productionPartnerDisclosureNotes: "POD partner disclosure required." },
+      channels: [{ channelType: "instagram", status: "configured" }],
+      shopifyStatus: "not_configured",
+      printifyStatus: "not_configured",
+      googleStatus: "configured_not_verified",
+      imageProviderConfigured: false
+    });
+    expect(workflow.status).toBe("draft_outputs_created");
+    expect(workflow.outputs.map((output) => output.outputType)).toEqual(expect.arrayContaining(["trend_report", "product_idea_recommendations", "design_concept", "image_generation_request", "listing_draft", "launch_readiness_check"]));
+    expect(workflow.outputs.find((output) => output.outputType === "image_generation_request")?.status).toBe("provider_not_configured");
+    expect(workflow.approvalQueue.length).toBeGreaterThan(0);
+    expect(workflow.forbiddenActions).toContain("spend_money");
+    expect(JSON.stringify(workflow)).not.toMatch(/access_token|refresh_token|client_secret/i);
+  });
+
+  it("derives central approval queue items from persisted AI outputs", () => {
+    const queue = createAgenticApprovalQueue({
+      aiOutputs: [{
+        id: "aiout_1",
+        output_type: "trend_report",
+        status: "pending_review",
+        output_json: { title: "Trend report", body: "Review me", sourceLabel: "rules_based", nextAction: "Approve or reject." }
+      }]
+    });
+    expect(queue[0]).toMatchObject({ id: "aiout_1", type: "trend_report", sourceLabel: "rules_based" });
   });
 });
 

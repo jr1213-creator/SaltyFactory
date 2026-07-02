@@ -1,17 +1,63 @@
-import { employeeDefinitions } from "@saltyfactory/domain";
-import { AiEmployeeCard, DataTable, PageHeader, ProviderStatusCard } from "@saltyfactory/ui";
+import { createAgenticApprovalQueue, employeeDefinitions, runAgenticPodWorkflow } from "@saltyfactory/domain";
+import { AiEmployeeCard, DataTable, PageHeader, ProviderStatusCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
 import { AiEmployeeWorkflowClient } from "./AiEmployeeWorkflowClient";
 
 export default async function Page() {
   const lists = await getStudioLists();
   const configured = new Map(lists.aiEmployees.map((row: any) => [row.employee_key ?? row.employeeKey, row]));
+  const latestBusinessProfile = (lists.businessProfiles[0] as any)?.profile_json ?? (lists.businessProfiles[0] as any)?.profileJson ?? lists.businessProfiles[0] ?? null;
+  const workflowPreview = runAgenticPodWorkflow({
+    trends: lists.trends,
+    clusters: lists.clusters,
+    businessProfile: latestBusinessProfile as any,
+    channels: lists.channels,
+    podCandidates: lists.podCandidates,
+    listingDrafts: lists.listingDraftsV1,
+    assets: lists.assets,
+    mockups: lists.mockups,
+    publishReviews: lists.publishReviews,
+    aiOutputs: lists.aiEmployeeOutputs,
+    aiProviderConfigured: false,
+    imageProviderConfigured: false
+  });
+  const approvalQueue = createAgenticApprovalQueue({
+    agentOutputs: workflowPreview.outputs,
+    aiOutputs: lists.aiEmployeeOutputs,
+    podCandidates: lists.podCandidates,
+    listingDrafts: lists.listingDraftsV1,
+    assets: lists.assets,
+    mockups: lists.mockups,
+    publishReviews: lists.publishReviews
+  });
+  const recentRuns = [...lists.aiEmployeeRuns].slice(-6).reverse();
+  const primaryEmployees = employeeDefinitions.slice(0, 15);
   return <>
-    <PageHeader title="AI Employees" description="POD business assistants for product ideas, listings, design safety, pricing, content, analytics, and owner-reviewed next actions." />
-    <div className="sf-grid sf-grid-3">{employeeDefinitions.map(([key, name, requiredSources, allowedActions]) => {
+    <PageHeader title="AI Employees" description="AI employees run the Salty Cowhide POD workflow as safe drafts. Jennie approves, rejects, edits, or requests changes before anything goes public." />
+    <div className="sf-grid sf-grid-3">
+      <ProviderStatusCard title="AI Work Queue" status={`${approvalQueue.length} waiting`} tone={approvalQueue.length ? "warning" : "success"} description="Trend reports, product ideas, prompts, assets, mockups, listings, pricing, and launch actions awaiting owner review." />
+      <ProviderStatusCard title="Run mode" status="Owner-triggered" tone="primary" description="No background loops. No public/provider effects. Runs create internal draft outputs only." />
+      <ProviderStatusCard title="Image generation" status="Provider-gated" tone="warning" description="When no image provider is configured, employees create prompt drafts only. No fake images are created." />
+    </div>
+    <AiEmployeeWorkflowClient />
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Approval Queue</h2>
+      <p className="sf-muted">Every item requires owner review before it can influence publishing, provider sync, social posting, Merchant Center feeds, or DNS changes.</p>
+      <DataTable columns={["Item", "Type", "Source", "Status", "Next action"]} rows={approvalQueue.length ? approvalQueue.slice(0, 10).map((item) => [
+        item.title,
+        item.type.replace(/_/g, " "),
+        item.sourceLabel,
+        <StatusBadge key={item.id} status={item.status.replace(/_/g, " ")} tone={item.status.includes("blocked") || item.status.includes("needed") ? "warning" : "primary"} />,
+        item.nextAction
+      ]) : [["No approval items", "Queue empty", "rules_based", <StatusBadge key="empty" status="clear" tone="success" />, "Run AI employees or create workflow drafts"]]} />
+    </section>
+    <section style={{ marginTop: 18 }}>
+      <h2>AI Employee Team</h2>
+      <div className="sf-grid sf-grid-3">{primaryEmployees.map(([key, name, requiredSources, allowedActions]) => {
       const row = configured.get(key) as any;
       return <AiEmployeeCard key={key} name={name} role={requiredSources.join(", ")} status={row?.status ?? "setup_needed"} tasks={String(allowedActions.length)} description="Drafts and recommendations only." />;
-    })}</div>
+      })}</div>
+    </section>
     <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
       <ProviderStatusCard title="Human review requirement" status="Always required" tone="success" description="AI employee outputs cannot publish, send, spend, or sync without owner gates." />
       <ProviderStatusCard title="Provider execution" status="Rules fallback available" tone="warning" description="Model output is labeled model_generated only when a configured provider is used." />
@@ -25,7 +71,16 @@ export default async function Page() {
         <button className="sf-button" type="submit">Configure Employee</button>
       </form>
     </section>
-    <AiEmployeeWorkflowClient />
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Run History</h2>
+      <DataTable columns={["Run", "Mode", "Provider", "Status", "Review"]} rows={recentRuns.length ? recentRuns.map((run: any) => [
+        run.id,
+        run.task_type ?? run.taskType,
+        run.provider_used ?? run.providerUsed ?? "deterministic_rules",
+        <StatusBadge key={run.id} status={String(run.status ?? "completed")} tone={run.status === "failed" ? "danger" : "success"} />,
+        run.requires_human_review ?? run.requiresHumanReview ? "Required" : "Not required"
+      ]) : [["No AI runs yet", "Run AI Employees", "rules_based", <StatusBadge key="none" status="empty" />, "Required"]]} />
+    </section>
     <section className="sf-card" style={{ marginTop: 18 }}><h2>Permissions</h2><DataTable columns={["Employee", "Allowed actions", "Forbidden actions", "Status"]} rows={employeeDefinitions.map(([key, name,, allowed]) => [name, allowed.join(", "), "publish/send/spend/sync/delete/expose secrets", (configured.get(key) as any)?.status ?? "setup_needed"])} /></section>
   </>;
 }

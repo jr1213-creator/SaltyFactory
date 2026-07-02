@@ -90,18 +90,21 @@ describe("production UI routes", () => {
 
   it("Dashboard page renders key cards", async () => {
     const html = renderToStaticMarkup(await StudioDashboard());
-    expect(html).toContain("Salty Cowhide POD Launch Command Center");
+    expect(html).toContain("Salty Cowhide AI POD Business Command Center");
     expect(html).toContain("Product ideas");
     expect(html).toContain("Approved for publish");
     expect(html).toContain("Active AI employees");
-    expect(html).toContain("Create first product idea");
+    expect(html).toContain("Generate or approve trend report");
+    expect(html).toContain("Approval queue");
   });
 
   it("Trends page renders filters and queue sections", async () => {
     const html = renderToStaticMarkup(await TrendsPage());
     expect(html).toContain("Trend Intelligence");
+    expect(html).toContain("Trend Report Workflow");
     expect(html).toContain("Review backlog");
-    expect(html).toContain("AI Trend Analyst");
+    expect(html).toContain("Trend Research Analyst");
+    expect(html).toContain("will not invent trend data");
   });
 
   it("Brief builder renders saved workflow regions", async () => {
@@ -172,9 +175,14 @@ describe("production UI routes", () => {
 
   it("AI employees page renders employee cards", async () => {
     const html = renderToStaticMarkup(await AiEmployeesPage());
+    expect(html).toContain("Run AI Employees");
+    expect(html).toContain("Approval Queue");
+    expect(html).toContain("AI Work Queue");
+    expect(html).toContain("Trend Research Analyst");
     expect(html).toContain("POD Product Builder Assistant");
     expect(html).toContain("Pricing &amp; Margin Assistant");
     expect(html).toContain("Drafts and recommendations only");
+    expect(html).not.toContain("Run Deterministic Worker");
   });
 
   it("POD Product Builder page uses product launch terminology", async () => {

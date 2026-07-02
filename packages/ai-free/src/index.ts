@@ -109,5 +109,5 @@ export class UpscaleProviderDisabled { readonly enabled = false; async upscale()
 export class ManualTrendSourceProvider { readonly sourceId = "manual"; readonly allowedUse = "inspiration_only" as const; async ingestSignals(input: { keyword: string; related_terms?: string[] }) { return [{ keyword: input.keyword, related_terms: input.related_terms ?? [], allowed_use: this.allowedUse, source_id: this.sourceId }]; } }
 export class TrendSourceProviderDisabled { readonly sourceId = "disabled"; readonly allowedUse = "inspiration_only" as const; async ingestSignals() { return []; } }
 
-export { detectPromptInjection, forbiddenAiActions, runDeterministicAiEmployee } from "./employees";
+export { detectPromptInjection, forbiddenAiActions, runAgenticAiEmployeeWorkflow, runDeterministicAiEmployee } from "./employees";
 export { createDeterministicDesignSuggestions, type DesignSuggestionDraft, type DesignSuggestionInput } from "./design-suggestions";
