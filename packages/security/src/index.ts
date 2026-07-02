@@ -28,10 +28,15 @@ export function redactSecret(value: string) {
 
 export function sanitizeProviderError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "provider_error");
-  return message
+  const redacted = message
     .replace(/(access_token|refresh_token|api[_-]?token|authorization|password|secret)=?[^&\s]+/gi, "$1=[redacted]")
     .replace(/\b(access_token|refresh_token|api[_-]?token|token|secret|password|authorization)\s+[A-Za-z0-9._~+/=-]{6,}/gi, "$1 [redacted]")
     .slice(0, 240);
+  if (/failed query:/i.test(redacted)) {
+    if (/\baudit_events\b/i.test(redacted)) return "Audit logging failed. Check database schema and access.";
+    return "Database query failed. Check database schema and access.";
+  }
+  return redacted;
 }
 
 export function encryptCredential(input: {

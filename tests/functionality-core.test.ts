@@ -9,6 +9,7 @@ import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAu
 import { POST as printifyConnect } from "../apps/studio/app/api/studio/integrations/[provider]/connect/route";
 import { POST as printifySync } from "../apps/studio/app/api/studio/integrations/[provider]/sync/route";
 import { POST as printifyTest } from "../apps/studio/app/api/studio/integrations/[provider]/test/route";
+import { POST as saveBusinessProfile } from "../apps/studio/app/api/studio/business-profile/route";
 import { POST as createPublishReview } from "../apps/studio/app/api/studio/publish-reviews/route";
 import { evaluatePublishReadiness } from "../apps/studio/app/api/studio/publish-reviews/_readiness";
 import { validateProductDraft } from "../apps/studio/app/api/studio/drafts/_validation";
@@ -124,6 +125,36 @@ describe("provider connection route behavior", () => {
     expect(body.ok).toBe(false);
     expect(body.status).toBe("configured_not_verified");
     expect(JSON.stringify(body)).not.toContain("\"success\"");
+  });
+});
+
+describe("business profile route behavior", () => {
+  it("saves Business Profile data and writes an audit event without leaking SQL", async () => {
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
+    const response = await saveBusinessProfile(authedRequest("http://localhost:3001/api/studio/business-profile", {
+      businessName: "Salty Factory",
+      publicBrandName: "Salty Cowhide",
+      businessType: "hybrid",
+      fulfillmentModel: "POD",
+      targetCustomer: "coastal western shoppers",
+      brandVoice: "warm and direct",
+      primaryOffer: "POD gifts and apparel",
+      supportEmail: "owner@example.com",
+      country: "US",
+      timezone: "America/New_York",
+      currency: "USD",
+      returnsPolicyNotes: "Returns are reviewed case by case.",
+      productionPartnerDisclosureNotes: "Items may be produced by approved POD partners.",
+      brandColors: ["#0f766e"],
+      productCategories: ["tees", "totes"]
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, status: "saved", audit: { ok: true, status: "written" } });
+    expect(body.profile.public_brand_name).toBe("Salty Cowhide");
+    expect(JSON.stringify(body)).not.toMatch(/failed query|insert into|access_token|refresh_token/i);
   });
 });
 

@@ -100,6 +100,23 @@ function audit(resource: string, action: string, row: WorkspaceRow, actorId: str
   };
 }
 
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production" || process.env.APP_ENV === "production";
+}
+
+async function writeAuditEventSafely(repos: ReturnType<typeof createRepositories>, event: WorkspaceRow) {
+  try {
+    await repos.audit.write(event);
+    return { ok: true as const, status: "written" as const };
+  } catch (error) {
+    return {
+      ok: false as const,
+      status: "audit_failed" as const,
+      message: sanitizeProviderError(error)
+    };
+  }
+}
+
 export async function listResource(req: Request, resource: V1Resource) {
   try {
     await requireWorkspaceMember(req, studioWorkspaceId);
@@ -137,8 +154,26 @@ export async function upsertBusinessProfile(req: Request) {
       created_by: user.id,
       updated_by: user.id
     };
-    const saved = existing ? await repos.businessProfileV1.update(existing.id, row, audit("business_profile", "updated", row, user.id)) : await repos.businessProfileV1.create(row, audit("business_profile", "created", row, user.id));
-    return NextResponse.json({ ok: true, status: "saved", profile: safeRow(saved), readiness });
+    const auditEvent = audit("business_profile", existing ? "updated" : "created", row, user.id);
+    const saved = existing
+      ? await repos.businessProfileV1.update(existing.id, row)
+      : await repos.businessProfileV1.create(row);
+    const auditResult = await writeAuditEventSafely(repos, auditEvent);
+    if (!auditResult.ok) {
+      const production = isProductionRuntime();
+      return NextResponse.json({
+        ok: !production,
+        status: production ? "audit_failed_after_save" : "saved_with_audit_warning",
+        saved: true,
+        profile: safeRow(saved),
+        readiness,
+        audit: auditResult,
+        message: production
+          ? "Business profile saved, but audit logging failed. Resolve audit logging before production writes continue."
+          : "Business profile saved, but audit logging is unavailable in this environment."
+      }, { status: production ? 500 : 200 });
+    }
+    return NextResponse.json({ ok: true, status: "saved", profile: safeRow(saved), readiness, audit: auditResult });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return NextResponse.json({ ok: false, status: "failed", message: sanitizeProviderError(error) }, { status: 400 });

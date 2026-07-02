@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   functionalV1StudioTables,
   migrationStatements,
+  requiredStudioTableColumns,
   requiredStudioTables,
   tablesCreatedByMigration
 } from "../packages/db/src/apply-local";
@@ -47,6 +48,26 @@ describe("local database schema apply", () => {
     for (const table of functionalV1StudioTables) {
       expect(apply).toContain(table);
     }
+  });
+
+  it("verifies audit_events schema required by Studio writes", () => {
+    const apply = readFileSync(join(process.cwd(), "packages/db/src/apply-local.ts"), "utf8");
+    expect(requiredStudioTables).toContain("audit_events");
+    expect(requiredStudioTableColumns.audit_events).toEqual(expect.arrayContaining([
+      "id",
+      "workspace_id",
+      "created_at",
+      "updated_at",
+      "entity_type",
+      "entity_id",
+      "action",
+      "actor_type",
+      "actor_id",
+      "after_state",
+      "metadata"
+    ]));
+    expect(apply).toContain("Required Studio table columns are missing after schema apply");
+    expect(apply).toContain('alter table "audit_events" add column if not exists "updated_at"');
   });
 
   it("detects migration-created tables so applied-journal drift can be repaired", () => {

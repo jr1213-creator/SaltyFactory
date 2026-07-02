@@ -26,12 +26,49 @@ export const requiredStudioTables = [
   "product_drafts",
   "design_assets",
   "publish_reviews",
+  "audit_events",
   "encrypted_credentials",
   "integration_sync_runs",
   "site_audit_runs",
   "site_audit_findings",
   ...functionalV1StudioTables
 ];
+
+export const requiredStudioTableColumns: Record<string, string[]> = {
+  audit_events: [
+    "id",
+    "workspace_id",
+    "created_at",
+    "updated_at",
+    "organization_id",
+    "entity_type",
+    "entity_id",
+    "action",
+    "actor_type",
+    "actor_id",
+    "before_state",
+    "after_state",
+    "notes",
+    "metadata"
+  ]
+};
+
+const requiredColumnRepairStatements: Record<string, string> = {
+  "audit_events.id": `alter table "audit_events" add column if not exists "id" text`,
+  "audit_events.workspace_id": `alter table "audit_events" add column if not exists "workspace_id" text`,
+  "audit_events.created_at": `alter table "audit_events" add column if not exists "created_at" timestamp with time zone default now() not null`,
+  "audit_events.updated_at": `alter table "audit_events" add column if not exists "updated_at" timestamp with time zone default now() not null`,
+  "audit_events.organization_id": `alter table "audit_events" add column if not exists "organization_id" text`,
+  "audit_events.entity_type": `alter table "audit_events" add column if not exists "entity_type" text`,
+  "audit_events.entity_id": `alter table "audit_events" add column if not exists "entity_id" text`,
+  "audit_events.action": `alter table "audit_events" add column if not exists "action" text`,
+  "audit_events.actor_type": `alter table "audit_events" add column if not exists "actor_type" text`,
+  "audit_events.actor_id": `alter table "audit_events" add column if not exists "actor_id" text`,
+  "audit_events.before_state": `alter table "audit_events" add column if not exists "before_state" text`,
+  "audit_events.after_state": `alter table "audit_events" add column if not exists "after_state" text`,
+  "audit_events.notes": `alter table "audit_events" add column if not exists "notes" text`,
+  "audit_events.metadata": `alter table "audit_events" add column if not exists "metadata" jsonb default '{}'::jsonb not null`
+};
 
 const envKeysThatMustMatch = [
   "DATABASE_URL",
@@ -123,9 +160,45 @@ async function missingTables(sql: postgres.Sql, tables: string[]) {
   return tables.filter((table) => !present.has(table));
 }
 
+async function missingColumns(sql: postgres.Sql, table: string, columns: string[]) {
+  if (!columns.length) return [];
+  const rows = await sql<{ column_name: string }[]>`
+    select column_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = ${table}
+      and column_name in ${sql(columns)}
+  `;
+  const present = new Set(rows.map((row) => row.column_name));
+  return columns.filter((column) => !present.has(column));
+}
+
 async function assertRequiredTables(sql: postgres.Sql) {
   const missing = await missingTables(sql, requiredStudioTables);
   if (missing.length) throw new Error(`Required Studio tables are missing after schema apply: ${missing.join(", ")}`);
+}
+
+async function repairRequiredColumns(sql: postgres.Sql) {
+  const repaired: { table: string; column: string }[] = [];
+  for (const [table, columns] of Object.entries(requiredStudioTableColumns)) {
+    const missing = await missingColumns(sql, table, columns);
+    for (const column of missing) {
+      const statement = requiredColumnRepairStatements[`${table}.${column}`];
+      if (!statement) continue;
+      await sql.unsafe(statement);
+      repaired.push({ table, column });
+    }
+  }
+  return repaired;
+}
+
+async function assertRequiredColumns(sql: postgres.Sql) {
+  const missingByTable: string[] = [];
+  for (const [table, columns] of Object.entries(requiredStudioTableColumns)) {
+    const missing = await missingColumns(sql, table, columns);
+    if (missing.length) missingByTable.push(`${table}: ${missing.join(", ")}`);
+  }
+  if (missingByTable.length) throw new Error(`Required Studio table columns are missing after schema apply: ${missingByTable.join("; ")}`);
 }
 
 async function applyMigrationStatements(sql: postgres.Sql, sqlText: string) {
@@ -159,6 +232,7 @@ export async function applyLocalSchema() {
   const sql = await connect(databaseUrls);
   const applied: string[] = [];
   const repaired: { file: string; missingTables: string[] }[] = [];
+  let repairedColumns: { table: string; column: string }[] = [];
   let statementsApplied = 0;
   try {
     await sql`create table if not exists saltyfactory_schema_applied (
@@ -183,12 +257,16 @@ export async function applyLocalSchema() {
     }
 
     await assertRequiredTables(sql);
+    repairedColumns = await repairRequiredColumns(sql);
+    await assertRequiredColumns(sql);
     return {
       ok: true,
       applied,
       repaired,
+      repairedColumns,
       statementsApplied,
       requiredTablesVerified: requiredStudioTables,
+      requiredColumnsVerified: requiredStudioTableColumns,
       note: "Foreign-key statements are skipped for local apply so existing Supabase-owned/incompatible tables are preserved."
     };
   } finally {
