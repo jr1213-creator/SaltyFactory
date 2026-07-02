@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
 import {
   buildCampaignProofPackContent,
@@ -92,6 +94,15 @@ describe("shared kernel v1", () => {
     expect(response.status).toBe(200);
     expect(body.record.workspace_id).toBe(workspaceId);
     expect(JSON.stringify(body)).not.toMatch(/attacker_workspace|must_not_return|api_token|access_token|refresh_token|client_secret/i);
+  });
+
+  it("keeps global vertical packs listable while parsing structured source payloads", () => {
+    const source = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/shared/_shared.ts"), "utf8");
+    expect(source).toContain('"vertical-packs": { key: "verticalPacks", prefix: "vpack", required: ["key", "name"], global: true }');
+    expect(source).toContain("isGlobalResource(resource) ? repo.list() : repo.listByWorkspace(sharedWorkspaceId)");
+    expect(source).toContain("raw_payload");
+    expect(source).toContain("payload");
+    expect(source).toContain("safeKernelRecordForClient");
   });
 
   it("builds deterministic vertical pack seeds and campaign control-plane artifacts", () => {

@@ -43,19 +43,22 @@ export async function POST(req: Request) {
     const campaignName = String(body.name || body.campaign_name || "Salty Cowhide Product Drop Launch");
     const campaignId = String(body.campaign_id || `campaign_${slug(campaignName)}`);
     const landingUrl = String(body.landing_url || "https://saltycowhide.com/");
+    const thesis = String(body.goal || body.thesis || "Launch a proof-backed Salty Cowhide product/drop campaign.");
+    const audience = String(body.audience || "Salty Cowhide buyers and high-intent leads");
+    const offer = String(body.offer || "New product/drop offer");
     const campaign = await upsert(repos.shared.campaigns, {
       id: campaignId,
       workspace_id: sharedWorkspaceId,
       vertical_pack_id: String(body.vertical_pack_id || "vp_pod_boutique"),
       name: campaignName,
       campaign_type: String(body.campaign_type || "product_drop_launch"),
-      goal: String(body.goal || "Launch a proof-backed Salty Cowhide product/drop campaign."),
+      goal: thesis,
       product_ref: String(body.product_ref || ""),
       offer_ref: String(body.offer_ref || ""),
-      manual_offer: { offer: body.offer || "Owner-reviewed product/drop offer.", source: "manual_entry" },
+      manual_offer: { offer, source: "manual_entry" },
       target_segment_id: String(body.target_segment_id || ""),
-      audience: String(body.audience || "Salty Cowhide buyers and high-intent leads"),
-      offer: String(body.offer || "New product/drop offer"),
+      audience,
+      offer,
       landing_url: landingUrl,
       status: "ready_for_review",
       updated_by: user.id
@@ -97,8 +100,12 @@ export async function POST(req: Request) {
         source: "rule_based",
         manualExport: true,
         noLivePublish: true,
+        thesis,
+        audience,
+        offer,
+        landingUrl,
         headline: `${campaignName} ${channelType.replace(/_/g, " ")}`,
-        body: "Draft only. Owner review and manual/export workflow required."
+        body: `${thesis}\n\nAudience: ${audience}\nOffer: ${offer}\nLanding URL: ${landingUrl}\n\nDraft only. Owner review and manual/export workflow required.`
       },
       status: "ready_for_review",
       source_record_id: source.id,

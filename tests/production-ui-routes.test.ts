@@ -284,6 +284,10 @@ describe("production UI routes", () => {
     expect(workflowRoute).toContain("buildCampaignProofPackContent");
     expect(workflowRoute).toContain("buildNoAdGrowthPlanContent");
     expect(workflowRoute).toContain("buildReadinessScore");
+    expect(workflowRoute).toContain("const thesis =");
+    expect(workflowRoute).toContain("audience,");
+    expect(workflowRoute).toContain("offer,");
+    expect(workflowRoute).toContain("landingUrl,");
     expect(utmRoute).toContain("buildUtmUrl");
     expect(searchRoute).toContain("No ranking guarantees.");
     expect(workflowRoute).not.toMatch(/googleads\.googleapis\.com|graph\.facebook\.com|sendgrid|mailgun|pinterest\.com\/v5/i);

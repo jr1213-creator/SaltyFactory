@@ -22,7 +22,7 @@ const resources = {
   templates: { key: "templates", prefix: "template", required: ["template_type", "name"] },
   "automation-rules": { key: "automationRules", prefix: "autorule", required: ["name", "trigger"] },
   segments: { key: "segments", prefix: "segment", required: ["name", "entity_type"] },
-  "vertical-packs": { key: "verticalPacks", prefix: "vpack", required: ["key", "name"] },
+  "vertical-packs": { key: "verticalPacks", prefix: "vpack", required: ["key", "name"], global: true },
   campaigns: { key: "campaigns", prefix: "campaign", required: ["name"] },
   "campaign-channels": { key: "campaignChannels", prefix: "channel", required: ["channel_type"] },
   "utm-links": { key: "utmLinks", prefix: "utm", required: ["base_url", "source", "medium", "campaign_name", "generated_url"] }
@@ -64,7 +64,7 @@ function normalizeInput(body: Record<string, unknown>) {
   delete clean.accountId;
   delete clean.next;
   for (const [key, value] of Object.entries(clean)) {
-    if (typeof value === "string" && /(_json|Json|content|criteria|blockers|metadata|spec|condition|action|config|query_definition|manual_offer|draft_content)$/i.test(key) && /^[\[{]/.test(value.trim())) {
+    if (typeof value === "string" && /(_json|Json|content|criteria|blockers|metadata|spec|condition|action|config|query_definition|manual_offer|draft_content|raw_payload|payload|before|after|diff)$/i.test(key) && /^[\[{]/.test(value.trim())) {
       try {
         clean[key] = JSON.parse(value);
       } catch {
@@ -97,10 +97,28 @@ function output(row: WorkspaceRow) {
   return safeKernelRecordForClient(withAliases(row));
 }
 
+function isGlobalResource(resource: string) {
+  const config = sharedResourceConfig(resource);
+  return "global" in config && config.global === true;
+}
+
+async function listResourceRecords(resource: string, repo: BaseRepositoryContract) {
+  return isGlobalResource(resource) ? repo.list() : repo.listByWorkspace(sharedWorkspaceId);
+}
+
+async function getResourceRecord(resource: string, repo: BaseRepositoryContract, id: string) {
+  return isGlobalResource(resource) ? repo.getById(id) : repo.getById(id, sharedWorkspaceId);
+}
+
+function assertSharedRecordVisible(resource: string, row: WorkspaceRow) {
+  if (isGlobalResource(resource)) return true;
+  return String(row.workspace_id ?? row.workspaceId) === sharedWorkspaceId;
+}
+
 export async function listSharedRecords(req: Request, resource: string) {
   try {
     await requireWorkspaceMember(req, sharedWorkspaceId);
-    const records = await repoFor(resource).listByWorkspace(sharedWorkspaceId);
+    const records = await listResourceRecords(resource, repoFor(resource));
     return NextResponse.json({ ok: true, status: "retrieved", resource, records: records.map(output) });
   } catch (error) {
     try {
@@ -123,11 +141,11 @@ export async function createSharedRecord(req: Request, resource: string) {
     const row: WorkspaceRow = {
       ...body,
       id: String(body.id || newSharedId(resource)),
-      workspace_id: sharedWorkspaceId,
       status: String(body.status ?? (resource === "approvals" ? "pending" : "draft")),
       created_by: user.id,
       updated_by: user.id
     };
+    if (!isGlobalResource(resource)) row.workspace_id = sharedWorkspaceId;
     const repos = createRepositories();
     const created = await repoFor(resource, repos).create(row);
     await repos.shared.auditLog.create({
@@ -154,7 +172,7 @@ export async function createSharedRecord(req: Request, resource: string) {
 export async function getSharedRecord(req: Request, resource: string, id: string) {
   try {
     await requireWorkspaceMember(req, sharedWorkspaceId);
-    const record = await repoFor(resource).getById(id, sharedWorkspaceId);
+    const record = await getResourceRecord(resource, repoFor(resource), id);
     if (!record) return NextResponse.json({ ok: false, status: "not_found", resource }, { status: 404 });
     return NextResponse.json({ ok: true, status: "retrieved", resource, record: output(record) });
   } catch (error) {
@@ -180,10 +198,10 @@ export async function updateSharedRecord(req: Request, resource: string, id: str
     }
     if (resource === "tasks" && status === "completed") patch.completed_at = new Date().toISOString();
     const repos = createRepositories();
-    const existing = await repoFor(resource, repos).getById(id, sharedWorkspaceId);
+    const existing = await getResourceRecord(resource, repoFor(resource, repos), id);
     if (!existing) return NextResponse.json({ ok: false, status: "not_found", resource }, { status: 404 });
     const updated = await repoFor(resource, repos).update(id, patch as WorkspaceRow);
-    if (String(updated.workspace_id ?? updated.workspaceId) !== sharedWorkspaceId) {
+    if (!assertSharedRecordVisible(resource, updated)) {
       return NextResponse.json({ ok: false, status: "not_found", resource }, { status: 404 });
     }
     await repos.shared.events.create({
@@ -212,10 +230,10 @@ export async function archiveSharedRecord(req: Request, resource: string, id: st
   try {
     const user = await requireDraftMutationPermission(req, sharedWorkspaceId);
     const repos = createRepositories();
-    const existing = await repoFor(resource, repos).getById(id, sharedWorkspaceId);
+    const existing = await getResourceRecord(resource, repoFor(resource, repos), id);
     if (!existing) return NextResponse.json({ ok: false, status: "not_found", resource }, { status: 404 });
     const archived = await repoFor(resource, repos).update(id, { status: "archived", archived_at: new Date().toISOString(), updated_by: user.id });
-    if (String(archived.workspace_id ?? archived.workspaceId) !== sharedWorkspaceId) {
+    if (!assertSharedRecordVisible(resource, archived)) {
       return NextResponse.json({ ok: false, status: "not_found", resource }, { status: 404 });
     }
     return NextResponse.json({ ok: true, status: "archived", resource, record: output(archived) });
