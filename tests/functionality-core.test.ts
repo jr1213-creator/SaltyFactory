@@ -4,7 +4,7 @@ import { createIntegrationProviders, createSyncRun, getIntegrationStates, upsert
 import { parseEnv } from "@saltyfactory/config";
 import { decryptCredential, encryptCredential } from "@saltyfactory/security";
 import { evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
-import { detectPromptInjection, forbiddenAiActions, runDeterministicAiEmployee } from "@saltyfactory/ai-free";
+import { detectPromptInjection, forbiddenAiActions, runAgenticAiEmployeeWorkflow, runDeterministicAiEmployee } from "@saltyfactory/ai-free";
 import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
 import { POST as printifyConnect } from "../apps/studio/app/api/studio/integrations/[provider]/connect/route";
 import { POST as printifySync } from "../apps/studio/app/api/studio/integrations/[provider]/sync/route";
@@ -275,15 +275,46 @@ describe("deterministic AI employee workflows", () => {
   it("runs agentic POD employees as safe draft outputs through the Studio API", async () => {
     setSupabaseUserVerifierForTests(async () => actor);
     setWorkspaceAuthorizerForTests(async (user, workspace) => ({ id: user.id, email: user.email, role: "owner", workspaceId: workspace, supabaseUserId: user.id }));
-    const response = await runAiEmployees(authedRequest("http://localhost:3001/api/studio/ai-employees", { agentic: true, run_mode: "daily_pod_planning" }));
+    const response = await runAiEmployees(authedRequest("http://localhost:3001/api/studio/ai-employees", { agentic: true, run_mode: "daily_pod_planning", workspace_id: "attacker_workspace" }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ ok: true, status: "draft_outputs_created" });
+    expect(body.run.id).toMatch(/^airun_agentic_pod_/);
+    expect(body.run.workspace_id ?? body.run.workspaceId).toBe(workspaceId);
+    expect(body.outputs.length).toBeGreaterThan(0);
+    expect(body.outputs.every((output: any) => output.workspace_id === workspaceId || output.workspaceId === workspaceId)).toBe(true);
     expect(body.workflow.outputs.map((output: any) => output.outputType)).toEqual(expect.arrayContaining(["trend_report", "image_generation_request", "listing_draft", "launch_readiness_check"]));
     expect(body.workflow.outputs.find((output: any) => output.outputType === "image_generation_request").status).toBe("provider_not_configured");
     expect(body.workflow.costGuardrails.repeatedProviderLoopsAllowed).toBe(false);
-    expect(JSON.stringify(body)).not.toMatch(/access_token|refresh_token|client_secret|DATABASE_URL|failed query/i);
+    expect(JSON.stringify(body)).not.toMatch(/attacker_workspace|access_token|refresh_token|client_secret|DATABASE_URL|failed query/i);
+  });
+
+  it("rejects AI employee runs without workspace permission", async () => {
+    setSupabaseUserVerifierForTests(async () => actor);
+    setWorkspaceAuthorizerForTests(async () => null);
+    const response = await runAiEmployees(authedRequest("http://localhost:3001/api/studio/ai-employees", { agentic: true, workspace_id: "attacker_workspace" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toMatchObject({ ok: false, status: "forbidden" });
+    expect(JSON.stringify(body)).not.toMatch(/attacker_workspace|access_token|refresh_token|client_secret|DATABASE_URL/i);
+  });
+
+  it("does not fake AI employee success when the run write fails", async () => {
+    const repos = createMemoryRepositories() as any;
+    repos.aiEmployee.createRun = async () => {
+      throw new Error('failed query: insert into "ai_employee_runs" values (...)');
+    };
+
+    await expect(runAgenticAiEmployeeWorkflow({
+      repos,
+      workspaceId,
+      actorId: actor.id,
+      runMode: "daily_pod_planning",
+      aiProviderConfigured: false,
+      imageProviderConfigured: false
+    })).rejects.toThrow(/failed query: insert into "ai_employee_runs"/);
   });
 
   it("creates draft outputs from workspace data and records forbidden actions", async () => {

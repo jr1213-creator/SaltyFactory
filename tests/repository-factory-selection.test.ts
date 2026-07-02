@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { createRuntimeRepositories, resolveRuntimeDatabaseUrl, selectRepositoryAdapter } from "@saltyfactory/db";
+import { afterEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createRuntimeRepositories, resetDbClientForTests, resolveRuntimeDatabaseUrl, selectRepositoryAdapter } from "@saltyfactory/db";
+
+afterEach(() => {
+  resetDbClientForTests();
+});
 
 describe("repository factory selection", () => {
   it("production config rejects memory repository mode", () => {
@@ -16,6 +22,12 @@ describe("repository factory selection", () => {
 
   it("repository factory returns Drizzle repos when DATABASE_URL exists", () => {
     expect(createRuntimeRepositories({ NODE_ENV: "development", APP_ENV: "development", DATABASE_URL: "postgres://user:pass@localhost:5432/saltyfactory" }).adapter).toBe("drizzle");
+  });
+
+  it("runtime Drizzle repositories reuse the cached database client", () => {
+    const source = readFileSync(join(process.cwd(), "packages/db/src/repositories/factory.ts"), "utf8");
+    expect(source).toContain("createDrizzleRepositories(getDb(resolveRuntimeDatabaseUrl(config)))");
+    expect(source).not.toContain("createDrizzleRepositories(createDb(resolveRuntimeDatabaseUrl(config)))");
   });
 
   it("runtime database URL preserves the configured pooler unless DIRECT_DATABASE_URL is explicit", () => {

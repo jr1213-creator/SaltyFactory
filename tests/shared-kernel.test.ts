@@ -15,7 +15,7 @@ import {
   sanitizeKernelPayload
 } from "@saltyfactory/domain";
 import { createMemoryRepositories } from "../packages/db/src/repositories/memory";
-import { requiredStudioTables, sharedKernelTables } from "../packages/db/src/apply-local";
+import { aiEmployeeTables, requiredStudioTables, sharedKernelTables } from "../packages/db/src/apply-local";
 import { GET as listShared, POST as createShared } from "../apps/studio/app/api/studio/shared/[resource]/route";
 import { POST as createSocialCareOpportunity } from "../apps/studio/app/api/studio/marketing/social-care/route";
 
@@ -57,6 +57,18 @@ describe("shared kernel v1", () => {
       "utm_links"
     ]));
     expect(requiredStudioTables).toEqual(expect.arrayContaining(sharedKernelTables));
+  });
+
+  it("adds AI employee workflow tables to db:migrate verification", () => {
+    expect(aiEmployeeTables).toEqual(expect.arrayContaining([
+      "ai_employees",
+      "ai_employee_tasks",
+      "ai_employee_runs",
+      "ai_employee_outputs",
+      "ai_employee_permissions",
+      "ai_employee_audit_events"
+    ]));
+    expect(requiredStudioTables).toEqual(expect.arrayContaining(aiEmployeeTables));
   });
 
   it("persists polymorphic shared records with workspace isolation in repositories", async () => {

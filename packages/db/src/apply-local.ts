@@ -13,6 +13,15 @@ export const functionalV1StudioTables = [
   "workspace_channels"
 ];
 
+export const aiEmployeeTables = [
+  "ai_employees",
+  "ai_employee_tasks",
+  "ai_employee_runs",
+  "ai_employee_outputs",
+  "ai_employee_permissions",
+  "ai_employee_audit_events"
+];
+
 export const customerCommandCenterTables = [
   "crm_customers",
   "crm_companies",
@@ -109,6 +118,7 @@ export const requiredStudioTables = [
   "integration_sync_runs",
   "site_audit_runs",
   "site_audit_findings",
+  ...aiEmployeeTables,
   ...functionalV1StudioTables,
   ...customerCommandCenterTables,
   ...sharedKernelTables

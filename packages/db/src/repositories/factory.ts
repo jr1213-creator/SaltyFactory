@@ -1,6 +1,6 @@
 import { createDrizzleRepositories } from "./drizzle";
 import { createMemoryRepositories, createRepositoryStore } from "./memory";
-import { createDb, resolveRuntimeDatabaseUrl } from "../client";
+import { getDb, resolveRuntimeDatabaseUrl } from "../client";
 import type { RepositoryBundle, RepositoryRuntimeConfig } from "./contracts";
 
 export type RepositorySelection =
@@ -42,7 +42,7 @@ export function createRuntimeRepositories(config: RepositoryRuntimeConfig = proc
   if (selected.adapter === "memory") {
     return createMemoryRepositories(selected.reason === "test_mode" ? undefined : runtimeMemoryStore) as RepositoryBundle;
   }
-  return createDrizzleRepositories(createDb(resolveRuntimeDatabaseUrl(config)));
+  return createDrizzleRepositories(getDb(resolveRuntimeDatabaseUrl(config)));
 }
 
 export const createRepositories = createRuntimeRepositories;
