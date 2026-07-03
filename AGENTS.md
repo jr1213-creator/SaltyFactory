@@ -60,6 +60,22 @@ Apply these rules before calling any feature done:
 
 ---
 
+## AI Software Factory Prompt Standard
+
+All AI coding agents must follow `docs/standards/ai-software-factory-prompt-standard-v1.md` before implementing feature work.
+
+Non-negotiables:
+
+- no fake completion
+- no orphaned routes
+- no fake provider success
+- no secret leakage
+- no AI self-authority
+- tests required
+- docs must match reality
+
+---
+
 ## Product Scope
 
 SaltyFactory must support:
