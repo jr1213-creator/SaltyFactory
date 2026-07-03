@@ -106,12 +106,14 @@ export function PrintifySetupForms() {
 export function ShopifySetupForms() {
   return <section className="setup-action-panel" aria-label="Shopify setup actions">
     <SetupApiForm
-      title="Save and validate Shopify Admin"
-      action="/api/studio/provider-connections/shopify/validate-admin"
+      title="Save and validate Shopify Dev Dashboard app"
+      description="New Shopify Dev Dashboard apps use Client ID and Client Secret. SaltyFactory exchanges them server-side for an Admin access token and never shows the secret after save."
+      action="/api/studio/provider-connections/shopify/exchange-client-credentials"
       submitLabel="Save securely and validate"
       fields={[
         { name: "storeDomain", label: "Shopify store domain", placeholder: "saltycowhide.myshopify.com" },
-        { name: "adminToken", label: "Shopify Admin token", type: "password", placeholder: "Paste token securely", helper: "Write-only. Needs product and collection permissions." }
+        { name: "clientId", label: "Shopify Client ID", placeholder: "Paste Client ID" },
+        { name: "clientSecret", label: "Shopify Client Secret", type: "password", placeholder: "Paste Client Secret securely", helper: "Write-only. Used only for server-side token exchange and never displayed after save." }
       ]}
     />
     <SetupApiForm
@@ -126,6 +128,19 @@ export function ShopifySetupForms() {
       submitLabel="Select collection"
       fields={[{ name: "collectionId", label: "Shopify collection ID", placeholder: "Choose from discovered collections" }]}
     />
+    <details className="setup-legacy-details">
+      <summary>Advanced / Legacy Admin token</summary>
+      <p>Use this only if Shopify shows an installed custom-app Admin API access token. Most new Dev Dashboard apps use Client ID and Client Secret instead.</p>
+      <SetupApiForm
+        title="Validate legacy Shopify Admin token"
+        action="/api/studio/provider-connections/shopify/validate-admin"
+        submitLabel="Save legacy token securely"
+        fields={[
+          { name: "storeDomain", label: "Shopify store domain", placeholder: "saltycowhide.myshopify.com" },
+          { name: "adminToken", label: "Legacy Shopify Admin token", type: "password", placeholder: "Paste token securely", helper: "Write-only. Use only if Shopify exposes an Admin API access token." }
+        ]}
+      />
+    </details>
   </section>;
 }
 

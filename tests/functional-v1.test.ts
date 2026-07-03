@@ -232,13 +232,13 @@ describe("functional complete v1 domain rules", () => {
 
     const shopifyMissing = createShopifySetupState({ enabled: false, storeDomain: "", hasAdminToken: false });
     expect(shopifyMissing.status).toBe("external_signup_required");
-    expect(shopifyMissing.setupRequired).toEqual(expect.arrayContaining(["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]));
+    expect(shopifyMissing.setupRequired).toEqual(expect.arrayContaining(["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "Shopify Client ID and Client Secret, or legacy SHOPIFY_ADMIN_TOKEN if available"]));
     expect(shopifyMissing.tokenExposed).toBe(false);
     expect(shopifyMissing.connected).toBe(false);
-    const staleShopifyConnected = createShopifySetupState({ enabled: false, storeDomain: "saltycowhide.myshopify.com", hasAdminToken: true, persistedStatus: "connected" });
+    const staleShopifyConnected = createShopifySetupState({ enabled: false, storeDomain: "saltycowhide.myshopify.com", hasClientCredentials: true, persistedStatus: "connected" });
     expect(staleShopifyConnected.status).toBe("setup_needed");
     expect(staleShopifyConnected.connected).toBe(false);
-    const verifiedShopify = createShopifySetupState({ enabled: true, storeDomain: "saltycowhide.myshopify.com", hasAdminToken: true, persistedStatus: "connected" });
+    const verifiedShopify = createShopifySetupState({ enabled: true, storeDomain: "saltycowhide.myshopify.com", hasClientCredentials: true, persistedStatus: "connected" });
     expect(verifiedShopify.status).toBe("connected");
   });
 

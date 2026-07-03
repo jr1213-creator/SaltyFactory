@@ -6,6 +6,7 @@ import { createRepositories } from "@saltyfactory/db";
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../../../_auth";
+import { createShopifyAdminProviderForWorkspace } from "../../../../_shopify-admin";
 import { writeProviderEvent } from "../../../_provider-workflow";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
@@ -83,15 +84,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ refId: 
       }, { status: 409 });
     }
 
-    if (!config.providers.shopifyAdmin.enabled) {
+    const shopify = await createShopifyAdminProviderForWorkspace({ repos, config, workspaceId });
+    if (!shopify.ok) {
       return NextResponse.json({
         ok: false,
-        status: "not_configured",
-        setupRequired: ["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"]
+        status: shopify.status,
+        setupRequired: shopify.setupRequired,
+        message: shopify.message
       }, { status: 503 });
     }
 
-    const commerce = createCommerceProviders(config);
+    const commerce = createCommerceProviders(config, undefined, { admin: shopify.admin });
     const result = await commerce.admin.publishProductGuarded(shopifyProductId, review, user.id);
     if (!result.ok) {
       await repos.shopify.update(ref.id, {

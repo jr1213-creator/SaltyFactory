@@ -977,6 +977,14 @@
     @apply cursor-pointer text-sm font-black text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring;
   }
 
+  .setup-legacy-details {
+    @apply grid content-start gap-3;
+  }
+
+  .setup-legacy-details summary {
+    @apply cursor-pointer text-sm font-black text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring;
+  }
+
   .setup-secure-field,
   .setup-action-panel label,
   .setup-help-panel label {
@@ -1035,6 +1043,22 @@
 
   .setup-validation-result ul {
     @apply mb-0 mt-1 grid gap-1 pl-5;
+  }
+
+  .setup-metadata-list {
+    @apply grid gap-2 rounded-md border border-border bg-card/80 p-3 text-foreground;
+  }
+
+  .setup-metadata-list ul {
+    @apply m-0 grid max-h-56 list-none gap-2 overflow-auto p-0;
+  }
+
+  .setup-metadata-list li {
+    @apply grid gap-1 rounded-md border border-border bg-muted/35 px-3 py-2;
+  }
+
+  .setup-metadata-list code {
+    @apply break-all text-xs text-soft-foreground;
   }
 
   .setup-action-panel {

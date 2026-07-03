@@ -46,6 +46,9 @@ const envSchema = z.object({
   SHOPIFY_STORE_DOMAIN: z.string().optional().default(""),
   SHOPIFY_STOREFRONT_TOKEN: z.string().optional().default(""),
   SHOPIFY_ADMIN_TOKEN: z.string().optional().default(""),
+  SHOPIFY_CREDENTIAL_MODE: z.enum(["legacy_admin_token", "dev_dashboard_client_credentials"]).default("legacy_admin_token"),
+  SHOPIFY_CLIENT_ID: z.string().optional().default(""),
+  SHOPIFY_CLIENT_SECRET: z.string().optional().default(""),
   SHOPIFY_DEFAULT_COLLECTION_ID: z.string().optional().default(""),
   SHOPIFY_ALLOW_PRODUCT_PUBLISH: asBool(false),
   PRINTIFY_ENABLED: asBool(false),
@@ -100,6 +103,14 @@ export type RuntimeConfig = z.infer<typeof envSchema> & {
 const has = (value: string) => value.trim().length > 0;
 const state = (flag: boolean, ...required: string[]): ProviderStatus =>
   !flag ? { enabled: false, reason: "feature_flag_disabled" } : required.every(has) ? { enabled: true } : { enabled: false, reason: "missing_required_config" };
+const shopifyAdminState = (config: z.infer<typeof envSchema>): ProviderStatus => {
+  if (!config.SHOPIFY_ADMIN_ENABLED) return { enabled: false, reason: "feature_flag_disabled" };
+  const hasLegacyToken = has(config.SHOPIFY_ADMIN_TOKEN);
+  const hasDevDashboardCredentials = has(config.SHOPIFY_CLIENT_ID) && has(config.SHOPIFY_CLIENT_SECRET);
+  return has(config.SHOPIFY_STORE_DOMAIN) && (hasDevDashboardCredentials || hasLegacyToken)
+    ? { enabled: true }
+    : { enabled: false, reason: "missing_required_config" };
+};
 
 export function parseEnv(input: Record<string, string | undefined> = process.env): RuntimeConfig {
   const c = envSchema.parse(input);
@@ -117,7 +128,7 @@ export function parseEnv(input: Record<string, string | undefined> = process.env
       backgroundRemoval: state(c.BACKGROUND_REMOVAL_ENABLED, c.HF_API_TOKEN || c.REMOVE_BG_API_KEY, c.HF_REMBG_MODEL || c.REMOVE_BG_API_KEY),
       upscale: state(c.UPSCALE_ENABLED, c.HF_API_TOKEN, c.HF_ESRGAN_MODEL),
       shopifyStorefront: state(c.SHOPIFY_STOREFRONT_ENABLED, c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_STOREFRONT_TOKEN),
-      shopifyAdmin: state(c.SHOPIFY_ADMIN_ENABLED, c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_ADMIN_TOKEN),
+      shopifyAdmin: shopifyAdminState(c),
       printify: state(c.PRINTIFY_ENABLED, c.PRINTIFY_API_TOKEN, c.PRINTIFY_SHOP_ID),
       ga4: state(ga4Enabled, googleClientId, googleClientSecret, c.GOOGLE_OAUTH_REDIRECT_URI),
       gsc: state(gscEnabled, googleClientId, googleClientSecret, c.GOOGLE_OAUTH_REDIRECT_URI),

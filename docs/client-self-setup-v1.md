@@ -47,6 +47,7 @@ Env var names may appear only in Advanced / Developer details, setup docs, or de
 - Secret fields are write-only.
 - Saved credentials show only connected/invalid/masked status.
 - Server validates providers.
+- Shopify Client ID/Secret token exchange runs server-side only; the Client Secret and generated Admin access token are never shown after save.
 - Provider calls never originate from the browser.
 - Tokens, EIN, bank account data, service-role keys, and provider secrets are never returned.
 - Setup help requests reject secret-like content.

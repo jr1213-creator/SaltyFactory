@@ -66,7 +66,8 @@ AI employees cannot self-grant authority, connect providers, spend, send, sync, 
 Provider validation runs server-side only:
 
 - Printify token validation calls Printify shops discovery.
-- Shopify Admin validation calls the Shopify Admin shop endpoint.
+- Shopify Dev Dashboard validation exchanges Client ID/Secret server-side, calls the Shopify Admin shop endpoint, and discovers collections.
+- Legacy Shopify Admin token validation remains available under Advanced / Legacy only.
 - Image generation validation checks configured provider/model, or labels local demo mode as development-only.
 
 Validation responses return only safe status, setup requirements, next step, masked display, and sanitized metadata.

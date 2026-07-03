@@ -4,6 +4,14 @@ import { buildFeatureReadiness, buildOwnerSetupCards, parseEnv, setupGuidesForPr
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
 import { decryptCredential, encryptCredential, sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../_auth";
+import {
+  createShopifyAdminProviderForWorkspace,
+  encodeShopifyCredentialPayload,
+  isSafeShopifyCollectionId,
+  isShopifyClientId,
+  isShopifyStoreDomain,
+  sanitizeShopifyStoreDomain
+} from "../_shopify-admin";
 
 export const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
@@ -37,7 +45,7 @@ function canonicalProviderKey(value: string): ProviderKey {
 
 function safeJson(data: unknown, status = 200) {
   const text = JSON.stringify(data);
-  if (/shpat_|sk_live_|hf_[A-Za-z0-9]|printify_[A-Za-z0-9]|access_token|refresh_token|api[_-]?token"\s*:/i.test(text)) {
+  if (/shpat_|sk_live_|hf_[A-Za-z0-9]|printify_[A-Za-z0-9]|"?(access_token|refresh_token)"?\s*:|"(api[_-]?token|clientSecret|client_secret)"\s*:/i.test(text)) {
     return NextResponse.json({ ok: false, status: "error", safeMessage: "A secret-like value was blocked from the response." }, { status: 500 });
   }
   return NextResponse.json(data, { status });
@@ -110,9 +118,11 @@ function safeConnection(row: WorkspaceRow | null) {
     lastValidatedAt: row.last_health_check_at ?? row.lastHealthCheckAt ?? row.verified_at ?? row.verifiedAt ?? null,
     safeErrorMessage: row.last_health_check_status === "failed" ? "Last validation failed. Review setup guide and validate again." : null,
     providerMetadata: {
+      credentialMode: configuration.credentialMode ?? null,
       selectedShopId: configuration.selectedShopId ?? configuration.shopId ?? null,
       storeDomain: configuration.storeDomain ?? null,
       selectedCollectionId: configuration.selectedCollectionId ?? configuration.collectionId ?? null,
+      discoveredCollectionCount: configuration.discoveredCollectionCount ?? null,
       imageProvider: configuration.imageProvider ?? null,
       imageModel: configuration.imageModel ?? null
     }
@@ -222,11 +232,11 @@ function shopifyHeaders(token: string) {
 }
 
 function sanitizeDomain(value: string) {
-  return value.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
+  return sanitizeShopifyStoreDomain(value);
 }
 
 function storeDomainValid(value: string) {
-  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(value);
+  return isShopifyStoreDomain(value);
 }
 
 async function parseBody(req: Request) {
@@ -305,7 +315,7 @@ export async function handleProviderConnectionSave(req: Request, providerParam: 
 export async function handleProviderConnectionValidate(req: Request, providerParam: string) {
   const provider = canonicalProviderKey(providerParam);
   if (provider === "printify") return handlePrintifyValidateToken(req);
-  if (provider === "shopify") return handleShopifyValidateAdmin(req);
+  if (provider === "shopify") return handleShopifyValidateClientCredentials(req);
   if (provider === "image_generation") return handleImageGenerationValidate(req);
   return validationResponse({
     ok: false,
@@ -433,9 +443,101 @@ export async function handleShopifyValidateAdmin(req: Request) {
     if (!storageReady(config)) return storageBlockedResponse();
     const { response, body: data } = await fetchJson(shopifyEndpoint(storeDomain, "shop.json"), { method: "GET", headers: shopifyHeaders(token) });
     if (!response.ok) return validationResponse({ ok: false, status: "invalid", safeMessage: "Shopify did not accept this Admin token for the provided store domain.", setupRequired: ["Valid Shopify Admin token", "Matching .myshopify.com domain"], nextStep: "Review custom app permissions" }, 400);
-    const credentialRef = await saveSecretCredential({ repos, config, provider: "shopify", workspaceId, actorId: user.id, secret: token });
-    await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "needs_input", enabled: false, credentialRef, configuration: { storeDomain, maskedDisplayValue: maskSavedCredential(), shopName: data?.shop?.name ?? null }, healthStatus: "admin_valid" });
-    return validationResponse({ ok: true, status: "connected", safeMessage: "Shopify Admin validated. Choose the default collection before draft products are marked ready.", setupRequired: ["Select Shopify collection"], nextStep: "Discover collections", maskedDisplayValue: maskSavedCredential(), providerMetadata: { storeDomain, shopName: data?.shop?.name ?? null } });
+    const credentialRef = await saveSecretCredential({
+      repos,
+      config,
+      provider: "shopify",
+      workspaceId,
+      actorId: user.id,
+      secret: encodeShopifyCredentialPayload({ v: 1, credentialMode: "legacy_admin_token", adminToken: token })
+    });
+    await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "needs_input", enabled: false, credentialRef, configuration: { storeDomain, credentialMode: "legacy_admin_token", maskedDisplayValue: maskSavedCredential(), shopName: data?.shop?.name ?? null }, healthStatus: "admin_valid" });
+    return validationResponse({ ok: true, status: "connected", safeMessage: "Legacy Shopify Admin token validated. Choose the default collection before draft products are marked ready.", setupRequired: ["Select Shopify collection"], nextStep: "Discover collections", maskedDisplayValue: maskSavedCredential(), providerMetadata: { storeDomain, credentialMode: "legacy_admin_token", shopName: data?.shop?.name ?? null } });
+  } catch (error) {
+    if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
+    return validationResponse({ ok: false, status: "invalid", safeMessage: sanitizeProviderError(error), setupRequired: ["Validate Shopify again"] }, 500);
+  }
+}
+
+export async function handleShopifyValidateClientCredentials(req: Request) {
+  try {
+    const user = await requireProviderMutationPermission(req, workspaceId);
+    const body = await parseBody(req);
+    const storeDomain = sanitizeDomain(typeof body.storeDomain === "string" ? body.storeDomain : "");
+    const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
+    const clientSecret = typeof body.clientSecret === "string" ? body.clientSecret.trim() : "";
+    const config = parseEnv();
+    const repos = createRepositories();
+    if (!storeDomainValid(storeDomain)) return validationResponse({ ok: false, status: "missing", safeMessage: "Enter your .myshopify.com Shopify Admin domain.", setupRequired: ["Shopify store domain"], nextStep: "Enter store domain" }, 400);
+    if (!isShopifyClientId(clientId)) return validationResponse({ ok: false, status: "missing", safeMessage: "Enter the Shopify Client ID from the Dev Dashboard app.", setupRequired: ["Shopify Client ID"], nextStep: "Enter Client ID" }, 400);
+    if (!clientSecret) return validationResponse({ ok: false, status: "missing", safeMessage: "Paste the Shopify Client Secret into the secure write-only field.", setupRequired: ["Shopify Client Secret"], nextStep: "Paste Client Secret" }, 400);
+    if (!storageReady(config)) return storageBlockedResponse();
+
+    const provider = new (await import("@saltyfactory/commerce")).ShopifyAdminProviderLive(storeDomain, {
+      credentialMode: "dev_dashboard_client_credentials",
+      clientId,
+      clientSecret
+    }, false);
+    const shop = await provider.fetchShopInfo();
+    if (!shop.ok) {
+      return validationResponse({
+        ok: false,
+        status: "invalid",
+        safeMessage: "Shopify did not accept this Client ID and Client Secret for the provided store domain.",
+        setupRequired: ["Valid Shopify Client ID", "Valid Shopify Client Secret", "Matching .myshopify.com domain"],
+        nextStep: "Review Dev Dashboard app credentials"
+      }, 400);
+    }
+    const collectionsResult = await provider.getCollections();
+    if (!collectionsResult.ok) {
+      return validationResponse({
+        ok: false,
+        status: "invalid",
+        safeMessage: "Shopify credentials validated, but collection discovery failed. Confirm the app has product and collection access before saving.",
+        setupRequired: collectionsResult.setupRequired ?? ["read_products/write_products permission"],
+        nextStep: "Review app permissions"
+      }, 400);
+    }
+    const credentialRef = await saveSecretCredential({
+      repos,
+      config,
+      provider: "shopify",
+      workspaceId,
+      actorId: user.id,
+      secret: encodeShopifyCredentialPayload({ v: 1, credentialMode: "dev_dashboard_client_credentials", clientId, clientSecret })
+    });
+    const shopName = (shop.data as any)?.shop?.name ?? null;
+    await createOrUpdateConnection({
+      repos,
+      provider: "shopify",
+      workspaceId,
+      actorId: user.id,
+      status: "needs_input",
+      enabled: false,
+      credentialRef,
+      configuration: {
+        storeDomain,
+        credentialMode: "dev_dashboard_client_credentials",
+        maskedDisplayValue: maskSavedCredential(),
+        shopName,
+        discoveredCollectionCount: collectionsResult.data.length
+      },
+      healthStatus: "client_credentials_valid"
+    });
+    return validationResponse({
+      ok: true,
+      status: "connected",
+      safeMessage: "Shopify Dev Dashboard credentials validated. The Client Secret was saved securely and will not be shown again. Choose the default collection before draft products are marked ready.",
+      setupRequired: ["Select Shopify collection"],
+      nextStep: "Select collection",
+      maskedDisplayValue: maskSavedCredential(),
+      providerMetadata: {
+        storeDomain,
+        credentialMode: "dev_dashboard_client_credentials",
+        shopName,
+        collections: collectionsResult.data
+      }
+    });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return validationResponse({ ok: false, status: "invalid", safeMessage: sanitizeProviderError(error), setupRequired: ["Validate Shopify again"] }, 500);
@@ -447,21 +549,12 @@ export async function handleShopifyDiscoverCollections(req: Request) {
     const user = await requireProviderMutationPermission(req, workspaceId);
     const config = parseEnv();
     const repos = createRepositories();
-    const connection = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "shopify");
-    const configuration = (connection?.configuration ?? {}) as Record<string, unknown>;
-    const storeDomain = sanitizeDomain(String(configuration.storeDomain ?? ""));
-    const token = await readStoredSecret({ repos, config, provider: "shopify", workspaceId });
-    if (!storeDomain || !token) return validationResponse({ ok: false, status: "missing", safeMessage: "Shopify Admin is not connected yet. Connect Shopify before discovering collections.", setupRequired: ["Connect Shopify"], nextStep: "Connect Shopify" }, 400);
-    const [custom, smart] = await Promise.all([
-      fetchJson(shopifyEndpoint(storeDomain, "custom_collections.json?limit=250"), { method: "GET", headers: shopifyHeaders(token) }),
-      fetchJson(shopifyEndpoint(storeDomain, "smart_collections.json?limit=250"), { method: "GET", headers: shopifyHeaders(token) })
-    ]);
-    if (!custom.response.ok && !smart.response.ok) return validationResponse({ ok: false, status: "invalid", safeMessage: "Shopify collection discovery failed. Validate the Admin token and permissions again.", setupRequired: ["read_products/write_products permission"], nextStep: "Validate Shopify" }, 400);
-    const collections = [
-      ...(Array.isArray(custom.body?.custom_collections) ? custom.body.custom_collections : []),
-      ...(Array.isArray(smart.body?.smart_collections) ? smart.body.smart_collections : [])
-    ].map((collection: any) => ({ id: String(collection.id ?? ""), title: String(collection.title ?? "Shopify collection") })).filter((collection) => collection.id);
-    await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "needs_input", enabled: false, configuration: { discoveredCollectionCount: collections.length }, healthStatus: "collections_discovered" });
+    const shopify = await createShopifyAdminProviderForWorkspace({ repos, config, workspaceId, requireEnabled: false });
+    if (!shopify.ok) return validationResponse({ ok: false, status: shopify.status === "config_blocked" ? "config_blocked" : "missing", safeMessage: shopify.message, setupRequired: shopify.setupRequired, nextStep: "Connect Shopify" }, shopify.status === "config_blocked" ? 503 : 400);
+    const discovered = await shopify.admin.getCollections();
+    if (!discovered.ok) return validationResponse({ ok: false, status: "invalid", safeMessage: "Shopify collection discovery failed. Validate Shopify credentials and permissions again.", setupRequired: discovered.setupRequired ?? ["read_products/write_products permission"], nextStep: "Validate Shopify" }, 400);
+    const collections = discovered.data.map((collection: any) => ({ id: String(collection.id ?? ""), title: String(collection.title ?? "Shopify collection"), type: String(collection.type ?? "collection") })).filter((collection) => collection.id);
+    await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "needs_input", enabled: false, configuration: { storeDomain: shopify.storeDomain, credentialMode: shopify.credentialMode, discoveredCollectionCount: collections.length }, healthStatus: "collections_discovered" });
     return validationResponse({ ok: true, status: collections.length ? "connected" : "blocked", safeMessage: collections.length ? "Shopify collections discovered. Choose the default collection for draft products." : "No Shopify collections were returned.", setupRequired: collections.length ? ["Select Shopify collection"] : ["Create Shopify collection"], nextStep: collections.length ? "Select collection" : "Create collection", providerMetadata: { collections } });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
@@ -475,6 +568,7 @@ export async function handleShopifySelectCollection(req: Request) {
     const body = await parseBody(req);
     const collectionId = typeof body.collectionId === "string" ? body.collectionId.trim() : "";
     if (!collectionId) return validationResponse({ ok: false, status: "missing", safeMessage: "Choose a Shopify collection before continuing.", setupRequired: ["Shopify collection"], nextStep: "Select collection" }, 400);
+    if (!isSafeShopifyCollectionId(collectionId)) return validationResponse({ ok: false, status: "invalid", safeMessage: "The Shopify collection ID has an invalid format.", setupRequired: ["Valid Shopify collection ID"], nextStep: "Select collection" }, 400);
     const repos = createRepositories();
     await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "connected", enabled: true, configuration: { selectedCollectionId: collectionId, maskedDisplayValue: maskSavedCredential() }, healthStatus: "connected" });
     return validationResponse({ ok: true, status: "connected", safeMessage: "Shopify collection selected. Draft creation and media upload can proceed when product gates are ready. Live publish remains owner-gated.", setupRequired: ["Live publish still requires owner confirmation"], nextStep: "Open Publish Review", maskedDisplayValue: maskSavedCredential(), providerMetadata: { selectedCollectionId: collectionId } });

@@ -66,6 +66,31 @@ describe("provider-backed POD functional API mapping", () => {
     expect(JSON.stringify(created)).not.toContain("shpat_secret");
   });
 
+  it("Shopify live adapter exchanges Dev Dashboard Client ID/Secret and uses the generated token for Admin calls", async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetcher = async (url: string | URL | Request, init: RequestInit = {}) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/admin/oauth/access_token")) {
+        return jsonResponse({ access_token: "generated_admin_access_token", expires_in: 3600 });
+      }
+      return jsonResponse({ shop: { name: "Salty Cowhide" } });
+    };
+    const shopify = new ShopifyAdminProviderLive("saltycowhide.myshopify.com", {
+      credentialMode: "dev_dashboard_client_credentials",
+      clientId: "client_1234",
+      clientSecret: "client_secret_1234"
+    }, false, fetcher as typeof fetch);
+
+    const result = await shopify.fetchShopInfo();
+
+    expect(result).toMatchObject({ ok: true, data: { shop: { name: "Salty Cowhide" } } });
+    expect(calls[0]?.url).toBe("https://saltycowhide.myshopify.com/admin/oauth/access_token");
+    expect(String(calls[0]?.init.body)).toContain("grant_type=client_credentials");
+    expect(calls[1]?.url).toBe("https://saltycowhide.myshopify.com/admin/api/2024-10/shop.json");
+    expect((calls[1]?.init.headers as Record<string, string>)["X-Shopify-Access-Token"]).toBe("generated_admin_access_token");
+    expect(JSON.stringify(result)).not.toMatch(/client_secret_1234|generated_admin_access_token/);
+  });
+
   it("Printify live adapter uploads generated art and creates product payload with upload id, variants, and print areas", async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetcher = async (url: string | URL | Request, init: RequestInit = {}) => {

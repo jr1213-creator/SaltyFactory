@@ -4,7 +4,8 @@
 
 | Capability | Route or adapter | UI caller | Current behavior |
 |---|---|---|---|
-| Admin health | `ShopifyAdminProviderLive.testConnection/fetchShopInfo` | Integrations/Account Center paths | Calls `shop.json` when configured and returns sanitized result. |
+| Dev Dashboard credential validation | `POST /api/studio/provider-connections/shopify/exchange-client-credentials`, `ShopifyAdminProviderLive` | `/studio/onboarding/providers/shopify` | Exchanges Client ID/Secret server-side, calls `shop.json`, discovers collections, and stores credentials encrypted. Client Secret and generated access token are never returned. |
+| Admin health | `ShopifyAdminProviderLive.testConnection/fetchShopInfo` | Integrations/Account Center paths | Calls `shop.json` when configured with saved onboarding credentials or protected server config and returns sanitized result. |
 | Draft product creation | `POST /api/studio/publish/shopify`, `ShopifyAdminProviderLive.createProductDraft` | `/studio/publish-review` | Creates Shopify products with `status: draft` only after publish review gates pass, approved mockup media exists, pricing/variants exist, and a real Shopify collection ID is supplied. No live publish. |
 | Media/image upload | `POST /api/studio/integrations/shopify/media`, `ShopifyAdminProviderLive.uploadProductImage` | `/studio/shopify-products` | Uploads approved mockup media to an existing Shopify draft product. Requires signed/public media URL. |
 | Product update | `ShopifyAdminProviderLive.updateProduct` | adapter/tested; route-level edit future | Updates Shopify product payload safely as draft by default. |
@@ -32,8 +33,13 @@ Shopify draft creation includes:
 Shopify draft creation requires:
 
 ```txt
+Saved Shopify onboarding credentials
+or protected server config:
 SHOPIFY_ADMIN_ENABLED=true
 SHOPIFY_STORE_DOMAIN=
+SHOPIFY_CLIENT_ID=
+SHOPIFY_CLIENT_SECRET=
+or legacy:
 SHOPIFY_ADMIN_TOKEN=
 ```
 

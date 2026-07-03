@@ -6,6 +6,7 @@ import { createRepositories } from "@saltyfactory/db";
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../_auth";
+import { createShopifyAdminProviderForWorkspace } from "../../_shopify-admin";
 import {
   getApprovedMockupMedia,
   getDraftVariants,
@@ -38,7 +39,8 @@ export async function POST(req: Request) {
     const gates = evaluatePublishReviewGates(review);
     if (!gates.shopifyAllowed) return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: gates.blockedReasons, gates }, { status: 409 });
     const config = parseEnv();
-    if (!config.providers.shopifyAdmin.enabled) return NextResponse.json({ ok: false, status: "not_configured", setupRequired: ["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] }, { status: 503 });
+    const shopify = await createShopifyAdminProviderForWorkspace({ repos, config, workspaceId });
+    if (!shopify.ok) return NextResponse.json({ ok: false, status: shopify.status, setupRequired: shopify.setupRequired, message: shopify.message }, { status: shopify.status === "config_blocked" ? 503 : 503 });
     const variantsResult = await getDraftVariants({ repos, workspaceId, draftId: productDraftId });
     if (!variantsResult.ok) return NextResponse.json({ ok: false, status: variantsResult.status, blockingReasons: variantsResult.blockingReasons }, { status: 409 });
     const variants = shopifyVariantPayload(variantsResult.variants);
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, status: mediaResult.status, blockingReasons: mediaResult.blockingReasons, setupRequired: mediaResult.setupRequired }, { status: mediaResult.setupRequired?.length ? 503 : 409 });
     }
     const metadata = metadataOf(draft);
-    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || config.SHOPIFY_DEFAULT_COLLECTION_ID || "");
+    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || shopify.selectedCollectionId || config.SHOPIFY_DEFAULT_COLLECTION_ID || "");
     if (!collectionId) {
       return NextResponse.json({
         ok: false,
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
         setupRequired: ["Select a real Shopify collection ID before draft creation."]
       }, { status: 409 });
     }
-    const commerce = createCommerceProviders(config);
+    const commerce = createCommerceProviders(config, undefined, { admin: shopify.admin });
     const result = await commerce.admin.createProductDraft({
       title: draft.title,
       description: draft.description,
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
       created_by: user.id,
       updated_by: user.id
     });
-    const cleanDomain = config.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const cleanDomain = shopify.storeDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const adminUrl = shopifyProductId ? `https://${cleanDomain}/admin/products/${shopifyProductId}` : null;
     const handle = String(product.handle ?? "");
     const saved = await repos.shopify.create({

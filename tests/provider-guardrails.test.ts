@@ -24,4 +24,15 @@ describe("provider guardrails", () => {
     expect(await providers.admin.createProductDraft({})).toMatchObject({ ok: false, error: "shopify_admin_disabled" });
     expect(await providers.printify.createProduct({})).toMatchObject({ ok: false, error: "printify_disabled" });
   });
+
+  it("Shopify Admin can be configured with server-side Client ID and Client Secret", () => {
+    const cfg = parseEnv({
+      SHOPIFY_ADMIN_ENABLED: "true",
+      SHOPIFY_STORE_DOMAIN: "saltycowhide.myshopify.com",
+      SHOPIFY_CLIENT_ID: "client_1234",
+      SHOPIFY_CLIENT_SECRET: "client_secret_1234",
+      NEXT_PUBLIC_STOREFRONT_BASE_URL: "https://saltycowhide.com"
+    });
+    expect(cfg.providers.shopifyAdmin.enabled).toBe(true);
+  });
 });

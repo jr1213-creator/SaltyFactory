@@ -34,7 +34,8 @@ Secure credential storage is not configured. An administrator must enable encryp
 Provider validation is server-side:
 
 - Printify validates by calling shops discovery.
-- Shopify validates by calling the Admin shop endpoint.
+- Shopify Dev Dashboard setup validates by exchanging Client ID/Secret server-side, calling the Admin shop endpoint, and discovering collections.
+- Legacy Shopify Admin token setup remains available only under Advanced / Legacy and validates by calling the Admin shop endpoint.
 - Image generation validates provider/model access.
 
 Responses include:
@@ -48,6 +49,7 @@ Responses include:
 - sanitized provider metadata
 
 Responses must not include provider tokens, API keys, account numbers, EIN, or service-role credentials.
+Shopify responses must also never include the Client Secret, legacy Admin token, or generated Admin access token.
 
 ## Administrator Setup Required
 

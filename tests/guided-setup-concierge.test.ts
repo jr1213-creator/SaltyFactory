@@ -16,6 +16,7 @@ import StudioSetupPage from "../apps/studio/app/studio/setup/page";
 import { GET as providerConnectionsGet } from "../apps/studio/app/api/studio/provider-connections/route";
 import { POST as printifyValidatePost } from "../apps/studio/app/api/studio/provider-connections/printify/validate-token/route";
 import { POST as shopifyValidatePost } from "../apps/studio/app/api/studio/provider-connections/shopify/validate-admin/route";
+import { POST as shopifyClientCredentialsPost } from "../apps/studio/app/api/studio/provider-connections/shopify/exchange-client-credentials/route";
 import { POST as imageValidatePost } from "../apps/studio/app/api/studio/provider-connections/image-generation/validate/route";
 import { POST as helpPost } from "../apps/studio/app/api/studio/onboarding/request-help/route";
 
@@ -53,7 +54,8 @@ afterEach(() => {
 describe("guided setup concierge UI", () => {
   it("has setup guides for every provider field needed by current blockers", () => {
     expect(setupGuidesForProvider("printify").map((guide) => guide.fieldKey)).toEqual(expect.arrayContaining(["printify_api_token", "printify_shop"]));
-    expect(setupGuidesForProvider("shopify").map((guide) => guide.fieldKey)).toEqual(expect.arrayContaining(["shopify_store_domain", "shopify_admin_token", "shopify_collection"]));
+    expect(setupGuidesForProvider("shopify").map((guide) => guide.fieldKey)).toEqual(expect.arrayContaining(["shopify_store_domain", "shopify_client_id", "shopify_client_secret", "shopify_admin_token", "shopify_collection"]));
+    expect(setupGuidesForProvider("shopify").find((guide) => guide.fieldKey === "shopify_admin_token")?.showInAdvancedOnly).toBe(true);
     expect(setupGuidesForProvider("image_generation").map((guide) => guide.fieldKey)).toContain("huggingface_token");
     expect(setupFieldGuides.every((guide) => guide.stepsToFindIt.length > 0 && guide.securityNote.length > 0)).toBe(true);
   });
@@ -79,6 +81,9 @@ describe("guided setup concierge UI", () => {
     expect(html).toContain("Quick Setup");
     expect(html).toContain("Connect Printify");
     expect(html).toContain("Connect Shopify");
+    expect(html).toContain("Shopify Client ID");
+    expect(html).toContain("Shopify Client Secret");
+    expect(html).toContain("Advanced / Legacy Admin token");
     expect(html).toContain("Configure image generation");
     expect(html).toContain("Where do I get this?");
     expect(html).toContain("Save securely and validate");
@@ -121,8 +126,14 @@ describe("guided setup concierge APIs", () => {
       body: JSON.stringify({ token: "ptf_should_not_matter" }),
       headers: { "content-type": "application/json" }
     }));
+    const shopifyExchangeResponse = await shopifyClientCredentialsPost(new Request("http://localhost:3001/api/studio/provider-connections/shopify/exchange-client-credentials", {
+      method: "POST",
+      body: JSON.stringify({ storeDomain: "saltycowhide.myshopify.com", clientId: "client_1234", clientSecret: "secret_should_not_matter" }),
+      headers: { "content-type": "application/json" }
+    }));
     expect(listResponse.status).toBe(401);
     expect(validateResponse.status).toBe(401);
+    expect(shopifyExchangeResponse.status).toBe(401);
   });
 
   it("blocks plaintext secret storage when encrypted credential storage is unavailable", async () => {
@@ -162,7 +173,64 @@ describe("guided setup concierge APIs", () => {
     expect(JSON.stringify(body)).not.toContain(token);
   });
 
-  it("validates Shopify Admin server-side and never returns the Admin token", async () => {
+  it("validates Shopify Dev Dashboard credentials server-side and never returns the Client Secret or generated token", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/admin/oauth/access_token")) {
+        return new Response(JSON.stringify({ access_token: "generated_admin_token", expires_in: 3600 }), { status: 200 });
+      }
+      if (String(url).includes("custom_collections.json")) {
+        return new Response(JSON.stringify({ custom_collections: [{ id: 456, title: "Beach Rodeo" }] }), { status: 200 });
+      }
+      if (String(url).includes("smart_collections.json")) {
+        return new Response(JSON.stringify({ smart_collections: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ shop: { name: "Salty Cowhide" } }), { status: 200 });
+    });
+
+    const clientSecret = "shpss_test_secret_12345";
+    const response = await shopifyClientCredentialsPost(jsonPost("/api/studio/provider-connections/shopify/exchange-client-credentials", {
+      storeDomain: "saltycowhide.myshopify.com",
+      clientId: "client_1234",
+      clientSecret
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(calls[0]?.url).toBe("https://saltycowhide.myshopify.com/admin/oauth/access_token");
+    expect(String(calls[0]?.init.body)).toContain("grant_type=client_credentials");
+    expect(calls[1]?.url).toBe("https://saltycowhide.myshopify.com/admin/api/2024-10/shop.json");
+    expect(body.status).toBe("connected");
+    expect(body.providerMetadata.storeDomain).toBe("saltycowhide.myshopify.com");
+    expect(body.providerMetadata.collections[0]).toMatchObject({ id: "456", title: "Beach Rodeo" });
+    expect(JSON.stringify(body)).not.toContain(clientSecret);
+    expect(JSON.stringify(body)).not.toContain("generated_admin_token");
+  });
+
+  it("returns a safe error for invalid Shopify Dev Dashboard credentials", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "invalid_client", client_secret: "shpss_bad_secret_12345" }), { status: 401 }));
+
+    const response = await shopifyClientCredentialsPost(jsonPost("/api/studio/provider-connections/shopify/exchange-client-credentials", {
+      storeDomain: "saltycowhide.myshopify.com",
+      clientId: "client_1234",
+      clientSecret: "shpss_bad_secret_12345"
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("invalid");
+    expect(body.safeMessage).toContain("Shopify did not accept");
+    expect(JSON.stringify(body)).not.toContain("shpss_bad_secret_12345");
+  });
+
+  it("validates legacy Shopify Admin token server-side and never returns the Admin token", async () => {
     authorizeAsOwner();
     process.env.CREDENTIAL_STORAGE_ENABLED = "true";
     process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
@@ -182,7 +250,7 @@ describe("guided setup concierge APIs", () => {
     expect(response.status).toBe(200);
     expect(calls[0]?.url).toBe("https://saltycowhide.myshopify.com/admin/api/2024-10/shop.json");
     expect(body.status).toBe("connected");
-    expect(body.providerMetadata.storeDomain).toBe("saltycowhide.myshopify.com");
+    expect(body.providerMetadata.credentialMode).toBe("legacy_admin_token");
     expect(JSON.stringify(body)).not.toContain(token);
   });
 

@@ -189,22 +189,33 @@ Private generated assets must use signed URLs. Public URLs are only created for 
 
 ## Shopify Setup
 
-Required env:
+Owner setup:
+
+- `/studio/onboarding/providers/shopify`
+- Store domain
+- Shopify Dev Dashboard Client ID
+- Shopify Client Secret as a write-only secure field
+- Default Shopify collection after discovery
+
+Advanced protected server config:
 
 ```txt
 SHOPIFY_ADMIN_ENABLED=true
 SHOPIFY_STORE_DOMAIN=
+SHOPIFY_CLIENT_ID=
+SHOPIFY_CLIENT_SECRET=
+# legacy only if Shopify exposes an Admin API access token:
 SHOPIFY_ADMIN_TOKEN=
 ```
 
 Account Center state:
 
 - `external_signup_required` when no store domain or provider setup exists.
-- `manual_setup_required` when the Shopify domain or Admin API token must be configured server-side.
+- `manual_setup_required` when the Shopify domain or Client ID/Secret must be saved through onboarding or protected server config.
 - `configured_not_verified` until a live Admin API test succeeds.
 - `connected` only after a live API test succeeds.
 
-The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, owner permission, and publish gates pass. Draft payloads include title, description, vendor, product type, tags, SEO metadata, variants/pricing, approved mockup media, and a real Shopify collection ID for collection assignment. Shopify setup exposes metafield keys only, never the Admin token.
+The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, owner permission, and publish gates pass. Dev Dashboard credentials are exchanged server-side before Admin API calls. Draft payloads include title, description, vendor, product type, tags, SEO metadata, variants/pricing, approved mockup media, and a real Shopify collection ID for collection assignment. Shopify setup exposes metafield keys only, never the Client Secret, legacy Admin token, or generated access token.
 
 ## Printify Setup
 

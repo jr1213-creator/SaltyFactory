@@ -1249,19 +1249,21 @@ export function createShopifySetupState(input: {
   enabled?: boolean | undefined;
   storeDomain?: string | null | undefined;
   hasAdminToken?: boolean | undefined;
+  hasClientCredentials?: boolean | undefined;
   persistedStatus?: string | undefined;
   shopInfoDetected?: boolean | undefined;
   sanitizedError?: unknown;
 }): ProviderSetupState {
+  const hasAdminAuth = Boolean(input.hasClientCredentials || input.hasAdminToken);
   const setupRequired = [
     !input.enabled && "SHOPIFY_ADMIN_ENABLED=true",
     !input.storeDomain && "SHOPIFY_STORE_DOMAIN",
-    !input.hasAdminToken && "SHOPIFY_ADMIN_TOKEN"
+    !hasAdminAuth && "Shopify Client ID and Client Secret, or legacy SHOPIFY_ADMIN_TOKEN if available"
   ].filter(Boolean) as string[];
-  const configuredForLiveTest = Boolean(input.enabled && input.storeDomain && input.hasAdminToken);
+  const configuredForLiveTest = Boolean(input.enabled && input.storeDomain && hasAdminAuth);
   const status: LaunchReadinessStatus =
     !input.storeDomain ? "external_signup_required" :
-    !input.hasAdminToken ? "manual_setup_required" :
+    !hasAdminAuth ? "manual_setup_required" :
     !input.enabled ? "setup_needed" :
     input.persistedStatus === "connected" && configuredForLiveTest ? "connected" :
     "configured_not_verified";
@@ -1271,12 +1273,12 @@ export function createShopifySetupState(input: {
     checklist: [
       { label: "Create or open Shopify store", status: input.storeDomain ? "detected" as const : "external_signup_required" as const, ownerAction: "Create a Shopify store or confirm the existing Salty Cowhide shop domain." },
       { label: "Configure SaltyCowhide.com domain", status: input.storeDomain ? "detected" as const : "manual_setup_required" as const, ownerAction: "Connect SaltyCowhide.com in Shopify and DNS." },
-      { label: "Create Admin API custom app/token", status: input.hasAdminToken ? "detected" as const : "manual_setup_required" as const, ownerAction: "Create a custom app/admin token with required draft product scopes; keep token server-side only." },
+      { label: "Add Shopify Dev Dashboard credentials", status: hasAdminAuth ? "detected" as const : "manual_setup_required" as const, ownerAction: "Save the Client ID and Client Secret through Shopify onboarding. Use the legacy Admin token only if Shopify exposes one." },
       { label: "Verify Shopify Admin API", status: status === "connected" ? "connected" as const : "configured_not_verified" as const, ownerAction: "Run Test Shopify connection." },
       { label: "Draft product sync readiness", status: status === "connected" ? "ready" as const : "setup_needed" as const, ownerAction: "Create draft products only after publish gates pass." }
     ],
     setupRequired,
-    nextOwnerAction: status === "connected" ? "Prepare owner-approved Shopify draft product payloads." : setupRequired.length ? "Create/open Shopify, configure domain/admin token, then test connection." : "Run Test Shopify connection.",
+    nextOwnerAction: status === "connected" ? "Prepare owner-approved Shopify draft product payloads." : setupRequired.length ? "Create/open Shopify, save Client ID/Secret through onboarding, then test connection." : "Run Test Shopify connection.",
     connectionTestRequired: status !== "connected",
     connected: status === "connected",
     sanitizedError: input.sanitizedError ? redactLaunchError(input.sanitizedError) : null,

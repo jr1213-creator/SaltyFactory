@@ -33,7 +33,7 @@ if (deps.includes("anthropic")) failures.push("Anthropic dependency found");
 for (const file of files) {
   const content = text(file);
   const normalized = file.replace(/\\/g, "/");
-  const publicSecret = /NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY|HF_API_TOKEN|REPLICATE_API_TOKEN|REMOVE_BG_API_KEY|GOOGLE_OAUTH_CLIENT_SECRET|GOOGLE_CLIENT_SECRET|GOOGLE_ACCESS_TOKEN|GOOGLE_REFRESH_TOKEN)/.test(content);
+  const publicSecret = /NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|SHOPIFY_CLIENT_SECRET|PRINTIFY_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY|HF_API_TOKEN|REPLICATE_API_TOKEN|REMOVE_BG_API_KEY|GOOGLE_OAUTH_CLIENT_SECRET|GOOGLE_CLIENT_SECRET|GOOGLE_ACCESS_TOKEN|GOOGLE_REFRESH_TOKEN)/.test(content);
   if (publicSecret) failures.push(`${file}: secret-like NEXT_PUBLIC exposure`);
   if (/app\/api\/(generate|publish)/.test(normalized) && !/app\/api\/studio\//.test(normalized)) failures.push(`${file}: public generation or publish route`);
   if (!normalized.endsWith("scripts/check-guardrails.ts") && /href=\{?["']#["']|javascript:void\(0\)/.test(content)) failures.push(`${file}: disabled or placeholder links must not use # or javascript:void(0)`);

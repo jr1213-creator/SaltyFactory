@@ -129,7 +129,7 @@ describe("Shopify go-live route", () => {
     vi.stubEnv("LIVE_PUBLISHING_ENABLED", "true");
     vi.stubEnv("SHOPIFY_ALLOW_PRODUCT_PUBLISH", "true");
     vi.stubEnv("SHOPIFY_ADMIN_ENABLED", "true");
-    vi.stubEnv("SHOPIFY_STORE_DOMAIN", "shop.example");
+    vi.stubEnv("SHOPIFY_STORE_DOMAIN", "saltycowhide.myshopify.com");
     vi.stubEnv("SHOPIFY_ADMIN_TOKEN", "server-token");
     vi.stubEnv("NEXT_PUBLIC_STOREFRONT_BASE_URL", "https://saltycowhide.com");
     const repos = await seedGoLiveRecords("shopref_success");

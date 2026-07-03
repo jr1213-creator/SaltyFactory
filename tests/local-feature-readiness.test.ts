@@ -57,7 +57,7 @@ describe("local feature readiness service", () => {
     expect(printify.status).toBe("disabled");
     expect(printify.setupRequired).toEqual(expect.arrayContaining(["PRINTIFY_ENABLED=true", "PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"]));
     expect(shopify.status).toBe("disabled");
-    expect(shopify.setupRequired.join(" ")).toContain("SHOPIFY_ADMIN_ENABLED=true");
+    expect(shopify.setupRequired.join(" ")).toContain("Client ID/Secret");
     expect(livePublish.status).toBe("disabled");
     expect(livePublish.disabledFlags).toEqual(expect.arrayContaining(["LIVE_PUBLISHING_ENABLED=false", "SHOPIFY_ALLOW_PRODUCT_PUBLISH=false", "PRINTIFY_ALLOW_PUBLISH=false"]));
     expect(banking.canTestWithoutProvider).toBe(true);

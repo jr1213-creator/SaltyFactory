@@ -41,9 +41,7 @@ Shopify live publish remains blocked by default. The go-live route requires:
 - publish gates passing
 - `LIVE_PUBLISHING_ENABLED=true`
 - `SHOPIFY_ALLOW_PRODUCT_PUBLISH=true`
-- `SHOPIFY_ADMIN_ENABLED=true`
-- `SHOPIFY_STORE_DOMAIN`
-- `SHOPIFY_ADMIN_TOKEN`
+- saved/enabled Shopify onboarding connection, or protected server Shopify config
 - explicit owner confirmation phrase: `PUBLISH LIVE`
 
 If any of these are missing, the route returns a specific blocked/config response and writes provider/audit events where a persisted ref exists.

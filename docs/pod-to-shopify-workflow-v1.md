@@ -14,4 +14,4 @@
 
 The core path is generated artwork, not manual artwork references. If the image provider is not configured, the workflow blocks with exact setup requirements.
 
-Shopify draft creation is config-blocked until `SHOPIFY_ADMIN_ENABLED=true`, `SHOPIFY_STORE_DOMAIN`, and `SHOPIFY_ADMIN_TOKEN` are set server-side. It is workflow-blocked until a verified Shopify collection ID is present; a human-readable collection label on the listing draft is not enough.
+Shopify draft creation is blocked until Shopify is connected through onboarding with Dev Dashboard Client ID/Secret, or protected server config provides `SHOPIFY_ADMIN_ENABLED=true`, `SHOPIFY_STORE_DOMAIN`, and either `SHOPIFY_CLIENT_ID` + `SHOPIFY_CLIENT_SECRET` or legacy `SHOPIFY_ADMIN_TOKEN`. It is workflow-blocked until a verified Shopify collection ID is present; a human-readable collection label on the listing draft is not enough.

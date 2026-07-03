@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       enabled: config.SHOPIFY_ADMIN_ENABLED,
       storeDomain: config.SHOPIFY_STORE_DOMAIN,
       hasAdminToken: Boolean(config.SHOPIFY_ADMIN_TOKEN),
+      hasClientCredentials: Boolean(config.SHOPIFY_CLIENT_ID && config.SHOPIFY_CLIENT_SECRET),
       persistedStatus: config.providers.shopifyAdmin.enabled ? "configured_not_verified" : "not_configured"
     });
 

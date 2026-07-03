@@ -11,7 +11,7 @@ export default async function Page() {
       <a className="btn btn-primary" href="/studio/publish-review">Create Shopify Draft</a>
     </PageHeader>
     <div className="layout-grid layout-grid-3">
-      <ProviderReadinessCard title="Shopify Admin" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description="Draft creation requires server-side Admin API configuration." />
+      <ProviderReadinessCard title="Shopify Admin" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description="Draft creation uses saved onboarding credentials or protected server-side Shopify Admin config." />
       <ProviderReadinessCard title="Draft Mode" status="required" tone="success" description="Products are created as drafts/unpublished by default." />
       <ProviderReadinessCard title="Live Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked by default"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Public storefront publish requires owner confirmation and passed gates." />
     </div>

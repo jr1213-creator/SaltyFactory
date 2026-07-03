@@ -5,6 +5,7 @@ import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../../_auth";
+import { createShopifyAdminProviderForWorkspace } from "../../../_shopify-admin";
 import { getApprovedMockupMedia, metadataOf } from "../../../publish/_provider-workflow";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
@@ -17,10 +18,11 @@ export async function POST(req: Request) {
     const productDraftId = String(body.productDraftId || body.product_draft_id || "");
     const shopifyRefId = String(body.shopifyRefId || body.shopify_ref_id || "");
     const config = parseEnv();
-    if (!config.providers.shopifyAdmin.enabled) {
-      return NextResponse.json({ ok: false, status: "not_configured", setupRequired: ["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] }, { status: 503 });
-    }
     const repos = createRepositories();
+    const shopify = await createShopifyAdminProviderForWorkspace({ repos, config, workspaceId });
+    if (!shopify.ok) {
+      return NextResponse.json({ ok: false, status: shopify.status, setupRequired: shopify.setupRequired, message: shopify.message }, { status: 503 });
+    }
     const ref = shopifyRefId
       ? await repos.shopify.getById(shopifyRefId, workspaceId)
       : (await repos.shopify.listByWorkspace(workspaceId)).find((row) => row.product_draft_id === productDraftId || row.productDraftId === productDraftId) ?? null;
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     }
     const productId = String(ref.shopify_product_id ?? ref.shopifyProductId ?? "");
     const uploaded = [];
-    const commerce = createCommerceProviders(config);
+    const commerce = createCommerceProviders(config, undefined, { admin: shopify.admin });
     for (const item of media.media) {
       const result = await commerce.admin.uploadProductImage(productId, item.url ?? "", `${draft.title} product mockup`);
       if (!result.ok) {

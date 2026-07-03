@@ -82,6 +82,9 @@ export const featureReadinessEnvVars = [
   "SHOPIFY_STORE_DOMAIN",
   "SHOPIFY_STOREFRONT_TOKEN",
   "SHOPIFY_ADMIN_TOKEN",
+  "SHOPIFY_CREDENTIAL_MODE",
+  "SHOPIFY_CLIENT_ID",
+  "SHOPIFY_CLIENT_SECRET",
   "SHOPIFY_DEFAULT_COLLECTION_ID",
   "SHOPIFY_ALLOW_PRODUCT_PUBLISH",
   "LIVE_PUBLISHING_ENABLED",
@@ -143,7 +146,9 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
   const hfImageReady = (flagEnabled(env, "AI_IMAGE_ENABLED") && has(env, "HF_API_TOKEN") && has(env, "HF_IMAGE_MODEL"))
     || (flagEnabled(env, "IMAGE_GENERATION_ENABLED") && env.IMAGE_GENERATION_PROVIDER === "hugging_face" && (has(env, "HUGGING_FACE_API_TOKEN") || has(env, "HF_API_TOKEN")) && (has(env, "HUGGING_FACE_IMAGE_MODEL") || has(env, "HF_IMAGE_MODEL")));
   const printifyReady = config.PRINTIFY_ENABLED && has(env, "PRINTIFY_API_TOKEN") && has(env, "PRINTIFY_SHOP_ID");
-  const shopifyReady = config.SHOPIFY_ADMIN_ENABLED && has(env, "SHOPIFY_STORE_DOMAIN") && has(env, "SHOPIFY_ADMIN_TOKEN");
+  const shopifyLegacyReady = has(env, "SHOPIFY_ADMIN_TOKEN");
+  const shopifyClientCredentialsReady = has(env, "SHOPIFY_CLIENT_ID") && has(env, "SHOPIFY_CLIENT_SECRET");
+  const shopifyReady = config.SHOPIFY_ADMIN_ENABLED && has(env, "SHOPIFY_STORE_DOMAIN") && (shopifyLegacyReady || shopifyClientCredentialsReady);
   const shopifyCollectionReady = has(env, "SHOPIFY_DEFAULT_COLLECTION_ID");
   const plaidConfigured = has(env, "PLAID_CLIENT_ID") && has(env, "PLAID_SECRET") && has(env, "PLAID_ENV");
 
@@ -251,14 +256,14 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       featureKey: "shopify",
       label: "Shopify Draft Products / Media / Collection Assignment",
       status: shopifyReady && shopifyCollectionReady ? "ready" : shopifyReady ? "partial" : config.SHOPIFY_ADMIN_ENABLED ? "config_blocked" : "disabled",
-      requiredEnv: ["SHOPIFY_ADMIN_ENABLED", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"],
+      requiredEnv: shopifyLegacyReady ? ["SHOPIFY_ADMIN_ENABLED", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] : ["SHOPIFY_ADMIN_ENABLED", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET"],
       enabledFlags: config.SHOPIFY_ADMIN_ENABLED ? ["SHOPIFY_ADMIN_ENABLED=true"] : [],
       disabledFlags: unique([!config.SHOPIFY_ADMIN_ENABLED && "SHOPIFY_ADMIN_ENABLED=false", !config.SHOPIFY_ALLOW_PRODUCT_PUBLISH && "SHOPIFY_ALLOW_PRODUCT_PUBLISH=false"]),
-      setupRequired: unique([!shopifyReady && "SHOPIFY_ADMIN_ENABLED=true, SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN", !shopifyCollectionReady && "SHOPIFY_DEFAULT_COLLECTION_ID or owner-entered Shopify collection ID"]),
+      setupRequired: unique([!shopifyReady && "Connect Shopify in Studio with Dev Dashboard Client ID/Secret, or use protected legacy Admin token config.", !shopifyCollectionReady && "SHOPIFY_DEFAULT_COLLECTION_ID or owner-entered Shopify collection ID"]),
       canTestWithoutProvider: false,
       safeLocalRoute: "/studio/shopify-products",
       dangerousActionsBlocked: ["shopify_live_publish", "fake_shopify_ids"],
-      notes: ["Draft creation does not publish. Collection assignment requires a real Shopify collection ID."]
+      notes: ["Draft creation does not publish. Dev Dashboard Client ID/Secret is preferred when configured; legacy Admin token remains available under advanced setup."]
     }),
     feature({
       env,

@@ -27,6 +27,6 @@ describe("provider token exposure", () => {
   it("client code does not reference server secret env vars", () => {
     const clientFiles = sourceFiles(join(process.cwd(), "apps")).filter((file) => file.includes(`${join("apps", "storefront")}`) || file.includes(`${join("apps", "studio")}`));
     const text = clientFiles.map((file) => readFileSync(file, "utf8")).join("\n");
-    expect(text).not.toMatch(/NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|PRINTIFY_API_TOKEN|HF_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY)/);
+    expect(text).not.toMatch(/NEXT_PUBLIC_(SHOPIFY_ADMIN_TOKEN|SHOPIFY_CLIENT_SECRET|PRINTIFY_API_TOKEN|HF_API_TOKEN|SUPABASE_SERVICE_ROLE_KEY)/);
   });
 });

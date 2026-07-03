@@ -30,20 +30,28 @@ Required behavior:
 
 Fields:
 - Shopify store domain
-- Shopify Admin token
+- Shopify Client ID
+- Shopify Client Secret
+- Legacy Shopify Admin token, advanced only if Shopify exposes one
 - Shopify collection
 - Shopify publish permission
 
 Owner path:
 1. Open `/studio/onboarding/providers/shopify`.
 2. Enter the `.myshopify.com` domain.
-3. Paste the Admin token in the write-only secure field.
-4. Validate Admin access server-side.
-5. Discover/select the default collection.
+3. Paste the Shopify Dev Dashboard Client ID.
+4. Paste the Client Secret in the write-only secure field.
+5. Validate credentials server-side. SaltyFactory exchanges them server-side for an Admin access token, calls `shop.json`, and discovers collections.
+6. Select the default collection from discovered Shopify collections.
+
+Legacy path:
+- Use Advanced / Legacy only if Shopify shows an installed custom-app Admin API access token.
+- Do not hunt for an Admin token when the Shopify Dev Dashboard shows Client ID and Client Secret.
 
 Required behavior:
 - Draft creation does not publish.
-- Admin token is never returned to the browser.
+- Client Secret, legacy Admin token, and generated Admin access token are never returned to the browser.
+- Token exchange never runs in browser code.
 - Collection IDs are workspace-scoped.
 
 ## Image Generation

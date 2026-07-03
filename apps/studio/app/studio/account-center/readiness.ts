@@ -76,6 +76,7 @@ export async function getAccountCenterReadiness() {
     enabled: config.SHOPIFY_ADMIN_ENABLED,
     storeDomain: config.SHOPIFY_STORE_DOMAIN,
     hasAdminToken: Boolean(config.SHOPIFY_ADMIN_TOKEN),
+    hasClientCredentials: Boolean(config.SHOPIFY_CLIENT_ID && config.SHOPIFY_CLIENT_SECRET),
     persistedStatus: statusFor(lists.providerConnections, "shopify")
   });
   const printifySetup = createPrintifySetupState({

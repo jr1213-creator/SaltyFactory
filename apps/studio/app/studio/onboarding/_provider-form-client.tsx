@@ -22,6 +22,23 @@ type SetupResult = {
   providerMetadata?: Record<string, unknown>;
 };
 
+function metadataList(value: unknown, key: string) {
+  if (!Array.isArray(value) || !value.length) return null;
+  const rows = value
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+    .filter((item): item is Record<string, unknown> => Boolean(item?.id));
+  if (!rows.length) return null;
+  return <div className="setup-metadata-list">
+    <span>{key}</span>
+    <ul>
+      {rows.slice(0, 12).map((item) => <li key={String(item.id)}>
+        <strong>{String(item.title ?? item.name ?? item.id)}</strong>
+        <code>{String(item.id)}</code>
+      </li>)}
+    </ul>
+  </div>;
+}
+
 export function SetupApiForm({
   title,
   description,
@@ -88,6 +105,8 @@ export function SetupApiForm({
       <p>{result.safeMessage ?? "No validation message returned."}</p>
       {result.maskedDisplayValue ? <p><span>Credential:</span> {result.maskedDisplayValue}</p> : null}
       {result.nextStep ? <p><span>Next step:</span> {result.nextStep}</p> : null}
+      {metadataList(result.providerMetadata?.collections, "Collections returned")}
+      {metadataList(result.providerMetadata?.shops, "Shops returned")}
       {result.setupRequired?.length ? <ul>{result.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul> : null}
     </section> : null}
   </form>;
