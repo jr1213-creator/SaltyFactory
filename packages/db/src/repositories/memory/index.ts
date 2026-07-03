@@ -422,6 +422,31 @@ export class AiEmployeeRepository extends BaseRepository {
   async listRunsByStatus(workspaceId: string, status: string) { return this.runs.listByStatus(workspaceId, status); }
 }
 
+export class AiWorkforceRepository {
+  readonly hireRequests: BaseRepository;
+  readonly roleSpecs: BaseRepository;
+  readonly employeeDefinitions: BaseRepository;
+  readonly permissionScopes: BaseRepository;
+  readonly improvementSuggestions: BaseRepository;
+  readonly capabilityRequests: BaseRepository;
+  readonly trainingRequests: BaseRepository;
+  readonly toolAccessRequests: BaseRepository;
+  readonly feedbackEvents: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.hireRequests = repo("ai_employee_hire_requests");
+    this.roleSpecs = repo("ai_employee_role_specs");
+    this.employeeDefinitions = repo("ai_employee_definitions");
+    this.permissionScopes = repo("ai_employee_permission_scopes");
+    this.improvementSuggestions = repo("ai_improvement_suggestions");
+    this.capabilityRequests = repo("ai_capability_requests");
+    this.trainingRequests = repo("ai_training_requests");
+    this.toolAccessRequests = repo("ai_tool_access_requests");
+    this.feedbackEvents = repo("ai_agent_feedback_events");
+  }
+}
+
 export class MarketingRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("marketing_campaigns", store, audit); }
   readonly assets = new BaseRepository("marketing_assets", this.store, this.audit);
@@ -597,6 +622,49 @@ export class SharedKernelRepository {
   }
 }
 
+export class BusinessOsRepository {
+  readonly metricsSnapshots: BaseRepository;
+  readonly costInputs: BaseRepository;
+  readonly unitEconomics: BaseRepository;
+  readonly opportunities: BaseRepository;
+  readonly decisionMemos: BaseRepository;
+  readonly forecasts: BaseRepository;
+  readonly experiments: BaseRepository;
+  readonly channelReadiness: BaseRepository;
+  readonly profiles: BaseRepository;
+  readonly sensitiveFields: BaseRepository;
+  readonly goals: BaseRepository;
+  readonly mantras: BaseRepository;
+  readonly documents: BaseRepository;
+  readonly documentExports: BaseRepository;
+  readonly printOrders: BaseRepository;
+  readonly bankConnections: BaseRepository;
+  readonly bankTransactions: BaseRepository;
+  readonly authorityRequests: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.metricsSnapshots = repo("business_metrics_snapshots");
+    this.costInputs = repo("business_cost_inputs");
+    this.unitEconomics = repo("business_unit_economics");
+    this.opportunities = repo("business_opportunities");
+    this.decisionMemos = repo("business_decision_memos");
+    this.forecasts = repo("business_forecasts");
+    this.experiments = repo("business_experiments");
+    this.channelReadiness = repo("business_channel_readiness");
+    this.profiles = repo("business_profiles");
+    this.sensitiveFields = repo("business_sensitive_fields");
+    this.goals = repo("business_goals");
+    this.mantras = repo("business_mantras");
+    this.documents = repo("business_documents");
+    this.documentExports = repo("business_document_exports");
+    this.printOrders = repo("business_print_orders");
+    this.bankConnections = repo("business_bank_connections");
+    this.bankTransactions = repo("business_bank_transactions");
+    this.authorityRequests = repo("business_authority_requests");
+  }
+}
+
 export function createMemoryRepositories(store = createRepositoryStore()) {
   const audit = new AuditEventRepository(store);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -639,7 +707,9 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     support: new SupportRepository(store, writer),
     billing: new BillingRepository(store, writer),
     crm: new CrmRepository(store, writer),
-    shared: new SharedKernelRepository(store, writer)
+    shared: new SharedKernelRepository(store, writer),
+    aiWorkforce: new AiWorkforceRepository(store, writer),
+    business: new BusinessOsRepository(store, writer)
   };
 }
 

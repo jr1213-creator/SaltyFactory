@@ -135,6 +135,39 @@ export interface SharedKernelRepositoryContract {
   utmLinks: BaseRepositoryContract;
 }
 
+export interface AiWorkforceRepositoryContract {
+  hireRequests: BaseRepositoryContract;
+  roleSpecs: BaseRepositoryContract;
+  employeeDefinitions: BaseRepositoryContract;
+  permissionScopes: BaseRepositoryContract;
+  improvementSuggestions: BaseRepositoryContract;
+  capabilityRequests: BaseRepositoryContract;
+  trainingRequests: BaseRepositoryContract;
+  toolAccessRequests: BaseRepositoryContract;
+  feedbackEvents: BaseRepositoryContract;
+}
+
+export interface BusinessOsRepositoryContract {
+  metricsSnapshots: BaseRepositoryContract;
+  costInputs: BaseRepositoryContract;
+  unitEconomics: BaseRepositoryContract;
+  opportunities: BaseRepositoryContract;
+  decisionMemos: BaseRepositoryContract;
+  forecasts: BaseRepositoryContract;
+  experiments: BaseRepositoryContract;
+  channelReadiness: BaseRepositoryContract;
+  profiles: BaseRepositoryContract;
+  sensitiveFields: BaseRepositoryContract;
+  goals: BaseRepositoryContract;
+  mantras: BaseRepositoryContract;
+  documents: BaseRepositoryContract;
+  documentExports: BaseRepositoryContract;
+  printOrders: BaseRepositoryContract;
+  bankConnections: BaseRepositoryContract;
+  bankTransactions: BaseRepositoryContract;
+  authorityRequests: BaseRepositoryContract;
+}
+
 export interface IntegrationRepositoryContract extends BaseRepositoryContract {
   credentials: BaseRepositoryContract;
   syncRuns: BaseRepositoryContract;
@@ -199,6 +232,8 @@ export interface RepositoryBundle {
   billing: BaseRepositoryContract & { plans: BaseRepositoryContract; events: BaseRepositoryContract; featureLimits: BaseRepositoryContract };
   crm: CrmRepositoryContract;
   shared: SharedKernelRepositoryContract;
+  aiWorkforce: AiWorkforceRepositoryContract;
+  business: BusinessOsRepositoryContract;
 }
 
 export type RepositoryRuntimeConfig = {

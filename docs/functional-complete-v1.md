@@ -19,9 +19,13 @@ SaltyFactory v1 is an AI-run, human-approved POD business operating system for l
 | Marketing Command Center | Fully functional v1 | Guided launch campaign workflow creates persisted product-referenced campaign packets, proof packs, growth plans, channel drafts, asset specs, UTMs, tasks, recommendations, and approvals. |
 | Approvals | Fully functional v1 | Shared approvals cover marketing and AI employee outputs; approval pages expose real controls and audit/event records. |
 | Social Care | Manual/export-ready | Manual/imported social opportunities create source records, response notes, tasks, events, and audit logs. No live social provider inbox or reply sending is active. |
-| Shopify/Printify | Provider-backed draft creation when configured | Shopify Admin draft creation supports media, variants, SEO, update, get, and collection assignment. Printify supports shop discovery, catalog/provider/variant/shipping discovery, image upload, print areas, product creation, and product retrieval. All actions block without exact server-side config, gates, and owner permission. Live publishing is still blocked by default. |
+| Shopify/Printify | Provider-backed draft creation when configured | Shopify Admin draft creation supports media, variants, SEO, update, get, and required collection assignment by real collection ID. Printify supports shop discovery, catalog/provider/variant/shipping discovery, image upload, print areas, product creation, and product retrieval. All actions block without exact server-side config, gates, and owner permission. Live publishing is still blocked by default. |
 | Google/Merchant/Search/Analytics | Honest foundation | Setup, OAuth/configuration helpers, readiness scoring, and sanitized sync/test paths exist. No fake analytics, ranking guarantees, or feed submission. |
 | Email/Social/Ads | Manual/export-ready | Drafts and campaign packets persist for manual/export use. Sending, posting, ad launch, and spend are not implemented. |
+| AI Hiring Desk | Owner-gated functional v1 | Missing-capability proposals create persisted hire requests, role specs, approvals, audit events, permission scopes, and employee definitions only after owner approval. New AI employees inherit global forbidden actions and receive no provider authority. |
+| AI Continuous Improvement Desk | Owner-gated functional v1 | AI employees and users can persist improvement, capability, training, tool-access, and handoff feedback requests. Suggestions can convert to tasks/hire/capability requests, but cannot self-implement or self-grant authority. |
+| Business Command Center | Functional decision-support v1 | Business metrics, unit economics, opportunities, decision memos, forecasts, experiments, channel readiness, and batch/campaign/product conversions persist with assumptions and owner decisions. It is not accounting, tax, legal, investment, or money-movement software. |
+| Business Identity / Banking / Document Ops | Manual and authority-gated v1 | Business profiles, goals, mantras, sensitive field references, authority requests, manual bank imports, document drafts, business card SVG packets, Staples handoff packets, and Make Me Look Legit bundles persist. Novo direct API and Plaid are blocked until configured/verified. No bank credentials, transfers, payments, or external order submission are implemented. |
 
 ## Customer Command Center
 
@@ -182,7 +186,7 @@ Account Center state:
 - `configured_not_verified` until a live Admin API test succeeds.
 - `connected` only after a live API test succeeds.
 
-The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, and publish gates pass. Draft payloads include title, description, vendor, product type, tags, SEO metadata, variants/pricing, and approved mockup media. Shopify setup exposes metafield keys only, never the Admin token.
+The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, owner permission, and publish gates pass. Draft payloads include title, description, vendor, product type, tags, SEO metadata, variants/pricing, approved mockup media, and a real Shopify collection ID for collection assignment. Shopify setup exposes metafield keys only, never the Admin token.
 
 ## Printify Setup
 
@@ -248,7 +252,7 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 - mockups complete
 - title/description/tags reviewed
 - Printify variants valid
-- Shopify collection assigned
+- Shopify collection ID assigned through the provider route
 - provider connection valid
 
 ## Salty Cowhide POD Product Builder Workflow

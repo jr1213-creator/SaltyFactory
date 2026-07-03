@@ -83,9 +83,10 @@ export async function evaluatePublishReadiness(input: {
       const printifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "printify");
       const shopifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "shopify");
       gates.printify_variants_valid = providerTarget !== "printify_draft" || (variants.length > 0 && variants.every((row) => hasText(row.printify_variant_id ?? row.printifyVariantId)) && connected(printifyConnection));
-      gates.shopify_collection_assigned = providerTarget !== "shopify_draft" || (hasText(draft.collection) && connected(shopifyConnection));
+      const shopifyCollectionId = String(metadata.shopify_collection_id ?? metadata.shopifyCollectionId ?? "");
+      gates.shopify_collection_assigned = providerTarget !== "shopify_draft" || (hasText(shopifyCollectionId) && connected(shopifyConnection));
       if (!gates.printify_variants_valid) notes.push("printify_variant_or_connection_missing");
-      if (!gates.shopify_collection_assigned) notes.push("shopify_collection_or_connection_missing");
+      if (!gates.shopify_collection_assigned) notes.push("shopify_collection_id_or_connection_missing");
     }
   }
 

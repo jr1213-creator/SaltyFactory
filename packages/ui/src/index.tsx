@@ -1,7 +1,7 @@
 import React from "react";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
-type Props = React.PropsWithChildren<{ className?: string; title?: string; eyebrow?: string; description?: string }>;
+type Props = React.PropsWithChildren<{ className?: string | undefined; title?: string | undefined; eyebrow?: string | undefined; description?: string | undefined }>;
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
@@ -230,3 +230,69 @@ export function SplitPane({ children }: Props) {
 export function DetailDrawer({ children, title }: Props) {
   return <aside className="sf-detail-drawer">{title && <h2>{title}</h2>}{children}</aside>;
 }
+
+export const StudioAppShell = ({ children }: Props) => <div className="sf-studio-app-shell">{children}</div>;
+export const StudioSidebar = ({ children }: Props) => <aside className="sf-studio-sidebar-panel">{children}</aside>;
+export const StudioTopNav = ({ children }: Props) => <header className="sf-studio-top-nav">{children}</header>;
+export const CommandCenterHeader = PageHeader;
+export const SectionHeader = ({ title, description, children }: Props) => <header className="sf-section-header"><div><h2>{title}</h2>{description && <p className="sf-muted">{description}</p>}</div>{children}</header>;
+export const EntityDetailLayout = ({ children }: Props) => <div className="sf-layout-rail">{children}</div>;
+export const WorkflowCanvas = ({ children }: Props) => <section className="sf-workflow-canvas">{children}</section>;
+export const StickyActionFooter = ({ children }: Props) => <div className="sf-sticky-action-footer">{children}</div>;
+
+export const ImpactBadge = ({ impact }: { impact: string }) => <StatusBadge status={impact} tone={impact === "high" ? "success" : impact === "critical" ? "danger" : "info"} />;
+export const ProviderHealthBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "connected" || status === "ready" ? "success" : "warning"} />;
+export const ApprovalBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "approved" ? "success" : status === "rejected" ? "danger" : "warning"} />;
+export const SyncStatusBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status.includes("created") || status === "synced" ? "success" : status === "failed" ? "danger" : "warning"} />;
+export const ProfitabilityBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "healthy" ? "success" : status === "blocked" ? "danger" : "warning"} />;
+export const PipelineStageBadge = ({ label, status }: { label: string; status: string }) => <span className="sf-pipeline-stage-badge"><strong>{label}</strong><StatusBadge status={status} tone={status === "complete" || status === "ready" ? "success" : "warning"} /></span>;
+
+export function ProductPipelineBoard({ stages }: { stages: Array<{ label: string; status: string }> }) {
+  return <section className="sf-card sf-product-pipeline-board">{stages.map((stage) => <PipelineStageBadge key={stage.label} {...stage} />)}</section>;
+}
+
+export function OwnerDecisionPanel({ title, description, children }: Props) {
+  return <section className="sf-card sf-owner-decision-panel"><h2>{title}</h2>{description && <p>{description}</p>}<ApprovalActionBar>{children}</ApprovalActionBar></section>;
+}
+
+export const BlueprintCard = ({ title, description, children }: Props) => <PrintifyCatalogCard title={title} description={description}>{children}</PrintifyCatalogCard>;
+export const PrintProviderCard = BlueprintCard;
+
+export function ArtworkPlacementPanel({ title = "Artwork placement", blockers = [] as string[] }: { title?: string; blockers?: string[] }) {
+  return <section className="sf-card"><h2>{title}</h2><div className="sf-artwork-placement-preview"><span>Front</span></div>{blockers.length ? <BlockerCard title="Placement blockers" blockers={blockers} /> : <p className="sf-muted">Centered placement: x 0.5, y 0.5, scale 1, angle 0.</p>}</section>;
+}
+
+export const ArtworkPreviewPanel = ({ children, title = "Artwork preview" }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
+export const MockupPreviewCard = ({ children, title = "Mockup preview" }: Props) => <section className="sf-card sf-mockup-preview-card"><h2>{title}</h2>{children}</section>;
+export const ShopifyDraftCard = ({ title, status, children }: Props & { status?: string }) => <section className="sf-card"><h2>{title}</h2>{status && <SyncStatusBadge status={status} />}{children}</section>;
+
+export const AiEmployeeResumePanel = ({ children, title = "Role resume" }: Props) => <section className="sf-card sf-resume-panel"><h2>{title}</h2>{children}</section>;
+export const HiringRequestCard = ({ title, status, children }: Props & { status?: string }) => <section className="sf-card"><h2>{title}</h2>{status && <ApprovalBadge status={status} />}{children}</section>;
+export const ImprovementSuggestionCard = HiringRequestCard;
+export const CapabilityRequestPanel = HiringRequestCard;
+export const ToolAccessPanel = HiringRequestCard;
+export const TrainingRequestPanel = HiringRequestCard;
+export const AgentFeedbackTimeline = AuditTimeline;
+export const GuardrailEditor = ({ children, title = "Guardrails" }: Props) => <GuardrailPanel title={title}>{children}</GuardrailPanel>;
+
+export function PermissionScopeMatrix({ rows }: { rows: Array<{ scope: string; level: string; approval: string }> }) {
+  return <DataTable columns={["Scope", "Permission", "Owner approval"]} rows={rows.map((row) => [row.scope, row.level, row.approval])} />;
+}
+
+export const BusinessKpiCard = MetricCard;
+export const UnitEconomicsCard = ({ title, status, margin }: { title: string; status: string; margin: string }) => <section className="sf-card"><h2>{title}</h2><ProfitabilityBadge status={status} /><p className="sf-muted">Contribution margin: {margin}</p></section>;
+export const OpportunityCard = ({ title, description, children, action }: Props & { action?: React.ReactNode }) => <RecommendationCard title={title ?? "Opportunity"} description={description ?? ""} action={action ?? children} />;
+export const DecisionMemoPanel = ({ title, children }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
+export const ForecastScenarioCard = DecisionMemoPanel;
+export const AssumptionEditor = ({ children, title = "Assumptions" }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
+export const ChannelReadinessCard = ({ channel, readiness }: { channel: string; readiness: string }) => <ProviderStatusCard title={channel} status={readiness} tone={readiness === "ready" ? "success" : readiness === "blocked" ? "danger" : "warning"} />;
+export const ProductProfitabilityTable = VariantMarginMatrix;
+export const CustomerSegmentValueMatrix = DataTable;
+export const BusinessBlockerCard = BlockerCard;
+export const LegitimacyChecklist = ApprovalGateList;
+export const MakeMeLookLegitPanel = NextActionCard;
+export const BusinessDocumentCard = HiringRequestCard;
+export const AuthorityRequestPanel = HiringRequestCard;
+export const BankingConnectionCard = ProviderStatusCard;
+export const TransactionClassifierTable = DataTable;
+export const BusinessCardPreview = ({ svg }: { svg: string }) => <div className="sf-business-card-preview" dangerouslySetInnerHTML={{ __html: svg }} />;

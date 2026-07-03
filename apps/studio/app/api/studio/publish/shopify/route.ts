@@ -50,6 +50,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, status: mediaResult.status, blockingReasons: mediaResult.blockingReasons, setupRequired: mediaResult.setupRequired }, { status: mediaResult.setupRequired?.length ? 503 : 409 });
     }
     const metadata = metadataOf(draft);
+    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || "");
+    if (!collectionId) {
+      return NextResponse.json({
+        ok: false,
+        status: "blocked_by_guardrail",
+        blockingReasons: ["shopify_collection_id_required"],
+        setupRequired: ["Select a real Shopify collection ID before draft creation."]
+      }, { status: 409 });
+    }
     const commerce = createCommerceProviders(config);
     const result = await commerce.admin.createProductDraft({
       title: draft.title,
@@ -65,14 +74,15 @@ export async function POST(req: Request) {
     if (!result.ok) return NextResponse.json({ ok: false, status: "failed", message: result.error, retryable: result.retryable, rateLimited: result.rateLimited }, { status: result.rateLimited ? 429 : 502 });
     const product = (result.data as any).product ?? {};
     const shopifyProductId = String(product.id ?? "");
-    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || "");
     let collectionAssignment: Record<string, unknown> | null = null;
-    if (collectionId && shopifyProductId) {
+    if (shopifyProductId) {
       const assigned = await commerce.admin.assignCollection(shopifyProductId, collectionId);
       if (!assigned.ok) {
         return NextResponse.json({ ok: false, status: "failed", message: assigned.error, retryable: assigned.retryable, rateLimited: assigned.rateLimited, setupRequired: assigned.setupRequired }, { status: assigned.rateLimited ? 429 : 502 });
       }
       collectionAssignment = assigned.data as Record<string, unknown>;
+    } else {
+      return NextResponse.json({ ok: false, status: "failed", message: "Shopify draft response did not include a product id." }, { status: 502 });
     }
     const sourceRecord = await repos.shared.sourceRecords.create({
       id: `src_shopify_${Date.now()}`,

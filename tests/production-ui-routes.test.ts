@@ -74,6 +74,11 @@ describe("production UI routes", () => {
     expect(source).toContain('["Approvals", "/studio/marketing/approvals"]');
     expect(source).toContain('["Social Care", "/studio/marketing/social-care"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
+    expect(source).toContain('label: "AI Employees"');
+    expect(source).toContain('["Hiring Desk", "/studio/ai-employees/hiring"]');
+    expect(source).toContain('label: "Business"');
+    expect(source).toContain('["Business Command Center", "/studio/business"]');
+    expect(source).toContain('["Banking", "/studio/business/banking"]');
     expect(source).toContain('label: "Expansion"');
     expect(source).toContain('["Accessory Dropshipping", "/studio/dropshipping"]');
     expect(source).not.toContain('"POD Migration"');
@@ -117,6 +122,28 @@ describe("production UI routes", () => {
       "/studio/publish-review",
       "/studio/launch-packet",
       "/studio/ai-employees",
+      "/studio/ai-employees/hiring",
+      "/studio/ai-employees/improvements",
+      "/studio/ai-employees/capability-requests",
+      "/studio/ai-employees/training-requests",
+      "/studio/ai-employees/tool-access-requests",
+      "/studio/business",
+      "/studio/business/financials",
+      "/studio/business/opportunities",
+      "/studio/business/trends",
+      "/studio/business/products",
+      "/studio/business/customers",
+      "/studio/business/campaign-decisions",
+      "/studio/business/experiments",
+      "/studio/business/forecasts",
+      "/studio/business/decision-memos",
+      "/studio/business/profile",
+      "/studio/business/goals",
+      "/studio/business/brand-purpose",
+      "/studio/business/documents",
+      "/studio/business/banking",
+      "/studio/business/print-studio",
+      "/studio/business/authority-requests",
       "/studio/customer-command-center",
       "/studio/customers",
       "/studio/customer-segments",

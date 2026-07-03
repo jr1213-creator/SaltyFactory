@@ -35,7 +35,37 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
   {
     id: "ai-employees",
     label: "AI Employees",
-    links: [["AI Employees", "/studio/ai-employees"]]
+    links: [
+      ["AI Employees", "/studio/ai-employees"],
+      ["Hiring Desk", "/studio/ai-employees/hiring"],
+      ["Improvement Desk", "/studio/ai-employees/improvements"],
+      ["Capability Requests", "/studio/ai-employees/capability-requests"],
+      ["Training Requests", "/studio/ai-employees/training-requests"],
+      ["Tool Access Requests", "/studio/ai-employees/tool-access-requests"]
+    ]
+  },
+  {
+    id: "business",
+    label: "Business",
+    links: [
+      ["Business Command Center", "/studio/business"],
+      ["Financials", "/studio/business/financials"],
+      ["Opportunities", "/studio/business/opportunities"],
+      ["Trends", "/studio/business/trends"],
+      ["Products", "/studio/business/products"],
+      ["Customers", "/studio/business/customers"],
+      ["Campaign Decisions", "/studio/business/campaign-decisions"],
+      ["Experiments", "/studio/business/experiments"],
+      ["Forecasts", "/studio/business/forecasts"],
+      ["Decision Memos", "/studio/business/decision-memos"],
+      ["Business Profile", "/studio/business/profile"],
+      ["Goals", "/studio/business/goals"],
+      ["Brand Purpose", "/studio/business/brand-purpose"],
+      ["Documents", "/studio/business/documents"],
+      ["Banking", "/studio/business/banking"],
+      ["Print Studio", "/studio/business/print-studio"],
+      ["Authority Requests", "/studio/business/authority-requests"]
+    ]
   },
   {
     id: "customer",

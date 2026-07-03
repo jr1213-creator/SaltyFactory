@@ -8,8 +8,10 @@
 6. Owner selects real Printify blueprint/provider/variants and owner-entered pricing.
 7. Publish Review computes gates from persisted evidence.
 8. Owner clicks "Send to Printify" to upload artwork if needed and create a Printify draft product.
-9. Owner clicks "Create Shopify Draft" to create a Shopify draft product with approved mockup media, variants, pricing, SEO, and tags.
+9. Owner supplies a real Shopify collection ID, then clicks "Create Shopify Draft" to create a Shopify draft product with approved mockup media, variants, pricing, SEO, tags, and collection assignment.
 10. Launch Packet summarizes product, approval, Printify, Shopify, and publish blockers.
 11. Public storefront visibility remains blocked until explicit owner-confirmed publish is implemented/enabled and all gates pass.
 
 The core path is generated artwork, not manual artwork references. If the image provider is not configured, the workflow blocks with exact setup requirements.
+
+Shopify draft creation is config-blocked until `SHOPIFY_ADMIN_ENABLED=true`, `SHOPIFY_STORE_DOMAIN`, and `SHOPIFY_ADMIN_TOKEN` are set server-side. It is workflow-blocked until a verified Shopify collection ID is present; a human-readable collection label on the listing draft is not enough.

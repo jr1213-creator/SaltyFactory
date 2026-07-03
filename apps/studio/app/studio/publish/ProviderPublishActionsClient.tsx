@@ -67,7 +67,7 @@ export function ProviderPublishActionsClient({ reviews, drafts }: { reviews: Row
     <div className="sf-form-grid">
       <label>Printify blueprint ID<input value={blueprintId} onChange={(event) => setBlueprintId(event.target.value)} placeholder="From Printify Catalog" /></label>
       <label>Printify print provider ID<input value={printProviderId} onChange={(event) => setPrintProviderId(event.target.value)} placeholder="From Printify Catalog" /></label>
-      <label>Shopify collection ID<input value={collectionId} onChange={(event) => setCollectionId(event.target.value)} placeholder="Optional configured collection ID" /></label>
+      <label>Shopify collection ID<input value={collectionId} onChange={(event) => setCollectionId(event.target.value)} placeholder="Required Shopify collection ID" /></label>
     </div>
     <div className="sf-action-bar">
       <button className="sf-button sf-button-primary" type="button" disabled={!hasReview || busy === "printify"} title={hasReview ? "Create a guarded Printify draft product from approved generated artwork and selected variants." : "Create and approve a publish review first."} onClick={() => run("printify")}>Send to Printify</button>

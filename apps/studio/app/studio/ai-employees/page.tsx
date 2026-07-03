@@ -1,5 +1,5 @@
 import { createAgenticApprovalQueue, employeeDefinitions, runAgenticPodWorkflow } from "@saltyfactory/domain";
-import { AiEmployeeCard, DataTable, PageHeader, ProviderStatusCard, StatusBadge } from "@saltyfactory/ui";
+import { AiEmployeeCard, DataTable, NextActionCard, PageHeader, ProviderStatusCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
 import { AiApprovalQueueClient } from "./AiApprovalQueueClient";
 import { AiEmployeeWorkflowClient } from "./AiEmployeeWorkflowClient";
@@ -41,6 +41,11 @@ export default async function Page() {
       <ProviderStatusCard title="Image generation" status="Provider-gated" tone="warning" description="When no image provider is configured, employees create prompt drafts only. No fake images are created." />
     </div>
     <AiEmployeeWorkflowClient />
+    <div className="sf-grid sf-grid-3" style={{ marginTop: 18 }}>
+      <NextActionCard title="AI Hiring Desk" description="Review proposed AI employee roles, edit guardrails, approve, reject, or create a setup-needed employee definition." action={<a className="sf-button sf-button-primary" href="/studio/ai-employees/hiring">Open Hiring Desk</a>} />
+      <NextActionCard title="Continuous Improvement Desk" description="Review workflow, capability, training, tool-access, and handoff suggestions. Nothing self-implements." action={<a className="sf-button sf-button-secondary" href="/studio/ai-employees/improvements">Open Improvement Desk</a>} />
+      <NextActionCard title="Permission Requests" description="Capability and tool access requests remain owner-gated and provider actions stay blocked by default." action={<a className="sf-button sf-button-secondary" href="/studio/ai-employees/capability-requests">Review Requests</a>} />
+    </div>
     <AiApprovalQueueClient initialItems={approvalQueue as any[]} />
     <section style={{ marginTop: 18 }}>
       <h2>AI Employee Team</h2>

@@ -61,6 +61,33 @@ const tableExportByDbName: Record<string, TableName> = {
   ai_employee_runs: "aiEmployeeRuns",
   ai_employee_outputs: "aiEmployeeOutputs",
   ai_employee_permissions: "aiEmployeePermissions",
+  ai_employee_hire_requests: "aiEmployeeHireRequests",
+  ai_employee_role_specs: "aiEmployeeRoleSpecs",
+  ai_employee_definitions: "aiEmployeeDefinitions",
+  ai_employee_permission_scopes: "aiEmployeePermissionScopes",
+  ai_improvement_suggestions: "aiImprovementSuggestions",
+  ai_capability_requests: "aiCapabilityRequests",
+  ai_training_requests: "aiTrainingRequests",
+  ai_tool_access_requests: "aiToolAccessRequests",
+  ai_agent_feedback_events: "aiAgentFeedbackEvents",
+  business_metrics_snapshots: "businessMetricsSnapshots",
+  business_cost_inputs: "businessCostInputs",
+  business_unit_economics: "businessUnitEconomics",
+  business_opportunities: "businessOpportunities",
+  business_decision_memos: "businessDecisionMemos",
+  business_forecasts: "businessForecasts",
+  business_experiments: "businessExperiments",
+  business_channel_readiness: "businessChannelReadiness",
+  business_profiles: "businessProfiles",
+  business_sensitive_fields: "businessSensitiveFields",
+  business_goals: "businessGoals",
+  business_mantras: "businessMantras",
+  business_documents: "businessDocuments",
+  business_document_exports: "businessDocumentExports",
+  business_print_orders: "businessPrintOrders",
+  business_bank_connections: "businessBankConnections",
+  business_bank_transactions: "businessBankTransactions",
+  business_authority_requests: "businessAuthorityRequests",
   marketing_campaigns: "marketingCampaigns",
   marketing_assets: "marketingAssets",
   support_macros: "supportMacros",
@@ -419,6 +446,31 @@ export class DrizzleAiEmployeeRepository extends DrizzleBaseRepository {
   async listRunsByStatus(workspaceId: string, status: string) { return this.runs.listByStatus(workspaceId, status); }
 }
 
+export class DrizzleAiWorkforceRepository {
+  readonly hireRequests: DrizzleBaseRepository;
+  readonly roleSpecs: DrizzleBaseRepository;
+  readonly employeeDefinitions: DrizzleBaseRepository;
+  readonly permissionScopes: DrizzleBaseRepository;
+  readonly improvementSuggestions: DrizzleBaseRepository;
+  readonly capabilityRequests: DrizzleBaseRepository;
+  readonly trainingRequests: DrizzleBaseRepository;
+  readonly toolAccessRequests: DrizzleBaseRepository;
+  readonly feedbackEvents: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.hireRequests = repo("ai_employee_hire_requests");
+    this.roleSpecs = repo("ai_employee_role_specs");
+    this.employeeDefinitions = repo("ai_employee_definitions");
+    this.permissionScopes = repo("ai_employee_permission_scopes");
+    this.improvementSuggestions = repo("ai_improvement_suggestions");
+    this.capabilityRequests = repo("ai_capability_requests");
+    this.trainingRequests = repo("ai_training_requests");
+    this.toolAccessRequests = repo("ai_tool_access_requests");
+    this.feedbackEvents = repo("ai_agent_feedback_events");
+  }
+}
+
 export class DrizzleMarketingRepository extends DrizzleBaseRepository {
   readonly assets: DrizzleBaseRepository;
   constructor(db?: DbClient, audit?: AuditWriter) {
@@ -605,6 +657,49 @@ export class DrizzleSharedKernelRepository {
   }
 }
 
+export class DrizzleBusinessOsRepository {
+  readonly metricsSnapshots: DrizzleBaseRepository;
+  readonly costInputs: DrizzleBaseRepository;
+  readonly unitEconomics: DrizzleBaseRepository;
+  readonly opportunities: DrizzleBaseRepository;
+  readonly decisionMemos: DrizzleBaseRepository;
+  readonly forecasts: DrizzleBaseRepository;
+  readonly experiments: DrizzleBaseRepository;
+  readonly channelReadiness: DrizzleBaseRepository;
+  readonly profiles: DrizzleBaseRepository;
+  readonly sensitiveFields: DrizzleBaseRepository;
+  readonly goals: DrizzleBaseRepository;
+  readonly mantras: DrizzleBaseRepository;
+  readonly documents: DrizzleBaseRepository;
+  readonly documentExports: DrizzleBaseRepository;
+  readonly printOrders: DrizzleBaseRepository;
+  readonly bankConnections: DrizzleBaseRepository;
+  readonly bankTransactions: DrizzleBaseRepository;
+  readonly authorityRequests: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.metricsSnapshots = repo("business_metrics_snapshots");
+    this.costInputs = repo("business_cost_inputs");
+    this.unitEconomics = repo("business_unit_economics");
+    this.opportunities = repo("business_opportunities");
+    this.decisionMemos = repo("business_decision_memos");
+    this.forecasts = repo("business_forecasts");
+    this.experiments = repo("business_experiments");
+    this.channelReadiness = repo("business_channel_readiness");
+    this.profiles = repo("business_profiles");
+    this.sensitiveFields = repo("business_sensitive_fields");
+    this.goals = repo("business_goals");
+    this.mantras = repo("business_mantras");
+    this.documents = repo("business_documents");
+    this.documentExports = repo("business_document_exports");
+    this.printOrders = repo("business_print_orders");
+    this.bankConnections = repo("business_bank_connections");
+    this.bankTransactions = repo("business_bank_transactions");
+    this.authorityRequests = repo("business_authority_requests");
+  }
+}
+
 export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBundle {
   const audit = new DrizzleAuditEventRepository(db);
   const writer: AuditWriter = async (event) => { await audit.write(event); };
@@ -647,6 +742,8 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     support: new DrizzleSupportRepository(db, writer),
     billing: new DrizzleBillingRepository(db, writer),
     crm: new DrizzleCrmRepository(db, writer),
-    shared: new DrizzleSharedKernelRepository(db, writer)
+    shared: new DrizzleSharedKernelRepository(db, writer),
+    aiWorkforce: new DrizzleAiWorkforceRepository(db, writer),
+    business: new DrizzleBusinessOsRepository(db, writer)
   };
 }
