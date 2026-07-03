@@ -111,3 +111,33 @@ export class TrendSourceProviderDisabled { readonly sourceId = "disabled"; reado
 
 export { detectPromptInjection, forbiddenAiActions, runAgenticAiEmployeeWorkflow, runDeterministicAiEmployee } from "./employees";
 export { createDeterministicDesignSuggestions, type DesignSuggestionDraft, type DesignSuggestionInput } from "./design-suggestions";
+export {
+  assertEmployeeCannotSelfAssignModel,
+  chooseModelForTask,
+  createModelRuntimeProvider,
+  defaultModelProviderCatalog,
+  DisabledModelRuntimeProvider,
+  ensureDefaultModelRuntimeRecords,
+  HttpModelRuntimeProvider,
+  lowRiskOpenSourcePreferredTasks,
+  mediumRiskTaskTypes,
+  neverAutonomousTaskTypes,
+  highRiskReviewTaskTypes,
+  recordModelUsage,
+  requestModelEscalation,
+  runAiEmployeeTaskWithModelRouting,
+  sanitizeModel,
+  sanitizeModelProvider,
+  type ChooseModelInput,
+  type ModelInputSensitivity,
+  type ModelProviderKey,
+  type ModelProviderType,
+  type ModelRiskLevel,
+  type ModelRouteStatus,
+  type ModelRuntimeProvider,
+  type ModelStructuredInput,
+  type ModelStructuredResult,
+  type ModelTextInput,
+  type ModelTextResult,
+  type ProviderCheck
+} from "./model-runtime";

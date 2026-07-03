@@ -70,6 +70,11 @@ const tableExportByDbName: Record<string, TableName> = {
   ai_training_requests: "aiTrainingRequests",
   ai_tool_access_requests: "aiToolAccessRequests",
   ai_agent_feedback_events: "aiAgentFeedbackEvents",
+  ai_model_providers: "aiModelProviders",
+  ai_models: "aiModels",
+  ai_employee_model_assignments: "aiEmployeeModelAssignments",
+  ai_model_evaluations: "aiModelEvaluations",
+  ai_model_usage_events: "aiModelUsageEvents",
   business_metrics_snapshots: "businessMetricsSnapshots",
   business_cost_inputs: "businessCostInputs",
   business_unit_economics: "businessUnitEconomics",
@@ -471,6 +476,23 @@ export class DrizzleAiWorkforceRepository {
   }
 }
 
+export class DrizzleAiModelRuntimeRepository {
+  readonly providers: DrizzleBaseRepository;
+  readonly models: DrizzleBaseRepository;
+  readonly assignments: DrizzleBaseRepository;
+  readonly evaluations: DrizzleBaseRepository;
+  readonly usageEvents: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.providers = repo("ai_model_providers");
+    this.models = repo("ai_models");
+    this.assignments = repo("ai_employee_model_assignments");
+    this.evaluations = repo("ai_model_evaluations");
+    this.usageEvents = repo("ai_model_usage_events");
+  }
+}
+
 export class DrizzleMarketingRepository extends DrizzleBaseRepository {
   readonly assets: DrizzleBaseRepository;
   constructor(db?: DbClient, audit?: AuditWriter) {
@@ -744,6 +766,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     crm: new DrizzleCrmRepository(db, writer),
     shared: new DrizzleSharedKernelRepository(db, writer),
     aiWorkforce: new DrizzleAiWorkforceRepository(db, writer),
+    aiModelRuntime: new DrizzleAiModelRuntimeRepository(db, writer),
     business: new DrizzleBusinessOsRepository(db, writer)
   };
 }

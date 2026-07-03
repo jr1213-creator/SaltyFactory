@@ -298,8 +298,8 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       disabledFlags: unique([!flagEnabled(env, "AI_TEXT_ENABLED") && "AI_TEXT_ENABLED=false", !flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=false"]),
       setupRequired: flagEnabled(env, "AI_TEXT_ENABLED") ? missing(env, ["HF_API_TOKEN", "HF_TEXT_MODEL"]) : ["AI_TEXT_ENABLED=true", "HF_API_TOKEN", "HF_TEXT_MODEL"],
       canTestWithoutProvider: true,
-      safeLocalRoute: "/studio/ai-employees",
-      dangerousActionsBlocked: ["forbidden_ai_provider_openai_anthropic", "secret_prompt_exposure"],
+      safeLocalRoute: "/studio/ai-employees/models",
+      dangerousActionsBlocked: ["forbidden_paid_provider_runtime", "secret_prompt_exposure", "dangerous_action_model_routing"],
       notes: ["Rules-based/internal workflows work without a text provider. External model calls require HuggingFace-compatible config."]
     }),
     feature({

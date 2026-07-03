@@ -447,6 +447,23 @@ export class AiWorkforceRepository {
   }
 }
 
+export class AiModelRuntimeRepository {
+  readonly providers: BaseRepository;
+  readonly models: BaseRepository;
+  readonly assignments: BaseRepository;
+  readonly evaluations: BaseRepository;
+  readonly usageEvents: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.providers = repo("ai_model_providers");
+    this.models = repo("ai_models");
+    this.assignments = repo("ai_employee_model_assignments");
+    this.evaluations = repo("ai_model_evaluations");
+    this.usageEvents = repo("ai_model_usage_events");
+  }
+}
+
 export class MarketingRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("marketing_campaigns", store, audit); }
   readonly assets = new BaseRepository("marketing_assets", this.store, this.audit);
@@ -709,6 +726,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     crm: new CrmRepository(store, writer),
     shared: new SharedKernelRepository(store, writer),
     aiWorkforce: new AiWorkforceRepository(store, writer),
+    aiModelRuntime: new AiModelRuntimeRepository(store, writer),
     business: new BusinessOsRepository(store, writer)
   };
 }

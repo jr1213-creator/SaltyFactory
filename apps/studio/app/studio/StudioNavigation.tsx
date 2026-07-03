@@ -39,6 +39,9 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
       ["AI Employees", "/studio/ai-employees"],
       ["Hiring Desk", "/studio/ai-employees/hiring"],
       ["Improvement Desk", "/studio/ai-employees/improvements"],
+      ["Model Registry", "/studio/ai-employees/models"],
+      ["Model Evaluations", "/studio/ai-employees/model-evals"],
+      ["Model Usage", "/studio/ai-employees/model-usage"],
       ["Capability Requests", "/studio/ai-employees/capability-requests"],
       ["Training Requests", "/studio/ai-employees/training-requests"],
       ["Tool Access Requests", "/studio/ai-employees/tool-access-requests"]

@@ -4,6 +4,9 @@ dist
 build
 coverage
 .turbo
+storybook-static
+playwright-report
+test-results
 .saltyfactory-private
 **/.saltyfactory-private
 

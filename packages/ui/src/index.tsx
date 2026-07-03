@@ -123,6 +123,24 @@ export function ProviderStatusCard({ title, status = "Disabled", description, to
 export const IntegrationCard = ProviderStatusCard;
 export const SiteToolToggleCard = ProviderStatusCard;
 export const ProviderReadinessCard = ProviderStatusCard;
+export const ProviderHealthCard = ProviderStatusCard;
+
+export function SetupRequiredPanel({ title = "Setup required", items }: { title?: string; items: string[] }) {
+  return <section className="sf-card sf-blocker-card" aria-label={title}>
+    <strong>{title}</strong>
+    <ul>{items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>No setup blockers recorded.</li>}</ul>
+  </section>;
+}
+
+export function ProviderResultPanel({ title = "Provider result", status, children }: Props & { status?: string }) {
+  return <section className="sf-card sf-provider-result-panel">
+    <div className="sf-card-header-row">
+      <h2>{title}</h2>
+      {status ? <StatusBadge status={status} tone={status === "success" || status === "ready" ? "success" : status === "failed" ? "danger" : "warning"} /> : null}
+    </div>
+    <div className="sf-provider-result">{children}</div>
+  </section>;
+}
 
 export function AiReadinessScoreCard({ title, score }: { title: string; score: number }) {
   return <section className="sf-card sf-score-card"><div><p>{title}</p><strong>{score}<span>/100</span></strong><span className="sf-delta sf-primary">Configuration score</span></div><ProgressRing value={score} /></section>;

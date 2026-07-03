@@ -722,6 +722,100 @@ export const aiAgentFeedbackEvents = pgTable("ai_agent_feedback_events", {
   workspaceStatusIdx: index("ai_agent_feedback_events_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
+export const aiModelProviders = pgTable("ai_model_providers", {
+  id,
+  ...ownership(),
+  providerKey: text("provider_key").notNull(),
+  displayName: text("display_name").notNull(),
+  providerType: text("provider_type").notNull().default("disabled"),
+  baseUrl: text("base_url"),
+  enabled: boolean("enabled").notNull().default(false),
+  configuredStatus: text("configured_status").notNull().default("not_configured"),
+  supportsTools: boolean("supports_tools").notNull().default(false),
+  supportsJson: boolean("supports_json").notNull().default(false),
+  supportsVision: boolean("supports_vision").notNull().default(false),
+  supportsLongContext: boolean("supports_long_context").notNull().default(false),
+  maxContextTokens: integer("max_context_tokens"),
+  costTier: text("cost_tier").notNull().default("unknown"),
+  dataSensitivityAllowed: text("data_sensitivity_allowed").notNull().default("public_only")
+}, (table) => ({
+  providerUnique: uniqueIndex("ai_model_providers_workspace_key_unique").on(table.workspaceId, table.providerKey),
+  workspaceStatusIdx: index("ai_model_providers_workspace_status_idx").on(table.workspaceId, table.configuredStatus)
+}));
+
+export const aiModels = pgTable("ai_models", {
+  id,
+  ...ownership(),
+  providerId: text("provider_id").notNull().references(() => aiModelProviders.id),
+  modelKey: text("model_key").notNull(),
+  displayName: text("display_name").notNull(),
+  modelFamily: text("model_family"),
+  taskStrengths: jsonb("task_strengths").$type<string[]>().notNull().default([]),
+  weaknesses: jsonb("weaknesses").$type<string[]>().notNull().default([]),
+  contextWindow: integer("context_window"),
+  recommendedFor: jsonb("recommended_for").$type<string[]>().notNull().default([]),
+  forbiddenFor: jsonb("forbidden_for").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("candidate"),
+  costEstimate: jsonb("cost_estimate").$type<Record<string, unknown>>().notNull().default({}),
+  rateLimitEstimate: jsonb("rate_limit_estimate").$type<Record<string, unknown>>().notNull().default({}),
+  evalScore: jsonb("eval_score").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  providerModelUnique: uniqueIndex("ai_models_provider_model_unique").on(table.providerId, table.modelKey),
+  workspaceStatusIdx: index("ai_models_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const aiEmployeeModelAssignments = pgTable("ai_employee_model_assignments", {
+  id,
+  ...ownership(),
+  employeeId: text("employee_id").notNull().references(() => aiEmployeeDefinitions.id),
+  defaultModelId: text("default_model_id").notNull().references(() => aiModels.id),
+  fallbackModelId: text("fallback_model_id").references(() => aiModels.id),
+  escalationModelId: text("escalation_model_id").references(() => aiModels.id),
+  allowedTaskTypes: jsonb("allowed_task_types").$type<string[]>().notNull().default([]),
+  forbiddenTaskTypes: jsonb("forbidden_task_types").$type<string[]>().notNull().default([]),
+  maxRiskLevel: text("max_risk_level").notNull().default("low"),
+  requiresOwnerApprovalForEscalation: boolean("requires_owner_approval_for_escalation").notNull().default(true)
+}, (table) => ({
+  employeeUnique: uniqueIndex("ai_employee_model_assignments_employee_unique").on(table.workspaceId, table.employeeId)
+}));
+
+export const aiModelEvaluations = pgTable("ai_model_evaluations", {
+  id,
+  ...ownership(),
+  modelId: text("model_id").notNull().references(() => aiModels.id),
+  evalName: text("eval_name").notNull(),
+  taskType: text("task_type").notNull(),
+  testInputRef: text("test_input_ref").notNull(),
+  expectedBehavior: text("expected_behavior").notNull(),
+  resultSummary: text("result_summary").notNull(),
+  passed: boolean("passed").notNull().default(false),
+  score: integer("score"),
+  failureNotes: text("failure_notes")
+}, (table) => ({
+  modelIdx: index("ai_model_evaluations_model_idx").on(table.modelId),
+  workspaceTaskIdx: index("ai_model_evaluations_workspace_task_idx").on(table.workspaceId, table.taskType)
+}));
+
+export const aiModelUsageEvents = pgTable("ai_model_usage_events", {
+  id,
+  ...ownership(),
+  employeeId: text("employee_id"),
+  modelId: text("model_id").notNull().references(() => aiModels.id),
+  providerId: text("provider_id").notNull().references(() => aiModelProviders.id),
+  taskType: text("task_type").notNull(),
+  riskLevel: text("risk_level").notNull(),
+  inputSensitivity: text("input_sensitivity").notNull(),
+  status: text("status").notNull(),
+  tokensIn: integer("tokens_in"),
+  tokensOut: integer("tokens_out"),
+  estimatedCost: numeric("estimated_cost", { precision: 12, scale: 6 }),
+  durationMs: integer("duration_ms"),
+  errorCode: text("error_code")
+}, (table) => ({
+  workspaceTaskIdx: index("ai_model_usage_events_workspace_task_idx").on(table.workspaceId, table.taskType),
+  workspaceStatusIdx: index("ai_model_usage_events_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
 export const businessMetricsSnapshots = pgTable("business_metrics_snapshots", {
   id,
   ...ownership(),
@@ -2794,6 +2888,11 @@ export const tables = {
   aiTrainingRequests,
   aiToolAccessRequests,
   aiAgentFeedbackEvents,
+  aiModelProviders,
+  aiModels,
+  aiEmployeeModelAssignments,
+  aiModelEvaluations,
+  aiModelUsageEvents,
   businessMetricsSnapshots,
   businessCostInputs,
   businessUnitEconomics,

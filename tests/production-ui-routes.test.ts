@@ -77,6 +77,7 @@ describe("production UI routes", () => {
     expect(source).toContain('["Feature Readiness", "/studio/setup"]');
     expect(source).toContain('label: "AI Employees"');
     expect(source).toContain('["Hiring Desk", "/studio/ai-employees/hiring"]');
+    expect(source).toContain('["Model Registry", "/studio/ai-employees/models"]');
     expect(source).toContain('label: "Business"');
     expect(source).toContain('["Business Command Center", "/studio/business"]');
     expect(source).toContain('["Banking", "/studio/business/banking"]');
@@ -125,6 +126,9 @@ describe("production UI routes", () => {
       "/studio/ai-employees",
       "/studio/ai-employees/hiring",
       "/studio/ai-employees/improvements",
+      "/studio/ai-employees/models",
+      "/studio/ai-employees/model-evals",
+      "/studio/ai-employees/model-usage",
       "/studio/ai-employees/capability-requests",
       "/studio/ai-employees/training-requests",
       "/studio/ai-employees/tool-access-requests",

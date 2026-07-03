@@ -147,6 +147,14 @@ export interface AiWorkforceRepositoryContract {
   feedbackEvents: BaseRepositoryContract;
 }
 
+export interface AiModelRuntimeRepositoryContract {
+  providers: BaseRepositoryContract;
+  models: BaseRepositoryContract;
+  assignments: BaseRepositoryContract;
+  evaluations: BaseRepositoryContract;
+  usageEvents: BaseRepositoryContract;
+}
+
 export interface BusinessOsRepositoryContract {
   metricsSnapshots: BaseRepositoryContract;
   costInputs: BaseRepositoryContract;
@@ -233,6 +241,7 @@ export interface RepositoryBundle {
   crm: CrmRepositoryContract;
   shared: SharedKernelRepositoryContract;
   aiWorkforce: AiWorkforceRepositoryContract;
+  aiModelRuntime: AiModelRuntimeRepositoryContract;
   business: BusinessOsRepositoryContract;
 }
 
