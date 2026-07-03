@@ -159,6 +159,9 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     description: "Feature readiness, provider setup, workspace settings, billing, and operational guardrails.",
     links: [
       ["Account Center", "/studio/account-center"],
+      ["Launch Setup Concierge", "/studio/onboarding"],
+      ["Guided Setup", "/studio/onboarding/guided"],
+      ["Quick Setup", "/studio/onboarding/quick-start"],
       ["Feature Readiness", "/studio/setup"],
       ["Business Profile", "/studio/settings/business-profile"],
       ["Integrations", "/studio/integrations"],
@@ -184,7 +187,7 @@ export const STUDIO_COMMAND_CENTER_LINKS: readonly StudioCommandCenterLink[] = [
   { label: "Business", href: "/studio/business", sectionId: "business", description: "Decision support and documents" },
   { label: "Customer", href: "/studio/customer-command-center", sectionId: "customer", description: "CRM and capture operations" },
   { label: "Marketing", href: "/studio/marketing-command-center", sectionId: "marketing", description: "Campaign planning and approvals" },
-  { label: "Setup", href: "/studio/setup", sectionId: "operations", description: "Provider readiness and guardrails" }
+  { label: "Setup", href: "/studio/onboarding", sectionId: "operations", description: "Guided provider setup" }
 ];
 
 export const STUDIO_POD_STAGE_LINKS: readonly StudioStageLink[] = [
@@ -205,7 +208,7 @@ const primaryActionBySection: Record<string, StudioNavLink> = {
   storefront: ["Open Shopify Drafts", "/studio/shopify-products"],
   marketing: ["Open Approvals", "/studio/marketing/approvals"],
   analytics: ["Open Baseline", "/studio/baseline"],
-  operations: ["Open Feature Readiness", "/studio/setup"],
+  operations: ["Launch Guided Setup", "/studio/onboarding/guided"],
   expansion: ["Open Dropshipping", "/studio/dropshipping"]
 };
 

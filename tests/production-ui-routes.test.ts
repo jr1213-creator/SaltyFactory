@@ -80,6 +80,9 @@ describe("production UI routes", () => {
     expect(source).toContain('["Approvals", "/studio/marketing/approvals"]');
     expect(source).toContain('["Social Care", "/studio/marketing/social-care"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
+    expect(source).toContain('["Launch Setup Concierge", "/studio/onboarding"]');
+    expect(source).toContain('["Guided Setup", "/studio/onboarding/guided"]');
+    expect(source).toContain('["Quick Setup", "/studio/onboarding/quick-start"]');
     expect(source).toContain('["Feature Readiness", "/studio/setup"]');
     expect(source).toContain('label: "AI Employees"');
     expect(source).toContain('["Hiring Desk", "/studio/ai-employees/hiring"]');
@@ -104,7 +107,7 @@ describe("production UI routes", () => {
   it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
     expect(parseStoredStudioNavSections(JSON.stringify(["operations", "bad-id"]))).toEqual(["operations"]);
     expect(resolveExpandedStudioNavSections({ pathname: "/studio/channels", storedValue: JSON.stringify(["operations"]) }).sort()).toEqual(["marketing", "operations"]);
-    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Feature Readiness", "Business Profile", "Integrations", "Setup Guide", "Vertical Pack", "Settings", "Billing"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Launch Setup Concierge", "Guided Setup", "Quick Setup", "Feature Readiness", "Business Profile", "Integrations", "Setup Guide", "Vertical Pack", "Settings", "Billing"]);
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain("aria-expanded");
     expect(source).toContain("aria-controls");
@@ -212,6 +215,16 @@ describe("production UI routes", () => {
       "/studio/trends",
       "/studio/baseline",
       "/studio/account-center",
+      "/studio/onboarding",
+      "/studio/onboarding/quick-start",
+      "/studio/onboarding/guided",
+      "/studio/onboarding/providers",
+      "/studio/onboarding/providers/printify",
+      "/studio/onboarding/providers/shopify",
+      "/studio/onboarding/providers/image-generation",
+      "/studio/onboarding/business-profile",
+      "/studio/onboarding/first-launch",
+      "/studio/onboarding/help",
       "/studio/setup",
       "/studio/settings/business-profile",
       "/studio/migration-guide",
@@ -273,14 +286,15 @@ describe("production UI routes", () => {
 
   it("Setup page is sectioned, allows env names only there, and never displays secret values", () => {
     const html = renderToStaticMarkup(StudioSetupPage());
-    expect(html).toContain("Quick Start");
-    expect(html).toContain("Provider Setup Required");
-    expect(html).toContain("Internal Features Ready");
-    expect(html).toContain("Partial / Local-Only Features");
+    expect(html).toContain("Launch Setup Concierge");
+    expect(html).toContain("No Dead Config States");
+    expect(html).toContain("Owner Setup");
+    expect(html).toContain("Guided provider connection cards");
+    expect(html).toContain("Internal features ready without provider keys");
     expect(html).toContain("Safety Panel");
-    expect(html).toContain("Safe Local Testing");
-    expect(html).toContain("Future Integrations");
-    expect(html).toContain("DATABASE_URL");
+    expect(html).toContain("Advanced Server Configuration");
+    expect(html).toContain("Where do I get this?");
+    expect(html).toContain("Request setup help");
     expect(html).toContain("PRINTIFY_API_TOKEN");
     expect(html).not.toMatch(/postgres:\/\/|shpat_|sk_live_|AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/i);
   });

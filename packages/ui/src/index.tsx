@@ -165,8 +165,22 @@ export function GuardrailPanel({ title = "Guardrails active", children }: Props)
   return <aside className="rounded-lg border border-warning/25 bg-warning-soft p-5"><h2 className="text-lg font-bold">{title}</h2>{children}</aside>;
 }
 
-export function ProviderStatusCard({ title, status = "Disabled", description, tone = "warning" }: { title: string; status?: string; description?: string; tone?: Tone }) {
-  return <Card className="flex items-start justify-between gap-3"><div><strong>{title}</strong>{description && <p className="m-0 mt-1 text-muted-foreground">{description}</p>}</div><StatusBadge status={status} tone={tone} /></Card>;
+function setupActionNeeded(status: string, description?: string) {
+  return /(disabled|not configured|blocked|setup|action required|missing|unavailable)/i.test(`${status} ${description ?? ""}`);
+}
+
+export function ProviderStatusCard({ title, status = "Disabled", description, tone = "warning", actionHref = "/studio/onboarding", actionLabel = "Open Guided Setup" }: { title: string; status?: string; description?: string; tone?: Tone; actionHref?: string; actionLabel?: string }) {
+  const needsAction = setupActionNeeded(status, description);
+  return <Card className="grid gap-4">
+    <div className="flex items-start justify-between gap-3">
+      <div><strong>{title}</strong>{description && <p className="m-0 mt-1 text-muted-foreground">{description}</p>}</div>
+      <StatusBadge status={status} tone={tone} />
+    </div>
+    {needsAction ? <div className="action-bar">
+      <a className="btn btn-secondary" href={actionHref}>{actionLabel}</a>
+      <a className="btn btn-ghost" href="/studio/onboarding/help">Request setup help</a>
+    </div> : null}
+  </Card>;
 }
 
 export const IntegrationCard = ProviderStatusCard;
@@ -179,6 +193,109 @@ export function SetupRequiredPanel({ title = "Setup required", items }: { title?
     <strong>{title}</strong>
     <ul className="mt-2 list-disc pl-5">{items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>No setup blockers recorded.</li>}</ul>
   </section>;
+}
+
+export function ConnectionStatusBadge({ status }: { status: string }) {
+  const normalized = status.replace(/_/g, " ");
+  const tone: Tone =
+    ["ready", "connected"].includes(status) ? "success" :
+      ["invalid", "admin_setup_required"].includes(status) ? "danger" :
+        ["future", "owner_gated", "disabled_for_safety"].includes(status) ? "warning" :
+          "info";
+  return <StatusBadge status={normalized} tone={tone} />;
+}
+
+export function MaskedCredentialStatus({ label = "Credential", value }: { label?: string; value?: string | null | undefined }) {
+  return <div className="setup-masked-status"><span>{label}</span><strong>{value || "Not saved"}</strong></div>;
+}
+
+export function SecureCredentialInput({ name = "token", label, helper }: { name?: string; label: string; helper: string }) {
+  return <label className="setup-secure-field">
+    <span>{label}</span>
+    <input name={name} type="password" autoComplete="off" placeholder="Paste token securely" aria-describedby={`${name}-helper`} />
+    <small id={`${name}-helper`}>{helper}</small>
+  </label>;
+}
+
+export function ValidateConnectionButton({ children = "Validate connection", disabledReason }: { children?: React.ReactNode; disabledReason?: string }) {
+  return <button className="btn btn-primary" type="submit" disabled={Boolean(disabledReason)} title={disabledReason || undefined} aria-disabled={Boolean(disabledReason)}>{children}</button>;
+}
+
+export function WhereToFindThisPanel({ title = "Where do I get this?", steps, providerUrl, securityNote }: { title?: string; steps: string[]; providerUrl?: string | undefined; securityNote?: string | undefined }) {
+  return <section className="setup-guide-panel">
+    <h3>{title}</h3>
+    <ol>{steps.map((step) => <li key={step}>{step}</li>)}</ol>
+    {providerUrl ? <a className="btn btn-ghost" href={providerUrl} target="_blank" rel="noreferrer">Open provider dashboard</a> : null}
+    {securityNote ? <p className="setup-security-note">{securityNote}</p> : null}
+  </section>;
+}
+
+export function AdvancedConfigDetails({ envVars, notes }: { envVars: string[]; notes: string[] }) {
+  return <details className="setup-advanced-details">
+    <summary>Advanced / Developer details</summary>
+    <p>These names are for local development, CI, or server deployment. Customers should use Guided Setup first.</p>
+    <div className="setup-env-list">{envVars.length ? envVars.map((item) => <code key={item}>{item}</code>) : <span>No deployment variables listed.</span>}</div>
+    <ul>{notes.map((note) => <li key={note}>{note}</li>)}</ul>
+  </details>;
+}
+
+export function RequestSetupHelpButton({ href = "/studio/onboarding/help" }: { href?: string }) {
+  return <a className="btn btn-secondary" href={href}>Request setup help</a>;
+}
+
+export function OwnerGatedActionNotice({ title = "Owner gate active", children }: Props) {
+  return <aside className="owner-gated-notice"><StatusBadge status="owner gated" tone="warning" /><div><strong>{title}</strong>{children}</div></aside>;
+}
+
+export function SetupProviderCard({
+  label,
+  status,
+  explanation,
+  whyItMatters,
+  primaryAction,
+  setupGuideAction,
+  validationAction,
+  requestHelpAction,
+  setupRequired = [],
+  dangerousActionsBlocked = [],
+  advancedEnvVars = [],
+  advancedNotes = [],
+  maskedDisplayValue
+}: {
+  label: string;
+  status: string;
+  explanation: string;
+  whyItMatters: string;
+  primaryAction: { label: string; href: string };
+  setupGuideAction: { label: string; href: string };
+  validationAction?: { label: string; href: string } | undefined;
+  requestHelpAction: { label: string; href: string };
+  setupRequired?: string[];
+  dangerousActionsBlocked?: string[];
+  advancedEnvVars?: string[];
+  advancedNotes?: string[];
+  maskedDisplayValue?: string | null | undefined;
+}) {
+  return <article className="setup-provider-card">
+    <div className="setup-provider-card-header">
+      <div>
+        <h3>{label}</h3>
+        <p>{explanation}</p>
+      </div>
+      <ConnectionStatusBadge status={status} />
+    </div>
+    <p className="setup-provider-why"><strong>Why it matters:</strong> {whyItMatters}</p>
+    <MaskedCredentialStatus value={maskedDisplayValue} />
+    {setupRequired.length ? <div className="setup-required-list"><strong>Next setup step</strong><ul>{setupRequired.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+    {dangerousActionsBlocked.length ? <div className="setup-safety-list"><strong>Safety guardrails</strong><ul>{dangerousActionsBlocked.map((item) => <li key={item}>{item.replace(/_/g, " ")}</li>)}</ul></div> : null}
+    <div className="action-bar">
+      <a className="btn btn-primary" href={primaryAction.href}>{primaryAction.label}</a>
+      <a className="btn btn-ghost" href={setupGuideAction.href}>{setupGuideAction.label}</a>
+      {validationAction ? <a className="btn btn-secondary" href={validationAction.href}>{validationAction.label}</a> : null}
+      <a className="btn btn-secondary" href={requestHelpAction.href}>{requestHelpAction.label}</a>
+    </div>
+    <AdvancedConfigDetails envVars={advancedEnvVars} notes={advancedNotes} />
+  </article>;
 }
 
 export function ProviderResultPanel({ title = "Provider result", status, children }: Props & { status?: string }) {

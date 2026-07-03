@@ -1,6 +1,22 @@
 # SaltyFactory Functional Complete v1
 
-SaltyFactory v1 is an AI-run, human-approved POD business operating system for launching and operating SaltyCowhide.com. It is built around real workspace-owned records, provider honesty, encrypted credential storage, provider setup guidance, AI employee draft workflows, and owner approval gates.
+SaltyFactory v1 is an AI-run, human-approved POD business operating system for launching and operating SaltyCowhide.com. It is built around real workspace-owned records, provider honesty, encrypted credential storage, Guided Setup Concierge onboarding, AI employee draft workflows, and owner approval gates.
+
+## Customer Setup Rule
+
+Customers do not edit `.env` files, text files, or developer config to use SaltyFactory. The owner-facing setup path is:
+
+- `/studio/onboarding`
+- `/studio/onboarding/guided`
+- `/studio/onboarding/quick-start`
+- provider setup pages under `/studio/onboarding/providers`
+- `/studio/setup` owner-friendly mode
+
+Developer/server env configuration remains only for local development, CI, and deployment administration. Env names may appear in Advanced / Developer details and docs, not as the primary owner UX.
+
+## No Dead Config States
+
+Every setup blocker must include a plain-English explanation, next action, setup guide, validation route when applicable, request-help path, and no secret values. If a setting requires administrator/server setup, Studio must say so and provide a help request path.
 
 ## Functionality Truth Table
 
@@ -27,6 +43,7 @@ SaltyFactory v1 is an AI-run, human-approved POD business operating system for l
 | AI Model Runtime Registry | Partial / owner-gated | Model providers, models, assignments, evals, and usage events persist. Low-risk tasks can route to approved configured local/open models; sensitive/high-authority tasks block without authority approval; dangerous actions never route to models. Hosted/premium text generation adapters remain disabled/future unless explicitly configured and approved. |
 | Business Command Center | Functional decision-support v1 | Business metrics, unit economics, opportunities, decision memos, forecasts, experiments, channel readiness, and batch/campaign/product conversions persist with assumptions and owner decisions. It is not accounting, tax, legal, investment, or money-movement software. |
 | Business Identity / Banking / Document Ops | Manual and authority-gated v1 | Business profiles, goals, mantras, sensitive field references, authority requests, manual bank imports, document drafts, business card SVG packets, Staples handoff packets, and Make Me Look Legit bundles persist. Novo direct API and Plaid are blocked until configured/verified. No bank credentials, transfers, payments, or external order submission are implemented. |
+| Launch Setup Concierge | Functional owner-facing setup v1 | `/studio/onboarding`, Guided Setup, Quick Setup, provider setup pages, setup field guides, provider validation routes, masked credential status, and setup help requests are implemented. Owner-entered secrets are stored only when encrypted credential storage is enabled; otherwise routes block with administrator setup required. |
 
 ## Customer Command Center
 

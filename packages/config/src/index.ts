@@ -177,3 +177,18 @@ export type {
   FeatureReadinessReport,
   FeatureReadinessStatus
 } from "./feature-readiness";
+export {
+  assertNoDeadConfigStates,
+  buildOwnerSetupCards,
+  setupFieldGuides,
+  setupGuideByField,
+  setupGuidesForProvider
+} from "./setup-guides";
+export type {
+  OwnerSetupCard,
+  OwnerSetupStatus,
+  SetupAction,
+  SetupFieldGuide,
+  SetupMode,
+  SetupSensitivity
+} from "./setup-guides";

@@ -1,6 +1,16 @@
 # Local Feature Configuration v1
 
-This is the local setup truth table for SaltyFactory. It reflects env/config names used by code or by the feature-readiness service. It does not include secret values.
+This is the local/deployment setup truth table for SaltyFactory. It reflects env/config names used by code or by the feature-readiness service. It does not include secret values.
+
+Business owners should not edit env files. Customer-facing setup happens through:
+
+- `/studio/onboarding`
+- `/studio/onboarding/guided`
+- `/studio/onboarding/quick-start`
+- `/studio/onboarding/providers/*`
+- `/studio/setup` owner-friendly mode
+
+Env variables are for local development, CI, and server deployment only. They may appear in Studio only inside Advanced / Developer details.
 
 Dangerous actions stay disabled by default:
 
@@ -11,7 +21,21 @@ Dangerous actions stay disabled by default:
 - `BANKING_MONEY_MOVEMENT_ENABLED=false`
 - `EXTERNAL_ORDER_SUBMISSION_ENABLED=false`
 
-Use `/studio/setup` or `GET /api/studio/config/feature-readiness` after login to see redacted readiness from the running app.
+Use `/studio/onboarding` or `/studio/setup` after login to see owner-facing setup actions. Use `GET /api/studio/config/feature-readiness` for redacted technical readiness from the running app.
+
+## No Dead Config States
+
+Every config blocker must include:
+
+- plain-English explanation
+- primary setup action
+- setup guide
+- validation path when applicable
+- request-help path
+- Advanced / Developer details disclosure
+- no secret values
+
+If the user cannot safely configure something from the browser, the blocker must say administrator setup is required and provide a help request path.
 
 | Feature | Exact env vars required | Can test without live provider? | Safe local test route | Expected working behavior | Expected blocker if not configured | Notes |
 |---|---|---:|---|---|---|---|
@@ -23,9 +47,11 @@ Use `/studio/setup` or `GET /api/studio/config/feature-readiness` after login to
 | Assets | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; storage vars for private media URLs | Yes | `/studio/assets` | Internal asset records, QA status, and owner review can be tested. | DB or storage config blockers. | No fake product media. |
 | Mockups | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; storage/template/artwork prerequisites | Yes with internal records | `/studio/mockups` | Sharp compositor uses approved QA-passed artwork and template art zones. | Missing source artwork, QA not passed, missing template/art zone. | Provider mockup retrieval is future. |
 | Printify catalog | `PRINTIFY_ENABLED`, `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID` for full catalog routes; shops discovery needs token/flag | No | `/studio/printify-catalog` | Discovers shops/catalog/providers/variants from Printify when configured. | `PRINTIFY_ENABLED=true`, `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`. | Shop selection evidence does not store raw tokens. |
+| Printify guided setup | `CREDENTIAL_STORAGE_ENABLED`, `CREDENTIAL_ENCRYPTION_KEY` for owner-entered token storage; server env fallback remains advanced | No live provider success without real Printify token | `/studio/onboarding/providers/printify` | Owner can follow instructions, save token securely when storage is enabled, validate token, discover shops, and select shop. | Secure credential storage unavailable, invalid token, no shops, or Printify config missing. | Owner does not edit env files or call Printify API manually. |
 | Printify upload | `PRINTIFY_ENABLED`, `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID` plus approved generated artwork | No | `/studio/printify-catalog` | Uploads approved artwork to Printify media and persists returned upload ID. | Missing provider config or approved generated artwork. | No fake upload IDs. |
 | Printify product creation | `PRINTIFY_ENABLED`, `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID` | No | `/studio/publish-review` | Creates Printify draft/product record from persisted draft, variants, print areas, pricing, and gates. | Provider config, approval gates, variants, pricing, artwork blockers. | `PRINTIFY_ALLOW_PUBLISH=false` keeps live publish disabled. |
 | Shopify draft creation | `SHOPIFY_ADMIN_ENABLED`, `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_TOKEN`; collection via `SHOPIFY_DEFAULT_COLLECTION_ID` or owner-entered ID | No | `/studio/publish-review` | Creates Shopify draft product with media, variants, SEO, tags, and collection assignment. | `shopify_collection_id_required`, provider config, media, variants, pricing blockers. | Draft creation does not publish. |
+| Shopify guided setup | `CREDENTIAL_STORAGE_ENABLED`, `CREDENTIAL_ENCRYPTION_KEY` for owner-entered Admin token storage; server env fallback remains advanced | No live provider success without real Shopify Admin token | `/studio/onboarding/providers/shopify` | Owner enters `.myshopify.com` domain, saves Admin token securely when storage is enabled, validates Admin access, discovers/selects collection. | Secure credential storage unavailable, invalid token/domain, missing collection, or Shopify config missing. | Owner does not edit env files or need GraphQL/REST details. |
 | Shopify media upload | `SHOPIFY_ADMIN_ENABLED`, `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_TOKEN` | No | `/studio/shopify-products` | Uploads approved media to an existing Shopify draft product. | Missing Shopify config or signed/public media URL. | No Admin token is returned. |
 | Shopify collection assignment | `SHOPIFY_ADMIN_ENABLED`, `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_TOKEN`, `SHOPIFY_DEFAULT_COLLECTION_ID` or owner-entered ID | No | `/studio/publish-review` | Assigns draft product to a real Shopify collection ID. | `SHOPIFY_DEFAULT_COLLECTION_ID or owner-entered Shopify collection ID`. | Listing display labels are not enough. |
 | Shopify live publish | `LIVE_PUBLISHING_ENABLED`, `SHOPIFY_ALLOW_PRODUCT_PUBLISH`, `SHOPIFY_ADMIN_ENABLED`, `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_TOKEN` | No | `/studio/shopify-products` | Owner-gated route can publish an existing Shopify draft only after publish gates pass, both live flags are enabled, provider config is present, and the owner types `PUBLISH LIVE`. | `live_shopify_publish_flags_disabled`, `explicit_owner_confirmation_required`, or Shopify Admin config blockers. | Should not be enabled locally except in a deliberate live-provider smoke test. |
@@ -33,6 +59,7 @@ Use `/studio/setup` or `GET /api/studio/config/feature-readiness` after login to
 | POD Batches | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/pod-batches` | Batch records/status can be created and reviewed internally. | DB config blocker. | No bulk publish by default. |
 | Launch Packet | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; provider refs when available | Yes | `/studio/launch-packet` | Shows launch blockers, refs, approval status, and manual/export readiness. | Missing persisted draft/provider evidence. | No sync/publish is implied. |
 | AI Employees | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; optional `AI_TEXT_ENABLED`, `HF_API_TOKEN`, `HF_TEXT_MODEL` | Yes | `/studio/ai-employees` | Internal planning/output/approval workflows can run without live providers. | External model calls disabled until HF config. | AI approval never grants publish/spend/send/sync. |
+| Launch Setup Concierge | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; credential storage config for owner-entered secrets | Yes for UI/help/readiness; provider validation needs real provider credentials | `/studio/onboarding` | Owner-facing setup cards, guided/quick provider flows, field guides, validation routes, and help requests. | Secure storage unavailable for token saves, auth missing, provider invalid, or admin setup required. | Customer setup uses Studio UI, not env editing. |
 | AI Hiring Desk | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/ai-employees/hiring` | Hire requests, role specs, approvals, employee definitions, and scopes persist. | DB config blocker. | Owner approval required before employee creation. |
 | AI Continuous Improvement Desk | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/ai-employees/improvements` | Suggestions, capability/training/tool requests, conversions, and audit persist. | DB config blocker. | Suggestions cannot self-implement or self-grant. |
 | AI Model Runtime Registry | `AI_TEXT_ENABLED`, `HF_API_TOKEN`, `HF_TEXT_MODEL` only for external HuggingFace text calls; local/open model candidates persist in `ai_model_*` tables | Yes for registry records, evals, assignments, usage audit, and config-blocked routing | `/studio/ai-employees/models` | Owner can register local/open model candidates, record evals, view usage, and route low-risk tasks only through approved configured models. | `no_approved_configured_model_for_task`, sensitive authority approval missing, or provider not configured. | Provider tokens/base URLs are never returned to the client; dangerous actions are never model-routed. |

@@ -610,6 +610,7 @@ export class SharedKernelRepository {
   readonly assets: BaseRepository;
   readonly templates: BaseRepository;
   readonly automationRules: BaseRepository;
+  readonly setupAssistanceRequests: BaseRepository;
   readonly segments: BaseRepository;
   readonly verticalPacks: BaseRepository;
   readonly campaigns: BaseRepository;
@@ -631,6 +632,7 @@ export class SharedKernelRepository {
     this.assets = repo("assets");
     this.templates = repo("templates");
     this.automationRules = repo("automation_rules");
+    this.setupAssistanceRequests = repo("setup_assistance_requests");
     this.segments = repo("segments");
     this.verticalPacks = repo("vertical_packs");
     this.campaigns = repo("campaigns");

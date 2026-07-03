@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildFeatureReadiness, featureReadinessEnvVars, parseEnv } from "@saltyfactory/config";
+import { assertNoDeadConfigStates, buildFeatureReadiness, buildOwnerSetupCards, featureReadinessEnvVars, parseEnv } from "@saltyfactory/config";
 import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
 import { GET as featureReadinessGet } from "../apps/studio/app/api/studio/config/feature-readiness/route";
 import StudioSetupPage from "../apps/studio/app/studio/setup/page";
@@ -106,15 +106,34 @@ describe("setup UI and docs consistency", () => {
   it("renders setup cards, blocker names, feature links, and safety panel", () => {
     const html = renderToStaticMarkup(StudioSetupPage());
     expect(html).toContain("Setup / Feature Readiness");
-    expect(html).toContain("Feature Readiness Cards");
-    expect(html).toContain("Image Generation");
-    expect(html).toContain("Printify Catalog / Upload / Product Creation");
-    expect(html).toContain("Shopify Draft Products / Media / Collection Assignment");
+    expect(html).toContain("Launch Setup Concierge");
+    expect(html).toContain("Every blocker has a next action");
+    expect(html).toContain("Image generation");
+    expect(html).toContain("Printify");
+    expect(html).toContain("Shopify Admin");
+    expect(html).toContain("Where do I get this?");
+    expect(html).toContain("Request setup help");
     expect(html).toContain("Safety Panel");
-    expect(html).toContain("LIVE_PUBLISHING_ENABLED=false");
+    expect(html).toContain("Live publish, money movement, external ordering");
     expect(html).toContain("/studio/ai-employees");
     expect(html).toContain("/studio/business");
     expect(html).not.toMatch(/HF_API_TOKEN=[A-Za-z0-9]|SHOPIFY_ADMIN_TOKEN=[A-Za-z0-9]|PRINTIFY_API_TOKEN=[A-Za-z0-9]|PLAID_SECRET=[A-Za-z0-9]/);
+  });
+
+  it("turns config blockers into owner-facing setup actions", () => {
+    const report = buildFeatureReadiness(parseEnv({ NODE_ENV: "development", APP_ENV: "development", REPOSITORY_ADAPTER: "memory" }));
+    const cards = buildOwnerSetupCards(report);
+    expect(assertNoDeadConfigStates(cards)).toBe(true);
+    expect(cards.find((card) => card.providerKey === "image_generation")?.primaryAction.label).toBe("Configure image generation");
+    expect(cards.find((card) => card.providerKey === "printify")?.primaryAction.label).toBe("Connect Printify");
+    expect(cards.find((card) => card.providerKey === "shopify")?.primaryAction.label).toBe("Connect Shopify");
+    expect(cards.find((card) => card.providerKey === "banking")?.primaryAction.label).toBe("Open manual import");
+    expect(cards.find((card) => card.providerKey === "external_orders")?.primaryAction.label).toBe("Generate print-ready packet");
+    for (const card of cards) {
+      expect(card.explanation).not.toMatch(/^[A-Z0-9_]+ missing$/);
+      expect(card.setupGuideAction.label).toBe("Where do I get this?");
+      expect(card.requestHelpAction.label).toBe("Request setup help");
+    }
   });
 
   it("keeps env examples and local setup docs aligned with readiness env inventory", () => {
@@ -138,5 +157,7 @@ describe("setup UI and docs consistency", () => {
     expect(existsSync(join(root, "apps/studio/app/studio/setup/page.tsx"))).toBe(true);
     const nav = readFileSync(join(root, "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(nav).toContain('["Feature Readiness", "/studio/setup"]');
+    expect(nav).toContain('["Launch Setup Concierge", "/studio/onboarding"]');
+    expect(nav).toContain('["Guided Setup", "/studio/onboarding/guided"]');
   });
 });

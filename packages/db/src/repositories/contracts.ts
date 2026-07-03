@@ -128,6 +128,7 @@ export interface SharedKernelRepositoryContract {
   assets: BaseRepositoryContract;
   templates: BaseRepositoryContract;
   automationRules: BaseRepositoryContract;
+  setupAssistanceRequests: BaseRepositoryContract;
   segments: BaseRepositoryContract;
   verticalPacks: BaseRepositoryContract;
   campaigns: BaseRepositoryContract;

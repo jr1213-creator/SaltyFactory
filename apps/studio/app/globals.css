@@ -900,6 +900,175 @@
     @apply text-sm font-extrabold text-primary-dark;
   }
 
+  .onboarding-command-page {
+    @apply mx-auto w-full max-w-[1500px];
+  }
+
+  .setup-owner-grid {
+    @apply xl:grid-cols-2 2xl:grid-cols-3;
+  }
+
+  .setup-provider-card,
+  .setup-field-guide-card,
+  .setup-action-panel form,
+  .setup-help-panel form {
+    @apply grid content-start gap-4 rounded-xl border border-border bg-card p-5 shadow-card;
+  }
+
+  .setup-provider-card-header {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .setup-provider-card-header h3,
+  .setup-field-guide-card h3,
+  .setup-action-panel h3,
+  .setup-help-panel h3,
+  .setup-step-list strong {
+    @apply m-0 text-base font-black text-navy;
+  }
+
+  .setup-provider-card-header p,
+  .setup-provider-why,
+  .setup-field-guide-card p,
+  .setup-action-panel p,
+  .setup-help-panel p,
+  .setup-step-list p,
+  .setup-guide-panel p,
+  .setup-advanced-details p {
+    @apply m-0 text-sm leading-relaxed text-muted-foreground;
+  }
+
+  .setup-provider-why strong {
+    @apply text-foreground;
+  }
+
+  .setup-masked-status {
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/15 bg-primary-soft/55 px-3 py-2;
+  }
+
+  .setup-masked-status span,
+  .setup-safety-list strong,
+  .setup-guide-panel h3,
+  .setup-secure-field span,
+  .setup-action-panel label span,
+  .setup-help-panel label span {
+    @apply text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+  }
+
+  .setup-masked-status strong {
+    @apply text-sm font-black text-primary-dark;
+  }
+
+  .setup-safety-list {
+    @apply rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm;
+  }
+
+  .setup-safety-list ul,
+  .setup-guide-panel ol,
+  .setup-advanced-details ul {
+    @apply mb-0 mt-2 grid gap-1 pl-5;
+  }
+
+  .setup-advanced-details {
+    @apply rounded-lg border border-border bg-muted/35 p-3 text-sm;
+  }
+
+  .setup-advanced-details summary {
+    @apply cursor-pointer text-sm font-black text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring;
+  }
+
+  .setup-secure-field,
+  .setup-action-panel label,
+  .setup-help-panel label {
+    @apply grid gap-2;
+  }
+
+  .setup-secure-field input,
+  .setup-action-panel input,
+  .setup-action-panel select,
+  .setup-help-panel input,
+  .setup-help-panel select,
+  .setup-help-panel textarea {
+    @apply min-h-11 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-soft-foreground focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  .setup-secure-field small,
+  .setup-help-panel small {
+    @apply text-xs leading-relaxed text-muted-foreground;
+  }
+
+  .setup-guide-panel {
+    @apply grid gap-3 rounded-lg border border-info/20 bg-info-soft/45 p-4;
+  }
+
+  .setup-guide-panel ol {
+    @apply text-sm text-foreground;
+  }
+
+  .setup-security-note {
+    @apply rounded-md border border-warning/25 bg-warning-soft px-3 py-2 text-warning;
+  }
+
+  .setup-validation-result {
+    @apply grid gap-2 rounded-lg border p-3 text-sm;
+  }
+
+  .setup-validation-result.is-success {
+    @apply border-success/25 bg-success-soft text-success;
+  }
+
+  .setup-validation-result.is-blocked {
+    @apply border-warning/25 bg-warning-soft text-warning;
+  }
+
+  .setup-validation-result strong {
+    @apply text-sm font-black capitalize;
+  }
+
+  .setup-validation-result p {
+    @apply m-0 leading-relaxed;
+  }
+
+  .setup-validation-result span {
+    @apply font-black;
+  }
+
+  .setup-validation-result ul {
+    @apply mb-0 mt-1 grid gap-1 pl-5;
+  }
+
+  .setup-action-panel {
+    @apply grid gap-4 xl:grid-cols-3;
+  }
+
+  .setup-help-panel {
+    @apply grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px];
+  }
+
+  .setup-step-list {
+    @apply m-0 grid list-none gap-3 p-0;
+  }
+
+  .setup-step-list li {
+    @apply grid items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card md:grid-cols-[auto_1fr_auto];
+  }
+
+  .setup-step-list li > span {
+    @apply grid size-10 place-items-center rounded-lg bg-primary text-base font-black text-primary-foreground;
+  }
+
+  .owner-gated-notice {
+    @apply grid items-start gap-3 rounded-xl border border-warning/25 bg-warning-soft p-5 shadow-card sm:grid-cols-[auto_1fr];
+  }
+
+  .owner-gated-notice strong {
+    @apply text-base font-black text-navy;
+  }
+
+  .owner-gated-notice p {
+    @apply m-0 mt-1 text-sm leading-relaxed text-muted-foreground;
+  }
+
   .shopify-products-panel {
     @apply mt-5;
   }

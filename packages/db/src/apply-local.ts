@@ -93,6 +93,7 @@ export const sharedKernelTables = [
   "assets",
   "templates",
   "automation_rules",
+  "setup_assistance_requests",
   "segments",
   "vertical_packs",
   "campaigns",

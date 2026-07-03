@@ -1144,6 +1144,20 @@ export const businessAuthorityRequests = pgTable("business_authority_requests", 
   workspaceStatusIdx: index("business_authority_requests_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
+export const setupAssistanceRequests = pgTable("setup_assistance_requests", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  requestType: text("request_type").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("open"),
+  relatedProvider: text("related_provider"),
+  relatedStepKey: text("related_step_key")
+}, (table) => ({
+  workspaceStatusIdx: index("setup_assistance_requests_workspace_status_idx").on(table.workspaceId, table.status),
+  workspaceProviderIdx: index("setup_assistance_requests_workspace_provider_idx").on(table.workspaceId, table.relatedProvider)
+}));
+
 export const trendSources = pgTable("trend_sources", {
   id,
   ...ownership(),
@@ -2911,6 +2925,7 @@ export const tables = {
   businessBankConnections,
   businessBankTransactions,
   businessAuthorityRequests,
+  setupAssistanceRequests,
   brandProfiles,
   productCollectionPlans,
   dropCalendars,

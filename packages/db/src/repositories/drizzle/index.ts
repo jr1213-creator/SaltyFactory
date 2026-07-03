@@ -159,6 +159,7 @@ const tableExportByDbName: Record<string, TableName> = {
   source_records: "sourceRecords",
   events: "events",
   audit_log: "auditLog",
+  setup_assistance_requests: "setupAssistanceRequests",
   approvals: "approvals",
   tasks: "tasks",
   notes: "notes",
@@ -650,6 +651,7 @@ export class DrizzleSharedKernelRepository {
   readonly assets: DrizzleBaseRepository;
   readonly templates: DrizzleBaseRepository;
   readonly automationRules: DrizzleBaseRepository;
+  readonly setupAssistanceRequests: DrizzleBaseRepository;
   readonly segments: DrizzleBaseRepository;
   readonly verticalPacks: DrizzleBaseRepository;
   readonly campaigns: DrizzleBaseRepository;
@@ -671,6 +673,7 @@ export class DrizzleSharedKernelRepository {
     this.assets = repo("assets");
     this.templates = repo("templates");
     this.automationRules = repo("automation_rules");
+    this.setupAssistanceRequests = repo("setup_assistance_requests");
     this.segments = repo("segments");
     this.verticalPacks = repo("vertical_packs");
     this.campaigns = repo("campaigns");
