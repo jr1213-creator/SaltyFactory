@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { requireProviderMutationPermission, requireWorkspaceMember } from "@saltyfactory/auth";
 import { createRepositories, getDb, mockupTemplates } from "@saltyfactory/db";
+import { parseEnv } from "@saltyfactory/config";
+import { createStorageProvider } from "@saltyfactory/storage";
+import { generateMockup } from "@saltyfactory/image-pipeline";
 import { studioAuthErrorResponse, notFoundApiResponse } from "../../_auth";
 
 export const runtime = "nodejs";
@@ -37,21 +40,51 @@ async function ensureInternalTemplate(productType: string, actorId: string) {
   return created;
 }
 
-async function writeInternalMockup(productType: string, id: string) {
-  const sharp = (await import("sharp")).default;
-  const label = productType.replace(/_/g, " ").toUpperCase();
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2200">
-    <rect width="1800" height="2200" fill="#f8fafc"/>
-    <rect x="350" y="300" width="1100" height="1500" rx="120" fill="#e0f2f1" stroke="#0f766e" stroke-width="12"/>
-    <rect x="520" y="640" width="760" height="760" rx="40" fill="#ffffff" stroke="#0f172a" stroke-width="8" stroke-dasharray="20 18"/>
-    <text x="900" y="1010" text-anchor="middle" font-family="Arial" font-size="72" fill="#0f172a">APPROVED ART</text>
-    <text x="900" y="1110" text-anchor="middle" font-family="Arial" font-size="42" fill="#0f766e">internal preview placement</text>
-    <text x="900" y="1900" text-anchor="middle" font-family="Arial" font-size="58" fill="#334155">${label}</text>
-  </svg>`);
-  const buffer = await sharp(svg).png().toBuffer();
+function localPrivatePathFor(storageKey: string, kind: "assets" | "mockups") {
+  return path.resolve(process.cwd(), ".saltyfactory-private", kind, safeSegment(workspaceId), path.basename(storageKey));
+}
+
+async function readApprovedAssetBuffer(asset: Record<string, any>) {
+  const storageKey = String(asset.file_path ?? asset.filePath ?? asset.storage_key ?? asset.storageKey ?? "");
+  const localPath = localPrivatePathFor(storageKey, "assets");
+  try {
+    return { ok: true as const, buffer: await readFile(localPath) };
+  } catch {
+    const config = parseEnv();
+    if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY || !storageKey) {
+      return {
+        ok: false as const,
+        status: "not_configured",
+        blockingReasons: ["source_art_bytes_or_signed_url_required"],
+        setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"]
+      };
+    }
+    const signed = await createStorageProvider(config).createSignedPrivateUrl(storageKey, 600);
+    if (!signed.ok || !signed.url) {
+      return {
+        ok: false as const,
+        status: "not_configured",
+        blockingReasons: ["source_art_signed_url_required"],
+        setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"]
+      };
+    }
+    const response = await fetch(signed.url);
+    if (!response.ok) {
+      return { ok: false as const, status: "failed", blockingReasons: ["source_art_read_failed"] };
+    }
+    return { ok: true as const, buffer: Buffer.from(await response.arrayBuffer()) };
+  }
+}
+
+async function writeInternalMockup(productType: string, id: string, art: Buffer, template: any) {
   const root = path.resolve(process.cwd(), ".saltyfactory-private", "mockups", safeSegment(workspaceId));
   await mkdir(root, { recursive: true });
-  await writeFile(path.resolve(root, `${id}.png`), buffer);
+  await generateMockup(art, "", path.resolve(root, `${id}.png`), {
+    ...template,
+    productType,
+    canvas: template.canvas ?? { width: 1800, height: 2200, art_zone: { x: 450, y: 520, width: 900, height: 900 } },
+    baseImagePath: template.baseImagePath ?? template.base_image_path ?? "internal-preview-template"
+  });
   return `workspaces/${safeSegment(workspaceId)}/private/mockups/${id}.png`;
 }
 
@@ -76,9 +109,16 @@ export async function POST(req: Request) {
     if (asset.approved_for_mockup !== true && asset.approvedForMockup !== true) {
       return NextResponse.json({ ok: false, status: "blocked", message: "Internal mockups require an approved asset with passing QA.", blockingReasons: ["asset_not_approved_for_mockup"] }, { status: 409 });
     }
+    if (String(asset.qa_status ?? asset.qaStatus) !== "passed") {
+      return NextResponse.json({ ok: false, status: "blocked", message: "Mockups require source artwork with passing print-file QA.", blockingReasons: ["asset_qa_not_passed"] }, { status: 409 });
+    }
     const template = await ensureInternalTemplate(productType, user.id);
+    const source = await readApprovedAssetBuffer(asset);
+    if (!source.ok) {
+      return NextResponse.json({ ok: false, status: source.status, message: "Mockup compositor could not read the approved source artwork.", blockingReasons: source.blockingReasons, setupRequired: source.setupRequired }, { status: source.status === "not_configured" ? 503 : 409 });
+    }
     const mockupId = `mockup_${Date.now()}`;
-    const storageKey = await writeInternalMockup(productType, mockupId);
+    const storageKey = await writeInternalMockup(productType, mockupId, source.buffer, template);
     const mockup = await repos.mockup.create({
       id: mockupId,
       workspace_id: workspaceId,
@@ -89,14 +129,14 @@ export async function POST(req: Request) {
       file_path: storageKey,
       width: 1800,
       height: 2200,
-      status: "generated_internal_preview",
+      status: "generated_composited_preview",
       approved_for_product: false,
-      notes: "Internal preview only; not a provider mockup.",
-      metadata: { kind: "internal_preview_mockup", provider: "internal", public: false },
+      notes: "Internal compositor preview using the approved source artwork; not a Printify provider mockup.",
+      metadata: { kind: "sharp_composited_mockup", provider: "internal", public: false, source_asset_id: assetId },
       created_by: user.id,
       updated_by: user.id
     });
-    return NextResponse.json({ ok: true, status: "internal_mockup_created", mockup });
+    return NextResponse.json({ ok: true, status: "composited_mockup_created", mockup });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

@@ -18,13 +18,18 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     id: "pod-studio",
     label: "POD Studio",
     links: [
+      ["POD Launch Studio", "/studio/pod-launch-studio"],
+      ["POD Batches", "/studio/pod-batches"],
       ["Product Builder", "/studio/product-builder"],
+      ["Image Generation", "/studio/image-generation"],
       ["Designs", "/studio/designs"],
       ["Assets", "/studio/assets"],
       ["Mockups", "/studio/mockups"],
+      ["Printify Catalog", "/studio/printify-catalog"],
       ["Listing Drafts", "/studio/listing-drafts"],
       ["Pricing & Margins", "/studio/pricing-margins"],
-      ["Publish Review", "/studio/publish-review"]
+      ["Publish Review", "/studio/publish-review"],
+      ["Launch Packet", "/studio/launch-packet"]
     ]
   },
   {
@@ -51,6 +56,7 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     label: "Storefront",
     links: [
       ["Products", "/studio/products"],
+      ["Shopify Products", "/studio/shopify-products"],
       ["Shopify / Printify", "/studio/integrations"],
       ["SaltyCowhide.com", "/studio/drafts"]
     ]

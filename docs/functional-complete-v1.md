@@ -8,18 +8,18 @@ SaltyFactory v1 is an AI-run, human-approved POD business operating system for l
 |---|---|---|
 | AI Employees | Fully functional v1 | Owner-triggered runs persist AI run/output records, create shared approval records, support approve/reject/needs-edits/convert-to-task, and materialize supported outputs into internal POD records. No provider action is executed by approval. |
 | Product Builder | Fully functional v1 | `/studio/product-builder` shows persisted POD product ideas from manual creation or approved AI product-idea outputs. `/studio/pod-migration` remains a compatibility alias. |
-| Designs | Manual/export-ready | Deterministic design suggestions and persisted AI design concept outputs are visible for owner review. Image generation remains provider-gated. |
-| Assets | Fully functional v1 | Private manual asset upload, QA run, approve/reject, and mockup handoff are persisted. No fake generated artwork is created. |
-| Mockups | Fully functional v1 | Internal mockup generation from approved private assets, approve/reject, and draft creation are persisted. Provider mockup generation remains future integration. |
+| Designs | Provider-backed when configured | Deterministic design suggestions and persisted AI design concept outputs are visible for owner review. Image generation is core workflow and blocks with exact setup requirements until an allowed image provider is configured. |
+| Assets | Fully functional v1 | Generated image bytes from the worker persist as private design assets, QA can run, and approve/reject/mockup handoff is persisted. Manual references are not the core production path. |
+| Mockups | Fully functional v1 | Internal Sharp compositing creates private mockup images from approved generated artwork and template art zones. Provider mockup retrieval remains future integration. |
 | Listing Drafts | Fully functional v1 | Create/edit listing drafts, validation blockers, owner approval status, and export payloads persist. No Shopify/Etsy/Printify sync is implied. |
 | Pricing & Margins | Fully functional v1 | Manual cost/shipping/price inputs calculate margin and can persist price-margin checks against product drafts. No fake Printify cost is imported. |
-| Publish Review | Manual/export-ready | `/studio/publish-review` exists, computes gates from persisted evidence, shows blockers, listing drafts, margin evidence, and internal approval state. Approval does not publish or sync. `/studio/publish` remains a compatibility alias. |
+| Publish Review | Provider-backed draft actions | `/studio/publish-review` computes gates from persisted evidence, shows blockers/provider readiness, and exposes real "Send to Printify" and "Create Shopify Draft" actions. Approval alone does not publish or sync. |
 | Customer Command Center | Fully functional v1 | Workspace-owned customers, leads, notes, tasks, timeline events, forms, and readiness summaries persist through CRM repositories. |
 | Capture Forms | Honest foundation | Capture form records and submissions/consent foundations exist. Public embeds and external email automation remain future integrations unless explicitly implemented and verified. |
 | Marketing Command Center | Fully functional v1 | Guided launch campaign workflow creates persisted product-referenced campaign packets, proof packs, growth plans, channel drafts, asset specs, UTMs, tasks, recommendations, and approvals. |
 | Approvals | Fully functional v1 | Shared approvals cover marketing and AI employee outputs; approval pages expose real controls and audit/event records. |
 | Social Care | Manual/export-ready | Manual/imported social opportunities create source records, response notes, tasks, events, and audit logs. No live social provider inbox or reply sending is active. |
-| Shopify/Printify | Future integration placeholder | Provider setup, disabled/default states, health checks, and guarded draft paths exist. Live sync/publish requires explicit flags, credentials, provider verification, gates, and owner action. |
+| Shopify/Printify | Provider-backed draft creation when configured | Shopify Admin draft creation supports media, variants, SEO, update, get, and collection assignment. Printify supports shop discovery, catalog/provider/variant/shipping discovery, image upload, print areas, product creation, and product retrieval. All actions block without exact server-side config, gates, and owner permission. Live publishing is still blocked by default. |
 | Google/Merchant/Search/Analytics | Honest foundation | Setup, OAuth/configuration helpers, readiness scoring, and sanitized sync/test paths exist. No fake analytics, ranking guarantees, or feed submission. |
 | Email/Social/Ads | Manual/export-ready | Drafts and campaign packets persist for manual/export use. Sending, posting, ad launch, and spend are not implemented. |
 
@@ -182,7 +182,7 @@ Account Center state:
 - `configured_not_verified` until a live Admin API test succeeds.
 - `connected` only after a live API test succeeds.
 
-The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, and publish gates pass. Shopify setup exposes metafield keys only, never the Admin token.
+The v1 adapter tests `shop.json` and creates draft products only after provider configuration, persisted product draft lookup, persisted publish review lookup, and publish gates pass. Draft payloads include title, description, vendor, product type, tags, SEO metadata, variants/pricing, and approved mockup media. Shopify setup exposes metafield keys only, never the Admin token.
 
 ## Printify Setup
 
@@ -201,7 +201,7 @@ Account Center state:
 - `configured_not_verified` until a live API test succeeds.
 - `connected` only after a live API test succeeds.
 
-The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. The v1 adapter can fetch shops, catalog blueprints, print providers, variants, and create draft products only after approval gates pass.
+The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. The v1 adapter can fetch shops, catalog blueprints, print providers, variants, shipping snapshots, upload approved generated artwork to Printify media, build print areas, create draft products, and retrieve products only after approval gates pass.
 
 ## Domain, DNS, Email, and Merchant Feed Readiness
 
@@ -255,9 +255,9 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 
 1. Run AI Employees or manually create Product Ideas in `/studio/product-builder`.
 2. Create design concepts and print artwork prompts.
-3. Generate artwork only when an image provider is configured and owner-approved, or upload artwork manually.
-4. Run asset QA and approve artwork before product use.
-5. Select Printify targets and create/retrieve product mockups when Printify is configured.
+3. Generate artwork only when an allowed image provider is configured and the owner has approved the prompt. If not configured, the workflow blocks with `AI_IMAGE_ENABLED=true`, `HF_API_TOKEN`, and `HF_IMAGE_MODEL`.
+4. Persist generated image bytes as private assets, run asset QA, and approve artwork before product use.
+5. Select real Printify blueprint/provider/variants, upload approved generated artwork to Printify media, and create/retrieve Printify draft products when Printify is configured.
 6. Approve mockups from the mockup workflow.
 7. Create listing drafts.
 8. Calculate margin in `/studio/pricing-margins` and resolve blockers.
@@ -279,4 +279,7 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 - Listing draft blocks Etsy POD disclosure and missing approved assets/mockups.
 - Social planner creates drafts only and does not auto-post.
 - Shopify/Printify draft sync blocks without provider configuration and publish gates.
+- `/studio/publish-review` buttons call `/api/studio/publish/printify` and `/api/studio/publish/shopify`.
+- `/studio/printify-catalog` calls real Printify shop, catalog, provider, variant, shipping, selection, and upload routes.
+- `/studio/shopify-products` calls the Shopify media upload route for existing draft refs.
 - Guardrail script catches token exposure, fake metrics, and premature GBP write actions.

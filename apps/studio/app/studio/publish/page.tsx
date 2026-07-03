@@ -1,10 +1,13 @@
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
-import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
+import { parseEnv } from "@saltyfactory/config";
+import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, ProviderReadinessCard, RecommendationCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { PublishWorkflowClient } from "./PublishWorkflowClient";
+import { ProviderPublishActionsClient } from "./ProviderPublishActionsClient";
 
 export default async function Page() {
   const { publishReviews, drafts, listingDraftsV1, marginChecks, setupMessage } = await getStudioLists();
+  const config = parseEnv();
   const review = publishReviews[0] as any ?? { id: "empty", product_draft_id: "", gates: {}, all_gates_passed: false, shopify_publish_allowed: false, printify_sync_allowed: false, notes: ["No saved publish review exists yet."] };
   const gateResult = evaluatePublishReviewGates(review);
   const gates = Object.entries(review.gates ?? {}).map(([label, passed]) => ({ label: label.replaceAll("_", " "), passed: Boolean(passed), detail: passed ? "Passed" : "Blocks provider sync and public projection" }));
@@ -27,9 +30,32 @@ export default async function Page() {
       <MetricCard title="Needs changes" value={String(gateResult.blockedReasons.length)} tone="warning" icon="!" />
       <MetricCard title="Blocked by guardrails" value={gateResult.allowed ? "0" : "1"} tone="danger" icon="⛔" />
     </div>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Provider Readiness</h2>
+      <div className="sf-provider-health-bar">
+        <ProviderReadinessCard title="Image Generation" status={config.providers.aiImage.enabled ? "configured" : "setup needed"} tone={config.providers.aiImage.enabled ? "success" : "warning"} description={config.providers.aiImage.enabled ? "Generated artwork can be created by the allowed image provider." : "Requires AI_IMAGE_ENABLED=true, HF_API_TOKEN, and HF_IMAGE_MODEL."} />
+        <ProviderReadinessCard title="Printify" status={config.providers.printify.enabled ? "configured" : "setup needed"} tone={config.providers.printify.enabled ? "success" : "warning"} description={config.providers.printify.enabled ? "Printify draft creation can run after gates pass." : "Requires PRINTIFY_ENABLED=true, PRINTIFY_API_TOKEN, and PRINTIFY_SHOP_ID."} />
+        <ProviderReadinessCard title="Shopify" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description={config.providers.shopifyAdmin.enabled ? "Shopify draft creation can run after gates pass." : "Requires SHOPIFY_ADMIN_ENABLED=true, SHOPIFY_STORE_DOMAIN, and SHOPIFY_ADMIN_TOKEN."} />
+        <ProviderReadinessCard title="Live Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked by default"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Draft creation never publishes live. Public storefront projection still requires explicit owner approval." />
+      </div>
+    </section>
+    <section className="sf-card" style={{ marginTop: 18 }}>
+      <h2>Product Pipeline</h2>
+      <WorkflowProgress steps={[
+        { label: "Idea", status: drafts.length ? "draft exists" : "needed", complete: drafts.length > 0 },
+        { label: "Prompt", status: "owner approved only", complete: true },
+        { label: "Image", status: config.providers.aiImage.enabled ? "provider configured" : "setup needed", complete: config.providers.aiImage.enabled },
+        { label: "QA", status: "asset QA required", complete: false },
+        { label: "Mockup", status: "approved composite required", complete: false },
+        { label: "Printify", status: "draft action available", complete: false },
+        { label: "Shopify Draft", status: "draft action available", complete: false },
+        { label: "Publish Ready", status: gateResult.allowed ? "ready" : "blocked", complete: gateResult.allowed }
+      ]} />
+    </section>
     <div className="sf-split-pane" style={{ marginTop: 18 }}>
       <div className="sf-grid">
         <PublishWorkflowClient initialReviews={publishReviews as any[]} />
+        <ProviderPublishActionsClient reviews={publishReviews as any[]} drafts={drafts as any[]} />
         <DataTable columns={["Product", "Type", "Risk score", "Margin", "AI readiness", "Status"]} rows={(drafts.length ? drafts : [{ title: "No draft selected", product_type: "Empty workspace", status: "awaiting_review" }]).slice(0, 8).map((draft: any) => [draft.title ?? draft.id, draft.product_type ?? "Product", <StatusBadge key="risk" status="Review" tone="warning" />, <StatusBadge key="margin" status="Pending" tone="warning" />, <StatusBadge key="ai" status="Disabled" tone="warning" />, draft.status ?? "draft"])} />
         <section className="sf-card">
           <h2>Listing Drafts Awaiting Review</h2>

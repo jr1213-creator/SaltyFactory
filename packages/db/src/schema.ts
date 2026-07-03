@@ -829,6 +829,43 @@ export const productVariants = pgTable("product_variants", {
   draftIdx: index("product_variants_draft_idx").on(table.productDraftId)
 }));
 
+export const productBatches = pgTable("product_batches", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  name: text("name").notNull(),
+  targetCount: integer("target_count").notNull().default(15),
+  trendSource: text("trend_source"),
+  productMix: jsonb("product_mix").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("idea"),
+  progress: jsonb("progress").$type<Record<string, unknown>>().notNull().default({}),
+  blockedReasons: jsonb("blocked_reasons").$type<string[]>().notNull().default([]),
+  lastError: text("last_error"),
+  notes: text("notes")
+}, (table) => ({
+  workspaceStatusIdx: index("product_batches_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const productBatchItems = pgTable("product_batch_items", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  batchId: text("batch_id").notNull().references(() => productBatches.id),
+  productDraftId: text("product_draft_id").references(() => productDrafts.id),
+  sequence: integer("sequence").notNull(),
+  stage: text("stage").notNull().default("idea"),
+  status: text("status").notNull().default("idea"),
+  blockers: jsonb("blockers").$type<string[]>().notNull().default([]),
+  retryCount: integer("retry_count").notNull().default(0),
+  lastError: text("last_error"),
+  stageHistory: jsonb("stage_history").$type<Array<Record<string, unknown>>>().notNull().default([]),
+  notes: text("notes")
+}, (table) => ({
+  batchIdx: index("product_batch_items_batch_idx").on(table.workspaceId, table.batchId),
+  draftIdx: index("product_batch_items_draft_idx").on(table.productDraftId),
+  stageIdx: index("product_batch_items_stage_idx").on(table.workspaceId, table.stage)
+}));
+
 export const priceMarginChecks = pgTable("price_margin_checks", {
   id,
   ...ownership(),
@@ -877,11 +914,19 @@ export const shopifyProductRefs = pgTable("shopify_product_refs", {
   productDraftId: text("product_draft_id").notNull().references(() => productDrafts.id),
   connectedStoreId: text("connected_store_id").references(() => connectedStores.id),
   shopifyProductId: text("shopify_product_id").notNull(),
+  shopifyProductGid: text("shopify_product_gid"),
   shopifyHandle: text("shopify_handle").notNull(),
   shopifyStatus: text("shopify_status").notNull().default("draft"),
   shopifyPublishedAt: timestamp("shopify_published_at", { withTimezone: true }),
   shopifyCollectionIds: jsonb("shopify_collection_ids").$type<string[]>().notNull().default([]),
   shopifyVariantIds: jsonb("shopify_variant_ids").$type<Record<string, string>>().notNull().default({}),
+  adminUrl: text("admin_url"),
+  storefrontUrl: text("storefront_url"),
+  media: jsonb("media").$type<Array<Record<string, unknown>>>().notNull().default([]),
+  seo: jsonb("seo").$type<Record<string, unknown>>().notNull().default({}),
+  syncStatus: text("sync_status").notNull().default("draft_created"),
+  lastError: text("last_error"),
+  sourceRecordId: text("source_record_id"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   status: text("status").notNull().default("active"),
   notes: text("notes")
@@ -900,9 +945,16 @@ export const printifyProductRefs = pgTable("printify_product_refs", {
   printifyShopId: text("printify_shop_id").notNull(),
   printifyBlueprintId: text("printify_blueprint_id").notNull(),
   printifyPrintProviderId: text("printify_print_provider_id").notNull(),
+  printifyUploadId: text("printify_upload_id"),
+  printifyVariantIds: jsonb("printify_variant_ids").$type<string[]>().notNull().default([]),
+  printAreas: jsonb("print_areas").$type<Array<Record<string, unknown>>>().notNull().default([]),
+  mockupUrls: jsonb("mockup_urls").$type<string[]>().notNull().default([]),
   printifyStatus: text("printify_status").notNull().default("draft"),
   printifyPublished: boolean("printify_published").notNull().default(false),
   printifyExternalId: text("printify_external_id"),
+  syncStatus: text("sync_status").notNull().default("draft_created"),
+  lastError: text("last_error"),
+  sourceRecordId: text("source_record_id"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   status: text("status").notNull().default("active"),
   notes: text("notes")
@@ -2332,6 +2384,8 @@ export const tables = {
   mockupAssets,
   productDrafts,
   productVariants,
+  productBatches,
+  productBatchItems,
   priceMarginChecks,
   publishReviews,
   shopifyProductRefs,

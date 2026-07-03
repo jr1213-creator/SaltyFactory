@@ -37,11 +37,23 @@ export function StatusBadge({ status, tone = "neutral" }: { status: string; tone
   return <span className={`sf-badge sf-${tone}`}>{status}</span>;
 }
 
+export function ReadinessBadge({ ready, label }: { ready: boolean; label?: string }) {
+  return <StatusBadge status={label ?? (ready ? "Ready" : "Blocked")} tone={ready ? "success" : "danger"} />;
+}
+
 export const ScoreBadge = ({ score, label = "Score" }: { score: number; label?: string }) => <span className={cx("sf-score", score >= 85 ? "sf-success" : score >= 70 ? "sf-warning" : "sf-danger")}><strong>{score}</strong> {label}</span>;
 export const RiskBadge = ({ score }: { score: number }) => <ScoreBadge score={score} label={score > 65 ? "High risk" : score > 35 ? "Review" : "Low risk"} />;
 
 export function ProgressBar({ value, label }: { value: number; label?: string }) {
   return <div className="sf-progress-wrap">{label && <div className="sf-progress-label"><span>{label}</span><span>{value}%</span></div>}<div className="sf-progress"><span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div></div>;
+}
+
+export function WorkflowStepHeader({ step, title, status, description }: { step: string; title: string; status: string; description?: string }) {
+  return <header className="sf-workflow-step-header"><span>{step}</span><div><h2>{title}</h2>{description && <p>{description}</p>}</div><StatusBadge status={status} tone={status === "ready" || status === "connected" ? "success" : "warning"} /></header>;
+}
+
+export function WorkflowProgress({ steps }: { steps: Array<{ label: string; status: string; complete?: boolean }> }) {
+  return <ol className="sf-workflow-progress">{steps.map((step, index) => <li key={step.label} className={step.complete ? "is-complete" : ""}><span>{index + 1}</span><strong>{step.label}</strong><small>{step.status}</small></li>)}</ol>;
 }
 
 export function ProgressRing({ value, label }: { value: number; label?: string }) {
@@ -80,6 +92,11 @@ export function EmptyState({ title = "No records yet", description = "When recor
   return <section className="sf-empty"><strong>{title}</strong><p>{description}</p>{action}</section>;
 }
 
+export function HelpTooltip({ label, help }: { label: string; help: string }) {
+  const id = `help-${label.replace(/\W+/g, "-")}`;
+  return <span className="sf-help-tooltip"><button type="button" aria-describedby={id}>?</button><span role="tooltip" id={id}>{help}</span></span>;
+}
+
 export const LoadingState = ({ title = "Loading" }: { title?: string }) => <section className="sf-empty"><strong>{title}</strong><p>Preparing the latest workspace view.</p></section>;
 export const ErrorState = ({ title = "Unable to load", description = "Try again in a moment." }: { title?: string; description?: string }) => <section className="sf-empty sf-danger"><strong>{title}</strong><p>{description}</p></section>;
 
@@ -105,6 +122,7 @@ export function ProviderStatusCard({ title, status = "Disabled", description, to
 
 export const IntegrationCard = ProviderStatusCard;
 export const SiteToolToggleCard = ProviderStatusCard;
+export const ProviderReadinessCard = ProviderStatusCard;
 
 export function AiReadinessScoreCard({ title, score }: { title: string; score: number }) {
   return <section className="sf-card sf-score-card"><div><p>{title}</p><strong>{score}<span>/100</span></strong><span className="sf-delta sf-primary">Configuration score</span></div><ProgressRing value={score} /></section>;
@@ -120,6 +138,44 @@ export function AiEmployeeStatusList({ employees }: { employees: Array<{ name: s
 
 export function RecommendationCard({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
   return <section className="sf-card sf-recommendation"><strong>{title}</strong><p>{description}</p>{action}</section>;
+}
+
+export function BlockerCard({ title, blockers }: { title: string; blockers: string[] }) {
+  return <section className="sf-card sf-blocker-card"><strong>{title}</strong><ul>{blockers.length ? blockers.map((blocker) => <li key={blocker}>{blocker}</li>) : <li>No blockers recorded.</li>}</ul></section>;
+}
+
+export function NextActionCard({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+  return <section className="sf-card sf-next-action"><strong>{title}</strong><p>{description}</p>{action}</section>;
+}
+
+export function ProductPipelineCard({ title, stages }: { title: string; stages: Array<{ label: string; status: string; complete?: boolean }> }) {
+  return <section className="sf-card"><h2>{title}</h2><WorkflowProgress steps={stages} /></section>;
+}
+
+export function PrintifyCatalogCard({ title, description, children }: Props) {
+  return <section className="sf-card sf-catalog-card"><h2>{title}</h2>{description && <p className="sf-muted">{description}</p>}{children}</section>;
+}
+
+export function ImageGenerationJobCard({ title, status, prompt }: { title: string; status: string; prompt?: string }) {
+  return <section className="sf-card sf-image-job-card"><div><h3>{title}</h3>{prompt && <p>{prompt}</p>}</div><StatusBadge status={status} tone={status === "completed" ? "success" : status === "failed" ? "danger" : "warning"} /></section>;
+}
+
+export function VariantMarginMatrix({ rows }: { rows: Array<{ variant: string; cost: string; price: string; margin: string; status: string }> }) {
+  return <DataTable columns={["Variant", "Cost", "Price", "Margin", "Status"]} rows={rows.map((row) => [row.variant, row.cost, row.price, row.margin, <StatusBadge key={row.variant} status={row.status} tone={row.status === "ready" || row.status === "healthy" ? "success" : "warning"} />])} />;
+}
+
+export const PublishGateChecklist = ApprovalGateList;
+
+export function LaunchPacketSection({ title, children }: Props) {
+  return <section className="sf-card sf-launch-packet"><h2>{title}</h2>{children}</section>;
+}
+
+export function SourceLabel({ label }: { label: string }) {
+  return <span className="sf-source-label">{label}</span>;
+}
+
+export function FutureIntegrationBadge({ label = "Future integration" }: { label?: string }) {
+  return <StatusBadge status={label} tone="warning" />;
 }
 
 export function ProductArt({ label = "Salty Cowhide", variant = "tee" }: { label?: string; variant?: string }) {
@@ -159,6 +215,12 @@ export const WorkspaceSwitcher = () => <button className="sf-workspace-switcher"
 
 export function ActionBar({ children }: Props) {
   return <div className="sf-action-bar">{children}</div>;
+}
+
+export const ActionButtonGroup = ActionBar;
+
+export function ApprovalActionBar({ children, label = "Approval actions" }: Props & { label?: string }) {
+  return <div className="sf-action-bar" aria-label={label}>{children}</div>;
 }
 
 export function SplitPane({ children }: Props) {

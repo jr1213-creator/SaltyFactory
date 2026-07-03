@@ -168,6 +168,8 @@ export interface RepositoryBundle {
   mockup: BaseRepositoryContract & { approveForProduct(id: string, actorId: string): Promise<WorkspaceRow> };
   draft: ProductDraftRepositoryContract;
   variant: BaseRepositoryContract & { listByDraft(workspaceId: string, productDraftId: string): Promise<WorkspaceRow[]> };
+  productBatch: BaseRepositoryContract;
+  productBatchItem: BaseRepositoryContract;
   margin: BaseRepositoryContract & { listBlocked(workspaceId: string): Promise<WorkspaceRow[]> };
   publish: PublishReviewRepositoryContract;
   siteAudit: SiteAuditRepositoryContract;

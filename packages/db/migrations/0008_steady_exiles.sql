@@ -1,0 +1,1 @@
+ALTER TABLE "shopify_product_refs" ADD COLUMN "shopify_product_gid" text;

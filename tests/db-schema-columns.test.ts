@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getTableColumns } from "drizzle-orm";
-import { aiEmployeeRuns, productDrafts, publishReviews, trendSignals, workspaceProviderConnections } from "@saltyfactory/db";
+import { aiEmployeeRuns, printifyProductRefs, productBatchItems, productBatches, productDrafts, publishReviews, shopifyProductRefs, trendSignals, workspaceProviderConnections } from "@saltyfactory/db";
 
 const columnKeys = (table: Parameters<typeof getTableColumns>[0]) => Object.keys(getTableColumns(table));
 
@@ -15,6 +15,16 @@ describe("db schema key columns", () => {
 
   it("publish_reviews includes all gate fields", () => {
     expect(columnKeys(publishReviews)).toEqual(expect.arrayContaining(["workspaceId", "productDraftId", "gates", "allGatesPassed", "shopifyPublishAllowed", "printifySyncAllowed", "reviewedBy", "reviewedAt", "notes"]));
+  });
+
+  it("provider refs include source-of-truth mapping and sync fields", () => {
+    expect(columnKeys(shopifyProductRefs)).toEqual(expect.arrayContaining(["productDraftId", "shopifyProductId", "shopifyProductGid", "shopifyHandle", "adminUrl", "storefrontUrl", "media", "seo", "syncStatus", "lastError", "sourceRecordId"]));
+    expect(columnKeys(printifyProductRefs)).toEqual(expect.arrayContaining(["productDraftId", "printifyProductId", "printifyShopId", "printifyBlueprintId", "printifyPrintProviderId", "printifyUploadId", "printifyVariantIds", "printAreas", "mockupUrls", "syncStatus", "lastError", "sourceRecordId"]));
+  });
+
+  it("product batch tables support 15 item workflow stages", () => {
+    expect(columnKeys(productBatches)).toEqual(expect.arrayContaining(["workspaceId", "name", "targetCount", "trendSource", "productMix", "status", "progress", "blockedReasons", "lastError"]));
+    expect(columnKeys(productBatchItems)).toEqual(expect.arrayContaining(["workspaceId", "batchId", "productDraftId", "sequence", "stage", "status", "blockers", "retryCount", "lastError", "stageHistory"]));
   });
 
   it("ai_employee_runs includes required run fields", () => {

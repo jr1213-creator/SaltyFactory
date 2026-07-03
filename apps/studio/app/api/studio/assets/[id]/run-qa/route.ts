@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
+import path from "node:path";
 import { requireDraftMutationPermission } from "@saltyfactory/auth";
 import { createRepositories } from "@saltyfactory/db";
-import { evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
+import { computePerceptualHash, evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../../_auth";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
+
+function safeSegment(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 90) || "asset";
+}
+
+async function hashIfLocal(asset: Record<string, unknown>) {
+  const storageKey = String(asset.file_path ?? asset.filePath ?? asset.storage_key ?? asset.storageKey ?? "");
+  if (!storageKey) return "";
+  const localPath = path.resolve(process.cwd(), ".saltyfactory-private", "assets", safeSegment(workspaceId), path.basename(storageKey));
+  try {
+    return await computePerceptualHash(localPath);
+  } catch {
+    return "";
+  }
+}
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,6 +29,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const repos = createRepositories();
     const asset = await repos.asset.getById(id, workspaceId);
     if (!asset) return notFoundApiResponse();
+    const existingHashes = (await repos.qa.listByWorkspace(workspaceId))
+      .map((row) => row.checks && typeof row.checks === "object" ? String((row.checks as any).perceptual_hash ?? "") : "")
+      .filter(Boolean);
+    const perceptualHash = await hashIfLocal(asset);
     const qaResult = evaluateAssetQaFromMetadata({
       width: Number(asset.width || 0),
       height: Number(asset.height || 0),
@@ -20,8 +40,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       hasAlpha: Boolean(asset.transparent_background || asset.transparentBackground),
       density: Number(asset.dpi || 0),
       fileSizeBytes: Number(asset.file_size_bytes || asset.fileSizeBytes || 0),
-      filename: String(asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? "")
-    });
+      filename: String(asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? ""),
+      perceptualHash
+    }, undefined, existingHashes);
     const qa = await repos.qa.create({
       id: `qa_${Date.now()}`,
       workspace_id: workspaceId,

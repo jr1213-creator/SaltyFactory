@@ -50,6 +50,20 @@
       "when": 1782979433438,
       "tag": "0006_bitter_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783056273230,
+      "tag": "0007_fancy_hercules",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783056370241,
+      "tag": "0008_steady_exiles",
+      "breakpoints": true
     }
   ]
 }

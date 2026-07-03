@@ -257,6 +257,14 @@ export class ProductVariantRepository extends BaseRepository {
   }
 }
 
+export class ProductBatchRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("product_batches", store, audit); }
+}
+
+export class ProductBatchItemRepository extends BaseRepository {
+  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("product_batch_items", store, audit); }
+}
+
 export class PriceMarginCheckRepository extends BaseRepository {
   constructor(store?: RepositoryStore, audit?: AuditWriter) { super("price_margin_checks", store, audit); }
   async listBlocked(workspaceId: string) {
@@ -608,6 +616,8 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     mockup: new MockupRepository(store, writer),
     draft: new ProductDraftRepository(store, writer),
     variant: new ProductVariantRepository(store, writer),
+    productBatch: new ProductBatchRepository(store, writer),
+    productBatchItem: new ProductBatchItemRepository(store, writer),
     margin: new PriceMarginCheckRepository(store, writer),
     publish: new PublishReviewRepository(store, writer),
     siteAudit: new SiteAuditRepository(store, writer),

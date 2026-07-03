@@ -48,6 +48,8 @@ export type ShopifyDraftPayload = {
   tags?: string;
   variants?: Array<{ price: string; sku?: string; option1?: string }>;
   images?: Array<{ src: string; alt?: string }>;
+  metafields_global_title_tag?: string;
+  metafields_global_description_tag?: string;
 };
 
 export class ShopifyAdminProviderDisabled {
@@ -63,8 +65,24 @@ export class ShopifyAdminProviderDisabled {
     if (productType) payload.product_type = productType;
     if (product.vendor ?? product.brand) payload.vendor = product.vendor ?? product.brand;
     if (product.tags) payload.tags = Array.isArray(product.tags) ? product.tags.join(",") : product.tags;
-    if (product.price) payload.variants = [{ price: String(product.price), sku: product.sku, option1: product.option1 ?? "Default" }];
-    if (Array.isArray(product.images)) payload.images = product.images.filter((image: any) => image?.approved !== false).map((image: any) => ({ src: image.src ?? image.url, alt: image.alt }));
+    if (Array.isArray(product.variants) && product.variants.length) {
+      payload.variants = product.variants.map((variant: any) => ({
+        price: String(variant.price ?? product.price ?? "0.00"),
+        sku: variant.sku,
+        option1: variant.option1 ?? variant.title ?? variant.size ?? "Default"
+      }));
+    } else if (product.price) {
+      payload.variants = [{ price: String(product.price), sku: product.sku, option1: product.option1 ?? "Default" }];
+    }
+    if (Array.isArray(product.images)) {
+      payload.images = product.images
+        .filter((image: any) => image?.approved !== false && (image?.src || image?.url))
+        .map((image: any) => ({ src: String(image.src ?? image.url), alt: image.alt ? String(image.alt) : undefined }));
+    }
+    const seoTitle = product.seoTitle ?? product.seo_title;
+    const seoDescription = product.seoDescription ?? product.seo_description;
+    if (seoTitle) payload.metafields_global_title_tag = String(seoTitle).slice(0, 70);
+    if (seoDescription) payload.metafields_global_description_tag = String(seoDescription).slice(0, 320);
     return payload;
   }
   async createProductDraft(_product?: any): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
@@ -107,6 +125,39 @@ export class ShopifyAdminProviderLive extends ShopifyAdminProviderDisabled {
     return resultFromResponse<{ product: Record<string, unknown> }>(response, await readJson(response));
   }
 
+  async updateProduct(id = "", updates: any = {}) {
+    if (!id) return disabled("shopify_product_id_required", ["shopify_product_id"]);
+    const payload = { product: { id, ...this.buildProductDraftPayload(updates), status: updates.status ?? "draft" } };
+    const response = await this.fetcher(this.endpoint(`products/${encodeURIComponent(id)}.json`), { method: "PUT", headers: this.headers(), body: JSON.stringify(payload) });
+    return resultFromResponse<{ product: Record<string, unknown> }>(response, await readJson(response));
+  }
+
+  async uploadProductImage(productId = "", imageUrl = "", altText = "") {
+    if (!productId || !imageUrl) return disabled("shopify_product_image_payload_incomplete", ["shopify_product_id", "image_url"]);
+    const response = await this.fetcher(this.endpoint(`products/${encodeURIComponent(productId)}/images.json`), {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ image: { src: imageUrl, alt: altText || undefined } })
+    });
+    return resultFromResponse<{ image: Record<string, unknown> }>(response, await readJson(response));
+  }
+
+  async assignCollection(productId = "", collectionId = "") {
+    if (!productId || !collectionId) return disabled("shopify_collection_assignment_incomplete", ["shopify_product_id", "shopify_collection_id"]);
+    const response = await this.fetcher(this.endpoint("collects.json"), {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ collect: { product_id: productId, collection_id: collectionId } })
+    });
+    return resultFromResponse<{ collect: Record<string, unknown> }>(response, await readJson(response));
+  }
+
+  async getProduct(id = "") {
+    if (!id) return disabled("shopify_product_id_required", ["shopify_product_id"]);
+    const response = await this.fetcher(this.endpoint(`products/${encodeURIComponent(id)}.json`), { method: "GET", headers: this.headers() });
+    return resultFromResponse<{ product: Record<string, unknown> }>(response, await readJson(response));
+  }
+
   async publishProductGuarded(id = "", review?: PublishReview, actor = "") {
     if (!review) return disabled("publish_review_required");
     assertPublishAllowedForShopify(review);
@@ -124,13 +175,22 @@ export class PrintifyProviderDisabled {
   async getBlueprint(_id?: string): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
   async getPrintProviders(_blueprintId?: string): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
   async getVariants(_blueprintId?: string, _providerId?: string): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
+  async getShipping(_blueprintId?: string, _providerId?: string): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
+  async uploadImage(_image?: any): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
   buildProductDraftPayload(product: any) {
+    const variants = Array.isArray(product.variants)
+      ? product.variants.map((variant: any) => ({
+        id: Number(variant.id ?? variant.printify_variant_id ?? variant.printifyVariantId),
+        price: Number(variant.price ?? variant.price_cents ?? variant.priceCents ?? 0),
+        is_enabled: variant.is_enabled ?? variant.isEnabled ?? true
+      })).filter((variant: any) => Number.isFinite(variant.id) && variant.id > 0)
+      : [];
     return {
       title: String(product.title ?? ""),
       description: String(product.description ?? ""),
       blueprint_id: product.blueprintId ?? product.blueprint_id,
       print_provider_id: product.printProviderId ?? product.print_provider_id,
-      variants: product.variants ?? [],
+      variants,
       print_areas: product.printAreas ?? product.print_areas ?? []
     };
   }
@@ -184,6 +244,21 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
     return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
   }
 
+  async getShipping(blueprintId = "", providerId = "") {
+    const response = await this.fetcher(this.endpoint(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers/${encodeURIComponent(providerId)}/shipping.json`), { method: "GET", headers: this.headers() });
+    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+  }
+
+  async uploadImage(image: { fileName?: string; contents?: string; url?: string } = {}) {
+    const fileName = String(image.fileName ?? "saltyfactory-artwork.png");
+    const body = image.url
+      ? { file_name: fileName, url: image.url }
+      : { file_name: fileName, contents: image.contents };
+    if (!body.url && !body.contents) return disabled("printify_image_upload_payload_incomplete", ["file_name", "contents_or_url"]);
+    const response = await this.fetcher(this.endpoint("uploads/images.json"), { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
+    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
+  }
+
   async createProduct(product: any = {}) {
     const payload = this.buildProductDraftPayload(product);
     if (!payload.title || !payload.description || !payload.blueprint_id || !payload.print_provider_id || !payload.variants.length || !payload.print_areas.length) {
@@ -198,6 +273,12 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
     assertPublishAllowedForPrintify(review);
     if (!actor) return disabled("audit_actor_required");
     return { ok: true as const, data: { productId, status: "draft_created_not_published" } };
+  }
+
+  async getProduct(id = "") {
+    if (!id) return disabled("printify_product_id_required", ["printify_product_id"]);
+    const response = await this.fetcher(this.endpoint(`shops/${encodeURIComponent(this.shopId)}/products/${encodeURIComponent(id)}.json`), { method: "GET", headers: this.headers() });
+    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
   }
 }
 

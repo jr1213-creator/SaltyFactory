@@ -33,6 +33,8 @@ const tableExportByDbName: Record<string, TableName> = {
   mockup_assets: "mockupAssets",
   product_drafts: "productDrafts",
   product_variants: "productVariants",
+  product_batches: "productBatches",
+  product_batch_items: "productBatchItems",
   price_margin_checks: "priceMarginChecks",
   publish_reviews: "publishReviews",
   site_audit_runs: "siteAuditRuns",
@@ -294,6 +296,8 @@ export class DrizzlePrintFileQaRepository extends DrizzleBaseRepository { constr
 export class DrizzleMockupRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("mockup_assets", db, audit); } async approveForProduct(id: string, actorId: string) { return this.update(id, { approved_for_product: true, approvedForProduct: true, approved_by: actorId, approvedBy: actorId }); } }
 export class DrizzleProductDraftRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("product_drafts", db, audit); } async listApprovedForStorefront(workspaceId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => ((row.public_projection ?? row.publicProjection) as WorkspaceRow | undefined)?.status === "published").map(toPublicStorefrontProjection); } }
 export class DrizzleProductVariantRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("product_variants", db, audit); } async listByDraft(workspaceId: string, productDraftId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => row.product_draft_id === productDraftId || row.productDraftId === productDraftId); } }
+export class DrizzleProductBatchRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("product_batches", db, audit); } }
+export class DrizzleProductBatchItemRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("product_batch_items", db, audit); } }
 export class DrizzlePriceMarginCheckRepository extends DrizzleBaseRepository { constructor(db?: DbClient, audit?: AuditWriter) { super("price_margin_checks", db, audit); } async listBlocked(workspaceId: string) { return (await this.listByWorkspace(workspaceId)).filter((row) => row.blocked === true || row.margin_ok === false || row.marginOk === false); } }
 
 export class DrizzlePublishReviewRepository extends DrizzleBaseRepository<PublishReview & WorkspaceRow> {
@@ -620,6 +624,8 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     mockup: new DrizzleMockupRepository(db, writer),
     draft: new DrizzleProductDraftRepository(db, writer),
     variant: new DrizzleProductVariantRepository(db, writer),
+    productBatch: new DrizzleProductBatchRepository(db, writer),
+    productBatchItem: new DrizzleProductBatchItemRepository(db, writer),
     margin: new DrizzlePriceMarginCheckRepository(db, writer),
     publish: new DrizzlePublishReviewRepository(db, writer),
     siteAudit: new DrizzleSiteAuditRepository(db, writer),

@@ -6,6 +6,13 @@ import { createRepositories } from "@saltyfactory/db";
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../_auth";
+import {
+  getApprovedMockupMedia,
+  getDraftVariants,
+  metadataOf,
+  shopifyVariantPayload,
+  writeProviderEvent
+} from "../_provider-workflow";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
@@ -32,32 +39,83 @@ export async function POST(req: Request) {
     if (!gates.shopifyAllowed) return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: gates.blockedReasons, gates }, { status: 409 });
     const config = parseEnv();
     if (!config.providers.shopifyAdmin.enabled) return NextResponse.json({ ok: false, status: "not_configured", setupRequired: ["SHOPIFY_ADMIN_ENABLED=true", "SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] }, { status: 503 });
-    const result = await createCommerceProviders(config).admin.createProductDraft({
+    const variantsResult = await getDraftVariants({ repos, workspaceId, draftId: productDraftId });
+    if (!variantsResult.ok) return NextResponse.json({ ok: false, status: variantsResult.status, blockingReasons: variantsResult.blockingReasons }, { status: 409 });
+    const variants = shopifyVariantPayload(variantsResult.variants);
+    if (!variants.length || variants.some((variant) => Number(variant.price) <= 0)) {
+      return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: ["shopify_variants_and_pricing_required"] }, { status: 409 });
+    }
+    const mediaResult = await getApprovedMockupMedia({ repos, workspaceId, draft, config });
+    if (!mediaResult.ok) {
+      return NextResponse.json({ ok: false, status: mediaResult.status, blockingReasons: mediaResult.blockingReasons, setupRequired: mediaResult.setupRequired }, { status: mediaResult.setupRequired?.length ? 503 : 409 });
+    }
+    const metadata = metadataOf(draft);
+    const commerce = createCommerceProviders(config);
+    const result = await commerce.admin.createProductDraft({
       title: draft.title,
       description: draft.description,
       productType: draft.product_type ?? draft.productType,
       brand: draft.brand,
       tags: draft.tags,
-      price: body.price
+      variants,
+      images: mediaResult.media.map((media) => ({ src: media.url, alt: `${draft.title} product mockup`, approved: true })),
+      seoTitle: metadata.seo_title ?? metadata.seoTitle ?? draft.title,
+      seoDescription: metadata.seo_description ?? metadata.seoDescription ?? draft.description
     });
     if (!result.ok) return NextResponse.json({ ok: false, status: "failed", message: result.error, retryable: result.retryable, rateLimited: result.rateLimited }, { status: result.rateLimited ? 429 : 502 });
+    const product = (result.data as any).product ?? {};
+    const shopifyProductId = String(product.id ?? "");
+    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || "");
+    let collectionAssignment: Record<string, unknown> | null = null;
+    if (collectionId && shopifyProductId) {
+      const assigned = await commerce.admin.assignCollection(shopifyProductId, collectionId);
+      if (!assigned.ok) {
+        return NextResponse.json({ ok: false, status: "failed", message: assigned.error, retryable: assigned.retryable, rateLimited: assigned.rateLimited, setupRequired: assigned.setupRequired }, { status: assigned.rateLimited ? 429 : 502 });
+      }
+      collectionAssignment = assigned.data as Record<string, unknown>;
+    }
+    const sourceRecord = await repos.shared.sourceRecords.create({
+      id: `src_shopify_${Date.now()}`,
+      workspace_id: workspaceId,
+      provider_key: "shopify",
+      entity_type: "product_draft",
+      entity_id: productDraftId,
+      source_label: "provider_api",
+      status: "completed",
+      raw_payload_ref: null,
+      metadata: { mediaCount: mediaResult.media.length, variantCount: variants.length, collectionId: collectionId || null },
+      created_by: user.id,
+      updated_by: user.id
+    });
+    const cleanDomain = config.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const adminUrl = shopifyProductId ? `https://${cleanDomain}/admin/products/${shopifyProductId}` : null;
+    const handle = String(product.handle ?? "");
     const saved = await repos.shopify.create({
       id: `shopref_${Date.now()}`,
       workspace_id: workspaceId,
       product_draft_id: productDraftId,
-      shopify_product_id: String((result.data as any).product?.id ?? ""),
-      shopify_handle: String((result.data as any).product?.handle ?? ""),
+      shopify_product_id: shopifyProductId,
+      shopify_product_gid: String(product.admin_graphql_api_id ?? product.adminGraphqlApiId ?? ""),
+      shopify_handle: handle,
       shopify_status: "draft",
-      shopify_collection_ids: [],
-      shopify_variant_ids: {},
+      shopify_collection_ids: collectionId ? [collectionId] : [],
+      shopify_variant_ids: Object.fromEntries(((product.variants ?? []) as any[]).map((variant, index) => [String(variantsResult.variants[index]?.id ?? index), String(variant.id ?? "")])),
+      admin_url: adminUrl,
+      storefront_url: null,
+      media: mediaResult.media.map((media) => ({ mockupId: media.mockupId, url: media.url })),
+      seo: { title: metadata.seo_title ?? metadata.seoTitle ?? draft.title, description: metadata.seo_description ?? metadata.seoDescription ?? draft.description },
+      sync_status: "draft_created",
+      source_record_id: sourceRecord.id,
+      metadata: { collectionAssignment, livePublishingEnabled: config.LIVE_PUBLISHING_ENABLED === true },
       synced_at: new Date().toISOString(),
       updated_by: user.id,
       created_by: user.id
     });
-    return NextResponse.json({ ok: true, status: "draft_created", provider: "shopify", reference: saved });
+    await repos.draft.update(productDraftId, { shopify_status: "draft_created", updated_by: user.id });
+    await writeProviderEvent({ repos, workspaceId, actorId: user.id, provider: "shopify", entityId: saved.id, action: "draft_created", status: "draft_created", details: { productDraftId, mediaCount: mediaResult.media.length, variantCount: variants.length } });
+    return NextResponse.json({ ok: true, status: "draft_created", provider: "shopify", reference: saved, adminUrl, mediaCount: mediaResult.media.length, collectionAssigned: Boolean(collectionAssignment) });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return NextResponse.json({ ok: false, status: "failed", message: sanitizeProviderError(error) }, { status: 500 });
   }
 }
-
