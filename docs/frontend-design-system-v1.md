@@ -16,6 +16,7 @@ Implemented:
 - zero remaining legacy factory-prefixed selectors or class references in `apps/studio`, `apps/storefront`, and `packages/ui`
 - WCAG AA token contrast audit in `scripts/check-frontend-contrast.ts`
 - generated contrast report in `docs/frontend-contrast-report-v1.md`
+- Studio IA shell polish with command-center top navigation, active workflow context, POD stage rail, module explorer, and `/studio` launchpad
 
 Build note:
 - Tailwind v4 loads through `@tailwindcss/postcss`.

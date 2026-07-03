@@ -98,7 +98,7 @@
 
 @layer components {
   .studio-shell {
-    @apply grid min-h-screen grid-cols-[264px_minmax(0,1fr)];
+    @apply grid min-h-screen grid-cols-[292px_minmax(0,1fr)];
   }
 
   .studio-sidebar {
@@ -113,12 +113,88 @@
     @apply size-10 rounded-full bg-gradient-to-br from-navy to-primary shadow-[inset_0_0_0_6px_white];
   }
 
+  .studio-context-panel {
+    @apply grid gap-2.5 rounded-lg border border-primary/20 bg-gradient-to-br from-card to-primary-soft p-4 shadow-card;
+  }
+
+  .studio-context-panel > strong {
+    @apply text-lg leading-tight text-navy;
+  }
+
+  .studio-context-panel p {
+    @apply m-0 text-sm text-muted-foreground;
+  }
+
+  .studio-breadcrumbs {
+    @apply flex flex-wrap items-center gap-1 text-xs font-bold text-muted-foreground;
+  }
+
+  .studio-breadcrumbs span {
+    @apply inline-flex items-center gap-1;
+  }
+
+  .studio-breadcrumbs a {
+    @apply rounded-sm text-muted-foreground hover:text-primary-dark;
+  }
+
+  .studio-breadcrumbs a[aria-current="page"] {
+    @apply text-primary-dark;
+  }
+
+  .studio-context-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .studio-context-actions a {
+    @apply rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-extrabold text-primary-dark hover:bg-primary-soft;
+  }
+
+  .studio-stage-rail {
+    @apply grid gap-2 rounded-lg border border-border bg-muted/70 p-3;
+  }
+
+  .studio-stage-rail-header {
+    @apply flex items-center justify-between gap-2 text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+  }
+
+  .studio-stage-rail-header a {
+    @apply text-primary-dark hover:text-primary;
+  }
+
+  .studio-stage-link {
+    @apply grid grid-cols-[32px_1fr] items-center gap-x-2 rounded-md border border-transparent px-2.5 py-2 text-sm transition-colors hover:border-border hover:bg-card;
+  }
+
+  .studio-stage-link > span {
+    @apply grid size-8 place-items-center rounded-md bg-card text-xs font-black text-primary-dark;
+  }
+
+  .studio-stage-link strong {
+    @apply text-foreground;
+  }
+
+  .studio-stage-link small {
+    @apply col-start-2 text-xs text-muted-foreground;
+  }
+
+  .studio-stage-link[aria-current="page"] {
+    @apply border-primary/20 bg-card shadow-[inset_3px_0_0_var(--color-primary)];
+  }
+
   .studio-nav {
     @apply grid gap-3.5;
   }
 
   .studio-nav-group {
     @apply grid gap-1;
+  }
+
+  .studio-nav-heading {
+    @apply flex items-center justify-between gap-2 px-1 text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+  }
+
+  .studio-nav-heading a {
+    @apply rounded-md px-2 py-1 text-primary-dark hover:bg-primary-soft;
   }
 
   .studio-nav a {
@@ -138,7 +214,16 @@
   }
 
   .studio-nav-section-button {
-    @apply flex w-full cursor-pointer items-center justify-between rounded-md border-0 bg-transparent px-3 py-2 text-left text-xs font-extrabold uppercase tracking-wide text-soft-foreground hover:bg-primary-soft hover:text-primary-dark;
+    @apply flex w-full cursor-pointer items-start justify-between gap-3 rounded-md border-0 bg-transparent px-3 py-2 text-left text-xs font-extrabold uppercase tracking-wide text-soft-foreground hover:bg-primary-soft hover:text-primary-dark;
+  }
+
+  .studio-nav-section-button strong,
+  .studio-nav-section-button small {
+    @apply block;
+  }
+
+  .studio-nav-section-button small {
+    @apply mt-1 normal-case leading-snug tracking-normal text-muted-foreground;
   }
 
   .studio-nav-section-button.is-active {
@@ -170,15 +255,60 @@
   }
 
   .studio-topbar {
-    @apply sticky top-0 z-10 grid h-[72px] grid-cols-[190px_minmax(320px,1fr)_minmax(220px,420px)_auto] items-center gap-4 border-b border-border bg-card/85 px-7 backdrop-blur;
+    @apply sticky top-0 z-10 grid min-h-[78px] grid-cols-[180px_minmax(520px,1fr)_minmax(220px,360px)_auto] items-center gap-4 border-b border-border bg-card/88 px-7 backdrop-blur;
   }
 
   .studio-content {
     @apply mx-auto max-w-[1680px] p-7;
   }
 
+  .studio-command-nav,
   .studio-top-nav {
     @apply flex min-w-0 items-center gap-1 overflow-visible;
+  }
+
+  .studio-command-link {
+    @apply grid min-w-[94px] rounded-lg border border-transparent px-3 py-2 text-sm font-extrabold text-muted-foreground transition-colors hover:border-border hover:bg-primary-soft hover:text-primary-dark;
+  }
+
+  .studio-command-link span {
+    @apply leading-tight text-foreground;
+  }
+
+  .studio-command-link small {
+    @apply mt-0.5 truncate text-[11px] font-bold leading-tight text-muted-foreground;
+  }
+
+  .studio-command-link.is-active {
+    @apply border-primary/20 bg-primary-soft text-primary-dark shadow-[inset_0_-3px_0_var(--color-primary)];
+  }
+
+  .studio-command-more {
+    @apply relative;
+  }
+
+  .studio-command-more summary {
+    @apply grid min-w-[82px] cursor-pointer list-none rounded-lg border border-border bg-card px-3 py-2 text-sm font-extrabold text-foreground hover:bg-primary-soft hover:text-primary-dark;
+  }
+
+  .studio-command-more summary small {
+    @apply mt-0.5 text-[11px] text-muted-foreground;
+  }
+
+  .studio-command-more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .studio-command-menu {
+    @apply left-auto right-0 max-h-[70vh] w-[680px] max-w-[calc(100vw-2rem)] grid-cols-2 overflow-auto;
+  }
+
+  .studio-command-menu section {
+    @apply grid gap-1 rounded-md p-1;
+  }
+
+  .studio-command-menu section > strong {
+    @apply px-2 py-1 text-xs uppercase tracking-wide text-soft-foreground;
   }
 
   .studio-top-nav-dropdown {
@@ -207,6 +337,14 @@
 
   .studio-top-nav-menu a[aria-current="page"] {
     @apply bg-primary-soft text-primary-dark;
+  }
+
+  .studio-command-nav .studio-command-more summary {
+    @apply grid min-w-[82px] gap-0 rounded-lg border-border bg-card px-3 py-2 text-foreground;
+  }
+
+  .studio-command-nav .studio-command-more summary small {
+    @apply mt-0.5 text-[11px] text-muted-foreground;
   }
 
   .workspace-switcher,
@@ -242,12 +380,12 @@
   }
 
   .search-field input {
-    @apply w-full rounded-lg border border-border bg-card py-3 pl-10 pr-4 text-foreground;
+    @apply w-full rounded-lg border border-border bg-card py-3 pl-16 pr-4 text-foreground;
   }
 
   .search-field::before {
-    @apply absolute left-4 top-2.5 text-soft-foreground;
-    content: "⌕";
+    @apply absolute left-4 top-3 text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+    content: "Find";
   }
 
   .login-page {
@@ -792,6 +930,26 @@
     @apply flex items-center justify-between gap-2.5 rounded-md border border-border bg-card p-3;
   }
 
+  .command-center-launchpad {
+    @apply mb-5;
+  }
+
+  .studio-command-center-grid {
+    @apply grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(230px,1fr))];
+  }
+
+  .studio-command-center-card {
+    @apply grid gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/25 hover:bg-primary-soft;
+  }
+
+  .studio-command-center-card strong {
+    @apply text-base text-navy;
+  }
+
+  .studio-command-center-card p {
+    @apply m-0 text-sm text-muted-foreground;
+  }
+
   .section-header {
     @apply mb-4 flex items-start justify-between gap-4;
   }
@@ -865,7 +1023,12 @@
     }
 
     .studio-nav {
-      @apply mt-5 grid-cols-[repeat(auto-fit,minmax(130px,1fr))];
+      @apply mt-5 grid-cols-[repeat(auto-fit,minmax(180px,1fr))];
+    }
+
+    .studio-context-panel,
+    .studio-stage-rail {
+      @apply max-w-none;
     }
 
     .studio-plan {
@@ -876,8 +1039,13 @@
       @apply h-auto grid-cols-1 gap-2.5 px-5 py-3.5;
     }
 
+    .studio-command-nav,
     .studio-top-nav {
       @apply flex-wrap;
+    }
+
+    .studio-command-link {
+      @apply min-w-[110px];
     }
 
     .studio-content {
@@ -906,12 +1074,14 @@
       @apply mt-3;
     }
 
+    .studio-command-nav,
     .studio-top-nav {
       @apply max-h-28 overflow-auto;
     }
 
+    .studio-command-menu,
     .studio-top-nav-menu {
-      @apply fixed left-4 right-4 top-32 max-w-none;
+      @apply fixed left-4 right-4 top-32 grid-cols-1 max-w-none;
     }
 
     .layout-grid-2 {

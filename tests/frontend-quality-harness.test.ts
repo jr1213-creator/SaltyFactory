@@ -90,12 +90,16 @@ describe("frontend quality harness", () => {
     for (const doc of [
       "docs/frontend-quality-audit-v1.md",
       "docs/frontend-performance-workflow-v1.md",
-      "docs/frontend-ai-workflow-v1.md"
+      "docs/frontend-ai-workflow-v1.md",
+      "docs/studio-information-architecture-v1.md"
     ]) {
       expect(existsSync(join(root, doc))).toBe(true);
     }
     const workflow = readFileSync(join(root, "docs/frontend-ai-workflow-v1.md"), "utf8");
     expect(workflow).toContain("Codex implements production code");
     expect(workflow).toContain("Playwright is the source of browser truth");
+    const ia = readFileSync(join(root, "docs/studio-information-architecture-v1.md"), "utf8");
+    expect(ia).toContain("Top command centers");
+    expect(ia).toContain("POD launch stages");
   });
 });

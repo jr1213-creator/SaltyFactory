@@ -62,12 +62,65 @@ export default async function Page() {
     designConcepts: designConceptCount,
     approvalQueueItems: approvalQueue.length
   });
+  const commandCenters = [
+    {
+      title: "POD Launch Studio",
+      href: "/studio/pod-launch-studio",
+      description: "Move from idea to generated art, QA, mockups, Printify, Shopify draft, and publish review.",
+      status: blockersFromStatuses([cfg.providers.aiImage.enabled, cfg.providers.printify.enabled, cfg.providers.shopifyAdmin.enabled])
+    },
+    {
+      title: "AI Employees",
+      href: "/studio/ai-employees",
+      description: "Run owner-gated AI employees, review outputs, hiring requests, improvements, and model usage.",
+      status: cfg.providers.aiText.enabled ? "model configured" : "rules fallback"
+    },
+    {
+      title: "Business Command Center",
+      href: "/studio/business",
+      description: "Review unit economics, opportunities, decision memos, documents, identity, and authority requests.",
+      status: "internal ready"
+    },
+    {
+      title: "Customer Command Center",
+      href: "/studio/customer-command-center",
+      description: "Manage customer records, leads, capture, inbox, campaigns, service cases, and scheduling.",
+      status: "internal ready"
+    },
+    {
+      title: "Marketing Command Center",
+      href: "/studio/marketing-command-center",
+      description: "Create campaign packets, channel drafts, approvals, social care, search visibility, and UTMs.",
+      status: "manual/export ready"
+    },
+    {
+      title: "Setup / Feature Readiness",
+      href: "/studio/setup",
+      description: "See exact provider blockers, disabled safety flags, and what can be tested locally.",
+      status: "owner setup"
+    }
+  ];
 
   return <>
     <PageHeader title="Salty Cowhide AI POD Business Command Center" description="AI employees prepare trends, product ideas, design concepts, prompts, listings, margins, launch checks, and marketing drafts. Jennie approves what goes public.">
       <StatusBadge status="Human approval required" tone="warning" />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
+    <section className="surface-card command-center-launchpad">
+      <div className="section-header">
+        <div>
+          <h2>Command Center Launchpad</h2>
+          <p className="text-muted">Primary operating areas are separated from the full module explorer. Open the area that matches the job, then use the sidebar for the active workflow stage.</p>
+        </div>
+      </div>
+      <div className="studio-command-center-grid">
+        {commandCenters.map((center) => <a className="studio-command-center-card" href={center.href} key={center.href}>
+          <span className="status-badge tone-primary">{center.status}</span>
+          <strong>{center.title}</strong>
+          <p>{center.description}</p>
+        </a>)}
+      </div>
+    </section>
     <div className="layout-grid layout-grid-4">
       <MetricCard title="Business readiness" value={`${businessProfileScore}%`} delta="Profile completeness" tone={businessProfileScore >= 90 ? "success" : "warning"} />
       <MetricCard title="Data readiness" value={googleStatus === "connected" ? "Google connected" : "Setup needed"} delta={googleStatus} tone={googleStatus === "connected" ? "success" : "warning"} />
@@ -97,4 +150,8 @@ export default async function Page() {
       </div>
     </div>
   </>;
+}
+
+function blockersFromStatuses(statuses: boolean[]) {
+  return statuses.every(Boolean) ? "providers ready" : "setup blockers";
 }

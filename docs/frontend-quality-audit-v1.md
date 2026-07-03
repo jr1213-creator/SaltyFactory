@@ -1,6 +1,14 @@
 # Frontend Quality Audit v1
 
-Status: partial quality harness implemented.
+Status: quality harness plus Studio IA shell polish implemented.
+
+## Studio IA Polish
+
+- Topbar now exposes primary command centers: Home, POD, AI, Business, Customer, Marketing, Setup.
+- Sidebar now starts with active workflow context, breadcrumbs, next action, and setup access.
+- POD launch stages stay visible as a stage rail: Plan, Generate, QA, Mockup, Price, Provider, Review.
+- The full route inventory moved into a lower-priority module explorer so it remains available without dominating the first interaction.
+- `/studio` now renders a Command Center Launchpad before metric tables.
 
 ## Page Classification
 

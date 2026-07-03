@@ -53,8 +53,11 @@ import ProductPage from "../apps/storefront/app/products/[handle]/page";
 import {
   STUDIO_NAV_SECTIONS,
   activeStudioNavSectionIds,
+  getActiveStudioNavContext,
+  getStudioBreadcrumbs,
   parseStoredStudioNavSections,
   resolveExpandedStudioNavSections,
+  topStudioCommandLabels,
   visibleStudioNavLinks
 } from "../apps/studio/app/studio/StudioNavigation";
 
@@ -104,8 +107,30 @@ describe("production UI routes", () => {
     expect(source).toContain("aria-controls");
     expect(source).toContain("STUDIO_NAV_STORAGE_KEY");
     expect(source).toContain("StudioTopNavDropdowns");
+    expect(source).toContain("StudioWorkflowContextPanel");
+    expect(source).toContain("StudioPodStageRail");
+    expect(source).toContain("StudioCommandCenterNav");
     expect(source).toContain("Studio command center navigation");
+    expect(source).toContain("Current Studio workflow");
+    expect(source).toContain("POD launch stages");
+    expect(source).toContain("studio-command-nav");
+    expect(source).toContain("studio-stage-rail");
     expect(source).toContain("studio-top-nav-menu");
+  });
+
+  it("Studio IA exposes primary command centers and active workflow breadcrumbs", () => {
+    expect(topStudioCommandLabels()).toEqual(["Home", "POD", "AI", "Business", "Customer", "Marketing", "Setup"]);
+    expect(getActiveStudioNavContext("/studio/business/documents")?.activeLink).toEqual(["Documents", "/studio/business/documents"]);
+    expect(getActiveStudioNavContext("/studio/printify-catalog")?.section.id).toBe("pod-studio");
+    expect(getStudioBreadcrumbs("/studio/printify-catalog")).toEqual([
+      ["Dashboard", "/studio"],
+      ["POD Studio", "/studio/pod-launch-studio"],
+      ["Printify Catalog", "/studio/printify-catalog"]
+    ]);
+    const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
+    expect(source).toContain("STUDIO_COMMAND_CENTER_LINKS");
+    expect(source).toContain("STUDIO_POD_STAGE_LINKS");
+    expect(source).toContain("Module explorer");
   });
 
   it("Studio navigation primary links point at existing Studio routes", () => {
@@ -200,6 +225,9 @@ describe("production UI routes", () => {
   it("Dashboard page renders key cards", async () => {
     const html = renderToStaticMarkup(await StudioDashboard());
     expect(html).toContain("Salty Cowhide AI POD Business Command Center");
+    expect(html).toContain("Command Center Launchpad");
+    expect(html).toContain("POD Launch Studio");
+    expect(html).toContain("Setup / Feature Readiness");
     expect(html).toContain("Product ideas");
     expect(html).toContain("Approved for publish");
     expect(html).toContain("Active AI employees");
