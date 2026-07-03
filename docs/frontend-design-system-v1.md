@@ -17,6 +17,7 @@ Implemented:
 - WCAG AA token contrast audit in `scripts/check-frontend-contrast.ts`
 - generated contrast report in `docs/frontend-contrast-report-v1.md`
 - Studio IA shell polish with command-center top navigation, active workflow context, POD stage rail, module explorer, and `/studio` launchpad
+- `/studio/pod-launch-studio` Tech-Spa command-center polish with structured provider health cards, semantic metrics, no raw env-variable labels, and a single priority owner-gated launch pathway
 
 Build note:
 - Tailwind v4 loads through `@tailwindcss/postcss`.
@@ -32,6 +33,7 @@ Accessibility rules:
 - Buttons use meaningful labels.
 - Disabled/action-blocked states include visible reasons on workflow pages.
 - Critical setup instructions are visible in page copy, not only tooltips.
+- Header search is contained in the Studio topbar layout and communicates that workspace search is not configured without rendering a floating disabled utility block.
 
 Future:
 - Formal Radix-backed dialogs/dropdowns/select primitives beyond the current Radix Slot foundation.

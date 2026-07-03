@@ -275,7 +275,7 @@ export function StructuredDataPreview({ title = "Product JSON-LD" }: { title?: s
   return <pre className="code-block">{`{\n  "@type": "Product",\n  "name": "${title}",\n  "availability": "review_required"\n}`}</pre>;
 }
 
-export const SearchCommand = () => <label className="search-field" title="Search is disabled until a workspace search index is configured."><span>Search</span><input placeholder="Search disabled" aria-label="Search disabled" disabled /></label>;
+export const SearchCommand = () => <label className="search-field" title="Workspace search will become available after a search index is configured."><span>Workspace search</span><input placeholder="Workspace search" aria-label="Workspace search is not configured yet" disabled /></label>;
 export const NotificationBell = () => <button className="icon-button" aria-label="Notifications disabled" disabled title="Notifications are not configured yet.">o<span>0</span></button>;
 export const UserMenu = () => <button className="user-menu" aria-label="User menu disabled" disabled title="User menu actions are not configured yet."><span className="grid size-9 place-items-center rounded-full bg-sand font-extrabold text-navy">A</span><span>Studio Owner<small>Authenticated session</small></span></button>;
 export const WorkspaceSwitcher = () => <button className="workspace-switcher" disabled title="Single workspace is active in this local Studio session.">Salty Cowhide <span>v</span></button>;

@@ -14,7 +14,7 @@ Status: quality harness plus Studio IA shell polish implemented.
 
 | Area | Classification | Evidence / next quality action |
 |---|---|---|
-| POD Launch Studio | Functional, workflow-connected | Provider health, pipeline board, and blockers exist. Needs authenticated Playwright screenshots once a browser-safe auth fixture exists. |
+| POD Launch Studio | Production-quality command center | Refactored into a high-density Tech-Spa command center with consumer-facing provider health, structured stat cards, launch stages, blocker intelligence, and a single priority pathway. Raw env-variable names are not shown on the dashboard. Needs authenticated Playwright screenshots once a browser-safe auth fixture exists. |
 | Publish Review | Functional, provider-action wired | Printify/Shopify buttons call real backend routes and surface blockers. Needs visual regression baseline. |
 | Printify Catalog | Functional, provider-config-blocked honestly | Catalog/variant actions are reachable. Needs authenticated browser fixture for interaction QA. |
 | Shopify Products | Functional, status oriented | Draft refs render and media route exists. Needs richer empty state screenshots. |

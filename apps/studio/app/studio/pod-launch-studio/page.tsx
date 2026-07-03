@@ -1,26 +1,68 @@
 import { parseEnv } from "@saltyfactory/config";
-import { BlockerCard, DataTable, MetricCard, NextActionCard, PageHeader, ProductPipelineCard, ProviderReadinessCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
-import { getStudioLists, SchemaSetupState } from "../data";
+import { DataTable, PageHeader, StatusBadge } from "@saltyfactory/ui";
+import { getStudioLists } from "../data";
 
-function providerStatus(enabled: boolean, reason?: string) {
-  return enabled ? "configured" : reason === "missing_required_config" ? "missing config" : "disabled";
+type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
+
+type ProviderHealthItem = {
+  label: string;
+  status: string;
+  tone: Tone;
+  detail: string;
+  setup: string;
+  href: string;
+  ready: boolean;
+};
+
+function humanStatus(value: unknown, fallback = "not created") {
+  return String(value ?? fallback).replace(/_/g, " ");
 }
 
-function tone(enabled: boolean) {
-  return enabled ? "success" as const : "warning" as const;
+function isCreated(value: unknown) {
+  return ["created", "draft_created", "synced"].includes(String(value ?? ""));
 }
 
-function draftStage(draft: any) {
-  return [
-    { label: "Idea", status: "draft saved", complete: true },
-    { label: "Prompt", status: "approval required", complete: Boolean(draft.prompt_approved ?? draft.promptApproved ?? draft.approval_status === "approved") },
-    { label: "Image", status: draft.design_asset_id ?? draft.designAssetId ? "asset linked" : "generation required", complete: Boolean(draft.design_asset_id ?? draft.designAssetId) },
-    { label: "QA", status: "print QA required", complete: false },
-    { label: "Mockup", status: (draft.mockup_ids ?? draft.mockupIds ?? []).length ? "mockup linked" : "mockup required", complete: Boolean((draft.mockup_ids ?? draft.mockupIds ?? []).length) },
-    { label: "Printify", status: draft.printify_status ?? draft.printifyStatus ?? "not created", complete: (draft.printify_status ?? draft.printifyStatus) === "draft_created" },
-    { label: "Shopify Draft", status: draft.shopify_status ?? draft.shopifyStatus ?? "not created", complete: (draft.shopify_status ?? draft.shopifyStatus) === "draft_created" },
-    { label: "Publish Ready", status: draft.status ?? "draft", complete: draft.status === "ready_for_publish" }
-  ];
+function isApprovedAsset(asset: any) {
+  return Boolean(asset.approved_for_mockup ?? asset.approvedForMockup ?? false) || asset.qa_status === "passed" || asset.qaStatus === "passed";
+}
+
+function PodStatCard({ label, value, badge, caption, tone = "primary" }: { label: string; value: number | string; badge: string; caption: string; tone?: Tone }) {
+  return <article className="pod-stat-card">
+    <div className="pod-stat-header">
+      <span className={`pod-mini-badge tone-${tone}`}>{badge}</span>
+      <span>{label}</span>
+    </div>
+    <strong className="pod-stat-value">{value}</strong>
+    <p>{caption}</p>
+  </article>;
+}
+
+function ProviderHealthCard({ item }: { item: ProviderHealthItem }) {
+  return <article className={`pod-health-card tone-${item.tone}`}>
+    <div className="pod-health-heading">
+      <span className="pod-health-dot" aria-hidden="true" />
+      <div>
+        <h3>{item.label}</h3>
+        <p>{item.detail}</p>
+      </div>
+    </div>
+    <div className="pod-health-footer">
+      <StatusBadge status={item.status} tone={item.tone} />
+      <a href={item.href}>Open setup</a>
+    </div>
+    <p className="pod-health-setup">{item.ready ? "No setup blocker detected for this stage." : item.setup}</p>
+  </article>;
+}
+
+function PipelineStageNode({ index, label, status, detail, tone = "warning", href }: { index: string; label: string; status: string; detail: string; tone?: Tone; href: string }) {
+  return <a className={`pod-stage-node tone-${tone}`} href={href}>
+    <span className="pod-stage-index">{index}</span>
+    <span className="pod-stage-copy">
+      <strong>{label}</strong>
+      <small>{detail}</small>
+    </span>
+    <StatusBadge status={status} tone={tone} />
+  </a>;
 }
 
 export default async function PodLaunchStudioPage() {
@@ -29,76 +71,257 @@ export default async function PodLaunchStudioPage() {
   const drafts = lists.drafts as any[];
   const batches = lists.productBatches as any[];
   const batchItems = lists.productBatchItems as any[];
-  const blockedDrafts = drafts.filter((draft) => !["draft_created", "created"].includes(String(draft.shopify_status ?? draft.shopifyStatus ?? "")) || !["draft_created", "created"].includes(String(draft.printify_status ?? draft.printifyStatus ?? "")));
-  const blockers = [
-    ...(!config.providers.aiImage.enabled ? ["AI_IMAGE_ENABLED=true, HF_API_TOKEN, and HF_IMAGE_MODEL are required before generated artwork can be created."] : []),
-    ...(!config.providers.printify.enabled ? ["PRINTIFY_ENABLED=true, PRINTIFY_API_TOKEN, and PRINTIFY_SHOP_ID are required before Printify products can be created."] : []),
-    ...(!config.providers.shopifyAdmin.enabled ? ["SHOPIFY_ADMIN_ENABLED=true, SHOPIFY_STORE_DOMAIN, and SHOPIFY_ADMIN_TOKEN are required before Shopify drafts can be created."] : []),
-    ...(!config.LIVE_PUBLISHING_ENABLED ? ["LIVE_PUBLISHING_ENABLED is false, so storefront publish remains blocked by default."] : [])
+  const assets = lists.assets as any[];
+  const mockups = lists.mockups as any[];
+  const printifyRefs = lists.printifyProducts as any[];
+  const shopifyRefs = lists.products as any[];
+  const approvedAssets = assets.filter(isApprovedAsset).length;
+  const readyPrintify = printifyRefs.length > 0;
+  const readyShopify = shopifyRefs.length > 0;
+  const providerHealth: ProviderHealthItem[] = [
+    {
+      label: "Image Engine",
+      status: config.providers.aiImage.enabled ? "Active" : "Action required",
+      tone: config.providers.aiImage.enabled ? "success" : "warning",
+      detail: config.providers.aiImage.enabled ? "Approved prompts can queue generated artwork jobs." : "Connect the approved image provider before artwork generation can run.",
+      setup: "Image generation is blocked until an approved server-side image provider is configured.",
+      href: "/studio/setup",
+      ready: config.providers.aiImage.enabled
+    },
+    {
+      label: "Printify Sync",
+      status: config.providers.printify.enabled ? "Ready after gates" : "Action required",
+      tone: config.providers.printify.enabled ? "success" : "warning",
+      detail: config.providers.printify.enabled ? "Catalog, upload, and product creation routes can run after owner gates pass." : "Connect Printify before product drafts can be sent to fulfillment.",
+      setup: "Printify needs a protected server connection and selected shop before product creation is available.",
+      href: "/studio/printify-catalog",
+      ready: config.providers.printify.enabled
+    },
+    {
+      label: "Shopify Drafts",
+      status: config.providers.shopifyAdmin.enabled ? "Draft mode ready" : "Action required",
+      tone: config.providers.shopifyAdmin.enabled ? "success" : "warning",
+      detail: config.providers.shopifyAdmin.enabled ? "Draft products can be created with approved media, pricing, SEO, and variants." : "Connect Shopify Admin before draft product creation is available.",
+      setup: "Shopify draft creation requires a protected Admin connection and verified collection routing.",
+      href: "/studio/shopify-products",
+      ready: config.providers.shopifyAdmin.enabled
+    },
+    {
+      label: "Storefront Publish",
+      status: config.LIVE_PUBLISHING_ENABLED ? "Owner gated" : "Locked by default",
+      tone: config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger",
+      detail: "Draft creation never publishes. Public visibility requires explicit owner confirmation and passed gates.",
+      setup: "Live storefront publishing is intentionally disabled for safe local operation.",
+      href: "/studio/publish-review",
+      ready: false
+    }
   ];
-  return <>
+  const providerBlockers = providerHealth.filter((item) => !item.ready).map((item) => item.setup);
+  const providerReadinessCount = providerHealth.filter((item) => item.ready).length;
+  const blockedDrafts = drafts.filter((draft) => !isCreated(draft.printify_status ?? draft.printifyStatus) || !isCreated(draft.shopify_status ?? draft.shopifyStatus));
+  const newestDraft = drafts[0];
+  const stageData = [
+    {
+      index: "01",
+      label: "Idea",
+      status: drafts.length ? "drafts saved" : "needs idea",
+      detail: drafts.length ? `${drafts.length} product draft${drafts.length === 1 ? "" : "s"} in workspace` : "Start in Product Builder",
+      tone: drafts.length ? "success" as const : "warning" as const,
+      href: "/studio/product-builder"
+    },
+    {
+      index: "02",
+      label: "Prompt",
+      status: lists.briefs.length ? "briefs ready" : "owner gated",
+      detail: lists.briefs.length ? `${lists.briefs.length} brief record${lists.briefs.length === 1 ? "" : "s"} available` : "Approve prompt or brief before generation",
+      tone: lists.briefs.length ? "success" as const : "warning" as const,
+      href: "/studio/briefs"
+    },
+    {
+      index: "03",
+      label: "Image",
+      status: config.providers.aiImage.enabled ? "provider ready" : "blocked",
+      detail: config.providers.aiImage.enabled ? "Queue artwork from approved prompts" : "Image provider setup required",
+      tone: config.providers.aiImage.enabled ? "success" as const : "danger" as const,
+      href: "/studio/image-generation"
+    },
+    {
+      index: "04",
+      label: "QA",
+      status: approvedAssets ? "assets approved" : "needs review",
+      detail: approvedAssets ? `${approvedAssets} asset${approvedAssets === 1 ? "" : "s"} approved for mockup` : "Generated files must pass print QA",
+      tone: approvedAssets ? "success" as const : "warning" as const,
+      href: "/studio/assets"
+    },
+    {
+      index: "05",
+      label: "Mockup",
+      status: mockups.length ? "mockups ready" : "waiting",
+      detail: mockups.length ? `${mockups.length} composited preview${mockups.length === 1 ? "" : "s"}` : "Create mockups from QA-passed artwork",
+      tone: mockups.length ? "success" as const : "warning" as const,
+      href: "/studio/mockups"
+    },
+    {
+      index: "06",
+      label: "Provider",
+      status: readyPrintify || readyShopify ? "refs saved" : "not sent",
+      detail: `${printifyRefs.length} Printify / ${shopifyRefs.length} Shopify draft ref${printifyRefs.length + shopifyRefs.length === 1 ? "" : "s"}`,
+      tone: readyPrintify || readyShopify ? "success" as const : "warning" as const,
+      href: "/studio/printify-catalog"
+    },
+    {
+      index: "07",
+      label: "Review",
+      status: blockedDrafts.length ? "blocked" : "ready to inspect",
+      detail: blockedDrafts.length ? `${blockedDrafts.length} draft${blockedDrafts.length === 1 ? "" : "s"} need gates resolved` : "Open launch readiness review",
+      tone: blockedDrafts.length ? "danger" as const : "success" as const,
+      href: "/studio/publish-review"
+    }
+  ];
+
+  return <div className="pod-command-page">
     <PageHeader
+      className="pod-page-header"
       eyebrow="Salty Cowhide production cockpit"
       title="POD Launch Studio"
-      description="Provider-backed launch workflow for generated artwork, Printify draft products, Shopify draft products, launch packets, and owner-approved storefront readiness."
+      description="A secure command center for moving approved product ideas through generated artwork, print QA, real mockups, provider draft creation, and owner-reviewed launch readiness."
     >
-      <a className="btn btn-primary" href="/studio/publish-review">Publish review</a>
-      <a className="btn btn-secondary" href="/studio/pod-batches/new">New batch</a>
+      <a className="btn btn-primary" href="/studio/pod-batches/new">New 15-product batch</a>
+      <a className="btn btn-secondary" href="/studio/setup">Open setup</a>
     </PageHeader>
-    <SchemaSetupState message={lists.setupMessage} />
-    <section className="surface-card">
-      <h2>Provider Health</h2>
-      <div className="provider-health-bar">
-        <ProviderReadinessCard title="Image" status={providerStatus(config.providers.aiImage.enabled, config.providers.aiImage.reason)} tone={tone(config.providers.aiImage.enabled)} description={config.providers.aiImage.enabled ? "Allowed image provider is configured." : "Requires AI_IMAGE_ENABLED=true, HF_API_TOKEN, HF_IMAGE_MODEL."} />
-        <ProviderReadinessCard title="Printify" status={providerStatus(config.providers.printify.enabled, config.providers.printify.reason)} tone={tone(config.providers.printify.enabled)} description={config.providers.printify.enabled ? "Catalog, upload, and draft product routes can run after gates pass." : "Requires PRINTIFY_ENABLED=true, PRINTIFY_API_TOKEN, PRINTIFY_SHOP_ID."} />
-        <ProviderReadinessCard title="Shopify" status={providerStatus(config.providers.shopifyAdmin.enabled, config.providers.shopifyAdmin.reason)} tone={tone(config.providers.shopifyAdmin.enabled)} description={config.providers.shopifyAdmin.enabled ? "Shopify Admin draft product route can run after gates pass." : "Requires SHOPIFY_ADMIN_ENABLED=true, SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN."} />
-        <ProviderReadinessCard title="Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Draft creation does not publish. Public visibility requires explicit owner-confirmed publish gates." />
+
+    {lists.setupMessage ? <section className="pod-panel pod-storage-note" aria-label="Studio data storage readiness">
+      <StatusBadge status="Storage setup needed" tone="warning" />
+      <div>
+        <h2>Studio data storage needs attention</h2>
+        <p>Internal fixture views can load, but production workflow records need the protected database connection before Jennie relies on this command center for persistent launch operations.</p>
+      </div>
+      <a className="pod-table-link" href="/studio/setup">View setup guidance</a>
+    </section> : null}
+
+    <section className="pod-command-hero" aria-labelledby="pod-command-overview">
+      <div className="pod-command-hero-copy">
+        <span className="pod-secure-kicker">Human-approved factory mode</span>
+        <h2 id="pod-command-overview">Build, verify, draft, then review before anything goes live.</h2>
+        <p>Provider actions stay blocked until the right connection, owner gate, artwork, variant, pricing, and publish-review evidence exists. This view hides raw server configuration and shows Jennie the business-facing readiness state.</p>
+      </div>
+      <div className="pod-command-next">
+        <span className="pod-mini-badge tone-primary">Priority pathway</span>
+        <strong>{newestDraft ? humanStatus(newestDraft.title ?? newestDraft.id, "Review latest draft") : "Create the first product draft"}</strong>
+        <p>{newestDraft ? "Inspect the current launch packet and provider blockers before sending to Printify or creating a Shopify draft." : "Start with Product Builder or create a 15-product batch to populate the launch factory."}</p>
+        <div className="button-row">
+          <a className="btn btn-primary" href={newestDraft ? "/studio/publish-review" : "/studio/product-builder"}>{newestDraft ? "Review launch readiness" : "Open Product Builder"}</a>
+          <a className="btn btn-secondary" href="/studio/launch-packet">View launch packet</a>
+        </div>
       </div>
     </section>
-    <div className="layout-grid layout-grid-4" style={{ marginTop: 18 }}>
-      <MetricCard title="Product drafts" value={String(drafts.length)} delta="Internal source of truth" />
-      <MetricCard title="Generated assets" value={String(lists.assets.length)} delta="Persisted design assets" />
-      <MetricCard title="Mockups" value={String(lists.mockups.length)} delta="Composited previews only" />
-      <MetricCard title="Batch items" value={String(batchItems.length)} delta={`${batches.length} batches`} />
-    </div>
-    <div className="layout-rail" style={{ marginTop: 18 }}>
-      <div className="layout-grid">
-        <ProductPipelineCard title="Core Product Pipeline" stages={[
-          { label: "Idea", status: drafts.length ? "drafts saved" : "needed", complete: drafts.length > 0 },
-          { label: "Prompt", status: "owner approval required", complete: lists.briefs.length > 0 },
-          { label: "Image", status: config.providers.aiImage.enabled ? "provider ready" : "blocked", complete: config.providers.aiImage.enabled },
-          { label: "QA", status: lists.assets.length ? "review assets" : "waiting", complete: false },
-          { label: "Mockup", status: lists.mockups.length ? "review mockups" : "waiting", complete: lists.mockups.length > 0 },
-          { label: "Printify", status: lists.printifyProducts.length ? "refs saved" : "draft action required", complete: lists.printifyProducts.length > 0 },
-          { label: "Shopify Draft", status: lists.products.length ? "refs saved" : "draft action required", complete: lists.products.length > 0 },
-          { label: "Publish Ready", status: "owner confirmed only", complete: false }
-        ]} />
-        <section className="surface-card">
-          <h2>Product Pipeline Board</h2>
-          <DataTable columns={["Product", "Current status", "Printify", "Shopify", "Next action"]} rows={drafts.length ? drafts.slice(0, 12).map((draft: any) => [
-            draft.title ?? draft.id,
-            <StatusBadge key={`${draft.id}-status`} status={String(draft.status ?? "draft").replace(/_/g, " ")} />,
-            String(draft.printify_status ?? draft.printifyStatus ?? "not_created").replace(/_/g, " "),
-            String(draft.shopify_status ?? draft.shopifyStatus ?? "not_created").replace(/_/g, " "),
-            <a key={`${draft.id}-publish`} href="/studio/publish-review">Review</a>
-          ]) : [["No product drafts", "empty", "-", "-", <a key="builder" href="/studio/product-builder">Product Builder</a>]]} />
-        </section>
-        <section className="surface-card">
-          <h2>Batch Progress</h2>
-          {batches.length ? <DataTable columns={["Batch", "Status", "Items", "Open"]} rows={batches.slice(0, 8).map((batch: any) => [
-            batch.name ?? batch.id,
-            <StatusBadge key={batch.id} status={String(batch.status ?? "idea").replace(/_/g, " ")} />,
-            String(batchItems.filter((item: any) => String(item.batch_id ?? item.batchId) === String(batch.id)).length),
-            <a key={`${batch.id}-open`} href={`/studio/pod-batches/${batch.id}`}>Open</a>
-          ])} /> : <WorkflowProgress steps={[{ label: "Create batch", status: "available" }, { label: "Approve prompts", status: "owner gated" }, { label: "Generate artwork", status: "provider gated" }, { label: "Draft providers", status: "approval gated" }]} />}
-        </section>
+
+    <section className="pod-panel" aria-labelledby="provider-health-title">
+      <div className="pod-section-header">
+        <div>
+          <p className="eyebrow-label">Provider health</p>
+          <h2 id="provider-health-title">Commerce integrations</h2>
+        </div>
+        <StatusBadge status={`${providerReadinessCount} of ${providerHealth.length} ready`} tone={providerReadinessCount >= 3 ? "success" : "warning"} />
       </div>
-      <div className="layout-grid">
-        <NextActionCard title="Next action" description={blockedDrafts.length ? "Resolve provider and readiness blockers, then use Publish Review to send approved products to Printify and Shopify draft creation." : "Create or review product drafts before provider actions."} action={<a className="btn btn-primary" href="/studio/publish-review">Open Publish Review</a>} />
-        <BlockerCard title="Provider Setup Blockers" blockers={blockers} />
-        <ProviderReadinessCard title="Launch packet" status="available" tone="info" description="Launch packets read current product, provider, approval, and blocker state without claiming live publish success." />
-        <a className="btn btn-secondary" href="/studio/launch-packet">View Launch Packet</a>
+      <div className="pod-health-grid">
+        {providerHealth.map((item) => <ProviderHealthCard key={item.label} item={item} />)}
       </div>
+    </section>
+
+    <section className="pod-stat-grid" aria-label="POD launch metrics">
+      <PodStatCard label="Product drafts" value={drafts.length} badge="Workspace" caption="Internal draft records available to the pipeline." />
+      <PodStatCard label="Generated assets" value={assets.length} badge="Private media" caption="Persisted design assets, not placeholder artwork." tone="info" />
+      <PodStatCard label="Mockups" value={mockups.length} badge="Composited" caption="Rendered previews that can support listing review." tone={mockups.length ? "success" : "warning"} />
+      <PodStatCard label="Batch items" value={batchItems.length} badge={`${batches.length} batches`} caption="Independent batch rows with per-item status." tone="primary" />
+      <PodStatCard label="Provider refs" value={printifyRefs.length + shopifyRefs.length} badge="Mapped" caption="Saved Printify and Shopify draft references." tone={readyPrintify || readyShopify ? "success" : "warning"} />
+      <PodStatCard label="Blocked drafts" value={blockedDrafts.length} badge="Gate review" caption="Drafts missing one or more provider-readiness states." tone={blockedDrafts.length ? "danger" : "success"} />
+    </section>
+
+    <section className="pod-panel" aria-labelledby="pipeline-stage-title">
+      <div className="pod-section-header">
+        <div>
+          <p className="eyebrow-label">Core product pipeline</p>
+          <h2 id="pipeline-stage-title">Launch stages</h2>
+        </div>
+        <a className="btn btn-secondary" href="/studio/publish-review">Review gates</a>
+      </div>
+      <div className="pod-stage-map">
+        {stageData.map((stage) => <PipelineStageNode key={stage.index} {...stage} />)}
+      </div>
+    </section>
+
+    <div className="pod-command-grid">
+      <section className="pod-panel" aria-labelledby="pipeline-board-title">
+        <div className="pod-section-header">
+          <div>
+            <p className="eyebrow-label">Product pipeline board</p>
+            <h2 id="pipeline-board-title">Drafts moving through provider gates</h2>
+          </div>
+          <a className="pod-table-link" href="/studio/listing-drafts">Open listing drafts</a>
+        </div>
+        <DataTable columns={["Product", "Launch state", "Printify", "Shopify", "Next step"]} rows={drafts.length ? drafts.slice(0, 12).map((draft: any) => [
+          <span className="pod-table-title" key={`${draft.id}-title`}>{draft.title ?? draft.id}<small>{draft.product_type ?? draft.productType ?? "Product draft"}</small></span>,
+          <StatusBadge key={`${draft.id}-status`} status={humanStatus(draft.status, "draft")} tone={String(draft.status ?? "").includes("ready") ? "success" : "warning"} />,
+          <StatusBadge key={`${draft.id}-printify`} status={humanStatus(draft.printify_status ?? draft.printifyStatus, "not created")} tone={isCreated(draft.printify_status ?? draft.printifyStatus) ? "success" : "warning"} />,
+          <StatusBadge key={`${draft.id}-shopify`} status={humanStatus(draft.shopify_status ?? draft.shopifyStatus, "not created")} tone={isCreated(draft.shopify_status ?? draft.shopifyStatus) ? "success" : "warning"} />,
+          <a className="pod-table-link" key={`${draft.id}-publish`} href="/studio/publish-review">Inspect gates</a>
+        ]) : [[
+          <span className="pod-table-title" key="empty-product">No product drafts yet<small>Create a draft before provider actions unlock.</small></span>,
+          <StatusBadge key="empty-status" status="empty" tone="neutral" />,
+          <StatusBadge key="empty-printify" status="not sent" tone="warning" />,
+          <StatusBadge key="empty-shopify" status="not created" tone="warning" />,
+          <a className="pod-table-link" key="builder" href="/studio/product-builder">Open Product Builder</a>
+        ]]} />
+      </section>
+
+      <aside className="pod-action-column" aria-label="Launch actions and blockers">
+        <section className="pod-panel pod-action-panel">
+          <span className="pod-mini-badge tone-coral">Launch control</span>
+          <h2>Owner-gated next action</h2>
+          <p>{blockedDrafts.length ? "Resolve the visible setup and readiness blockers, then inspect the product in Publish Review before provider draft creation." : "Create or select a product draft, then review readiness evidence before any provider action."}</p>
+          <a className="btn btn-primary" href="/studio/publish-review">Open Publish Review</a>
+        </section>
+
+        <section className="pod-panel" aria-labelledby="blocker-title">
+          <div className="pod-section-header">
+            <div>
+              <p className="eyebrow-label">Blocker intelligence</p>
+              <h2 id="blocker-title">Setup and safety gates</h2>
+            </div>
+          </div>
+          <ul className="pod-blocker-list">
+            {providerBlockers.length ? providerBlockers.map((blocker) => <li key={blocker}><span aria-hidden="true" />{blocker}</li>) : <li><span aria-hidden="true" />No provider setup blockers detected. Product gates still require owner review.</li>}
+          </ul>
+        </section>
+
+        <section className="pod-panel">
+          <span className="pod-mini-badge tone-info">Launch packet</span>
+          <h2>Evidence packet</h2>
+          <p>Launch packets read the current product, provider, approval, pricing, mockup, and blocker state without claiming public publish success.</p>
+          <a className="btn btn-secondary" href="/studio/launch-packet">View Launch Packet</a>
+        </section>
+      </aside>
     </div>
-  </>;
+
+    <section className="pod-panel" aria-labelledby="batch-title">
+      <div className="pod-section-header">
+        <div>
+          <p className="eyebrow-label">Batch progress</p>
+          <h2 id="batch-title">15-product factory lane</h2>
+        </div>
+        <a className="pod-table-link" href="/studio/pod-batches">Open all batches</a>
+      </div>
+      {batches.length ? <DataTable columns={["Batch", "Status", "Items", "Open"]} rows={batches.slice(0, 8).map((batch: any) => [
+        <span className="pod-table-title" key={`${batch.id}-name`}>{batch.name ?? batch.id}<small>Target count: {batch.target_count ?? batch.targetCount ?? 15}</small></span>,
+        <StatusBadge key={batch.id} status={humanStatus(batch.status, "idea")} tone={String(batch.status ?? "").includes("ready") ? "success" : "warning"} />,
+        String(batchItems.filter((item: any) => String(item.batch_id ?? item.batchId) === String(batch.id)).length),
+        <a className="pod-table-link" key={`${batch.id}-open`} href={`/studio/pod-batches/${batch.id}`}>Open batch</a>
+      ])} /> : <div className="pod-empty-state">
+        <strong>No active product batch yet</strong>
+        <p>Create a batch to manage 15 independent products through prompt approval, generated artwork, QA, mockups, provider draft creation, and final owner review.</p>
+        <a className="btn btn-primary" href="/studio/pod-batches/new">Create Batch</a>
+      </div>}
+    </section>
+  </div>;
 }

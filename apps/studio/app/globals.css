@@ -255,7 +255,7 @@
   }
 
   .studio-topbar {
-    @apply sticky top-0 z-10 grid min-h-[78px] grid-cols-[180px_minmax(520px,1fr)_minmax(220px,360px)_auto] items-center gap-4 border-b border-border bg-card/88 px-7 backdrop-blur;
+    @apply sticky top-0 z-10 grid min-h-[78px] grid-cols-[minmax(160px,220px)_minmax(0,1fr)_minmax(220px,340px)_auto] items-center gap-4 border-b border-border bg-card/88 px-7 backdrop-blur;
   }
 
   .studio-content {
@@ -264,11 +264,12 @@
 
   .studio-command-nav,
   .studio-top-nav {
-    @apply flex min-w-0 items-center gap-1 overflow-visible;
+    @apply flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-visible pb-1;
+    scrollbar-width: thin;
   }
 
   .studio-command-link {
-    @apply grid min-w-[94px] rounded-lg border border-transparent px-3 py-2 text-sm font-extrabold text-muted-foreground transition-colors hover:border-border hover:bg-primary-soft hover:text-primary-dark;
+    @apply grid min-w-[108px] flex-none rounded-lg border border-transparent px-3 py-2 text-sm font-extrabold text-muted-foreground transition-colors hover:border-border hover:bg-primary-soft hover:text-primary-dark;
   }
 
   .studio-command-link span {
@@ -276,7 +277,7 @@
   }
 
   .studio-command-link small {
-    @apply mt-0.5 truncate text-[11px] font-bold leading-tight text-muted-foreground;
+    @apply mt-0.5 whitespace-normal text-[11px] font-bold leading-tight text-muted-foreground;
   }
 
   .studio-command-link.is-active {
@@ -372,7 +373,7 @@
   }
 
   .search-field {
-    @apply relative block;
+    @apply relative block min-w-0;
   }
 
   .search-field span {
@@ -380,12 +381,11 @@
   }
 
   .search-field input {
-    @apply w-full rounded-lg border border-border bg-card py-3 pl-16 pr-4 text-foreground;
+    @apply w-full min-w-0 rounded-lg border border-border bg-card px-4 py-3 text-foreground;
   }
 
   .search-field::before {
-    @apply absolute left-4 top-3 text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
-    content: "Find";
+    content: none;
   }
 
   .login-page {
@@ -454,6 +454,246 @@
 
   .layout-rail {
     @apply grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px];
+  }
+
+  .pod-command-page {
+    @apply grid gap-5;
+  }
+
+  .pod-page-header {
+    @apply rounded-xl border border-border bg-card p-5 shadow-card;
+    background:
+      linear-gradient(135deg, rgba(230, 246, 247, 0.95), rgba(255, 255, 255, 0.98) 48%, rgba(255, 241, 242, 0.86)),
+      var(--color-card);
+  }
+
+  .pod-command-hero {
+    @apply grid gap-5 rounded-xl border border-border-strong bg-card p-5 shadow-card xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)];
+  }
+
+  .pod-command-hero-copy {
+    @apply grid content-center gap-3 rounded-lg border border-primary/15 bg-primary-soft/55 p-5;
+  }
+
+  .pod-command-hero-copy h2 {
+    @apply m-0 max-w-4xl text-2xl font-black leading-tight text-navy md:text-3xl;
+  }
+
+  .pod-command-hero-copy p,
+  .pod-command-next p,
+  .pod-panel p,
+  .pod-stat-card p {
+    @apply m-0 text-sm leading-relaxed text-muted-foreground;
+  }
+
+  .pod-secure-kicker {
+    @apply inline-flex w-fit rounded-full border border-primary/20 bg-card px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-primary-dark;
+  }
+
+  .pod-command-next {
+    @apply grid content-start gap-3 rounded-lg border border-coral/20 bg-blush p-5;
+  }
+
+  .pod-command-next strong {
+    @apply text-xl font-black leading-tight text-navy;
+  }
+
+  .pod-panel {
+    @apply rounded-xl border border-border bg-card p-5 shadow-card;
+  }
+
+  .pod-storage-note {
+    @apply grid items-start gap-3 border-warning/25 bg-warning-soft/70 md:grid-cols-[auto_1fr_auto];
+  }
+
+  .pod-storage-note h2 {
+    @apply m-0 text-lg font-black text-navy;
+  }
+
+  .pod-section-header {
+    @apply mb-4 flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .pod-section-header h2 {
+    @apply m-0 text-xl font-black text-navy;
+  }
+
+  .pod-health-grid {
+    @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .pod-health-card {
+    @apply grid min-h-[210px] content-between gap-4 rounded-lg border border-border bg-card p-4 shadow-[0_10px_30px_rgba(15,31,46,0.05)];
+  }
+
+  .pod-health-card.tone-success {
+    @apply border-success/25 bg-success-soft/60;
+  }
+
+  .pod-health-card.tone-warning {
+    @apply border-warning/25 bg-warning-soft/70;
+  }
+
+  .pod-health-card.tone-danger {
+    @apply border-destructive/25 bg-destructive-soft/70;
+  }
+
+  .pod-health-card.tone-info {
+    @apply border-info/25 bg-info-soft/70;
+  }
+
+  .pod-health-heading {
+    @apply grid grid-cols-[12px_1fr] gap-3;
+  }
+
+  .pod-health-heading h3 {
+    @apply m-0 text-base font-black text-navy;
+  }
+
+  .pod-health-dot {
+    @apply mt-1.5 size-3 rounded-full bg-primary shadow-[0_0_0_5px_var(--color-primary-soft)];
+  }
+
+  .pod-health-card.tone-warning .pod-health-dot {
+    @apply bg-warning shadow-[0_0_0_5px_var(--color-warning-soft)];
+  }
+
+  .pod-health-card.tone-danger .pod-health-dot {
+    @apply bg-destructive shadow-[0_0_0_5px_var(--color-destructive-soft)];
+  }
+
+  .pod-health-card.tone-success .pod-health-dot {
+    @apply bg-success shadow-[0_0_0_5px_var(--color-success-soft)];
+  }
+
+  .pod-health-footer {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .pod-health-footer a,
+  .pod-table-link {
+    @apply text-sm font-extrabold text-primary-dark underline-offset-4 hover:text-primary hover:underline;
+  }
+
+  .pod-health-setup {
+    @apply rounded-md border border-border bg-card/75 p-3 text-xs font-bold text-muted-foreground;
+  }
+
+  .pod-stat-grid {
+    @apply grid gap-4 md:grid-cols-2 xl:grid-cols-6;
+  }
+
+  .pod-stat-card {
+    @apply grid min-h-36 content-between gap-3 rounded-xl border border-border bg-card p-4 shadow-card;
+  }
+
+  .pod-stat-header {
+    @apply flex flex-wrap items-center justify-between gap-2 text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+  }
+
+  .pod-mini-badge {
+    @apply inline-flex w-fit items-center rounded-full border border-primary/20 bg-primary-soft px-2.5 py-1 text-xs font-extrabold text-primary-dark;
+  }
+
+  .pod-mini-badge.tone-success,
+  .pod-mini-badge.tone-primary {
+    @apply border-primary/20 bg-primary-soft text-primary-dark;
+  }
+
+  .pod-mini-badge.tone-warning {
+    @apply border-warning/25 bg-warning-soft text-warning;
+  }
+
+  .pod-mini-badge.tone-danger {
+    @apply border-destructive/20 bg-destructive-soft text-destructive;
+  }
+
+  .pod-mini-badge.tone-info {
+    @apply border-info/20 bg-info-soft text-info;
+  }
+
+  .pod-mini-badge.tone-coral {
+    @apply border-coral/25 bg-blush text-destructive;
+  }
+
+  .pod-stat-value {
+    @apply block text-4xl font-black leading-none text-navy;
+  }
+
+  .pod-stage-map {
+    @apply grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))];
+  }
+
+  .pod-stage-node {
+    @apply grid min-h-[150px] grid-rows-[auto_1fr_auto] gap-3 rounded-lg border border-border bg-muted/60 p-4 transition-colors hover:border-primary/30 hover:bg-primary-soft/70;
+  }
+
+  .pod-stage-node.tone-success {
+    @apply border-success/20 bg-success-soft/65;
+  }
+
+  .pod-stage-node.tone-warning {
+    @apply border-warning/25 bg-warning-soft/70;
+  }
+
+  .pod-stage-node.tone-danger {
+    @apply border-destructive/20 bg-destructive-soft/70;
+  }
+
+  .pod-stage-index {
+    @apply grid size-9 place-items-center rounded-md bg-card text-xs font-black text-primary-dark shadow-[inset_0_0_0_1px_var(--color-border)];
+  }
+
+  .pod-stage-copy {
+    @apply grid gap-1;
+  }
+
+  .pod-stage-copy strong {
+    @apply text-base font-black text-navy;
+  }
+
+  .pod-stage-copy small {
+    @apply text-xs font-bold leading-relaxed text-muted-foreground;
+  }
+
+  .pod-command-grid {
+    @apply grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px];
+  }
+
+  .pod-action-column {
+    @apply grid content-start gap-5;
+  }
+
+  .pod-action-panel {
+    @apply border-coral/25 bg-blush;
+  }
+
+  .pod-blocker-list {
+    @apply m-0 grid list-none gap-2.5 p-0;
+  }
+
+  .pod-blocker-list li {
+    @apply grid grid-cols-[12px_1fr] gap-3 rounded-md border border-border bg-muted/70 p-3 text-sm font-semibold text-foreground;
+  }
+
+  .pod-blocker-list li span {
+    @apply mt-1.5 size-2.5 rounded-full bg-coral;
+  }
+
+  .pod-table-title {
+    @apply grid gap-1 font-extrabold text-navy;
+  }
+
+  .pod-table-title small {
+    @apply font-semibold text-muted-foreground;
+  }
+
+  .pod-empty-state {
+    @apply grid gap-3 rounded-lg border border-dashed border-border-strong bg-muted/60 p-8 text-center;
+  }
+
+  .pod-empty-state strong {
+    @apply text-xl font-black text-navy;
   }
 
   .workspace-grid {

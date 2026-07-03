@@ -44,6 +44,7 @@ import OpportunitiesPage from "../apps/studio/app/studio/opportunities/page";
 import ServiceCasesPage from "../apps/studio/app/studio/service-cases/page";
 import SettingsSetupPage from "../apps/studio/app/studio/settings/setup/page";
 import PodBuilderPage from "../apps/studio/app/studio/pod-migration/page";
+import PodLaunchStudioPage from "../apps/studio/app/studio/pod-launch-studio/page";
 import SetupGuidePage from "../apps/studio/app/studio/migration-guide/page";
 import BaselineImpactPage from "../apps/studio/app/studio/baseline/page";
 import AccessoryDropshippingPage from "../apps/studio/app/studio/dropshipping/page";
@@ -233,6 +234,25 @@ describe("production UI routes", () => {
     expect(html).toContain("Active AI employees");
     expect(html).toContain("Generate or approve trend report");
     expect(html).toContain("Approval queue");
+  });
+
+  it("POD Launch Studio renders a polished command center without leaking setup internals", async () => {
+    const html = renderToStaticMarkup(await PodLaunchStudioPage());
+    expect(html).toContain("POD Launch Studio");
+    expect(html).toContain("Human-approved factory mode");
+    expect(html).toContain("Image Engine");
+    expect(html).toContain("Printify Sync");
+    expect(html).toContain("Shopify Drafts");
+    expect(html).toContain("Storefront Publish");
+    expect(html).toContain("Core product pipeline");
+    expect(html).toContain("Priority pathway");
+    expect(html).toContain("Provider health");
+    expect(html).toContain("Setup and safety gates");
+    expect(html).toContain("Open Publish Review");
+    expect(html).not.toMatch(/DATABASE_URL|REPOSITORY_ADAPTER|AI_IMAGE_ENABLED|HF_API_TOKEN|HF_IMAGE_MODEL|PRINTIFY_API_TOKEN|PRINTIFY_SHOP_ID|SHOPIFY_ADMIN_TOKEN|SHOPIFY_STORE_DOMAIN|LIVE_PUBLISHING_ENABLED/);
+    expect(html).not.toContain("0Internal source of truth");
+    expect(html).not.toContain("1Idea needed");
+    expect(html).not.toContain("Search disabled");
   });
 
   it("Account Center renders production launch readiness without fake provider success", async () => {
