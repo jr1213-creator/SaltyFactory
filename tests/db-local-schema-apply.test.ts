@@ -181,7 +181,8 @@ describe("local database schema apply", () => {
     const publish = readFileSync(join(process.cwd(), "apps/studio/app/studio/publish/page.tsx"), "utf8");
     expect(data).toContain("Database schema incomplete. Apply migrations to enable this feature.");
     expect(data).toContain('process.env.APP_ENV === "production"');
-    expect(dashboard).toContain("SchemaSetupState");
+    expect(dashboard).toContain("SafeStudioSetupNotice");
+    expect(dashboard).toContain("Persistent Studio storage is not fully connected");
     expect(assets).toContain("SchemaSetupState");
     expect(publish).toContain("SchemaSetupState");
   });

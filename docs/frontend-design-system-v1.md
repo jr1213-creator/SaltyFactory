@@ -34,6 +34,10 @@ Accessibility rules:
 - Disabled/action-blocked states include visible reasons on workflow pages.
 - Critical setup instructions are visible in page copy, not only tooltips.
 - Header search is contained in the Studio topbar layout and communicates that workspace search is not configured without rendering a floating disabled utility block.
+- `/studio` owner home metrics must separate value, status badge, label, and helper copy; concatenated metric strings are regressions.
+- `/studio/setup` is the only Studio page where raw env var names should appear, and it must never show secret values.
+- Empty states must state what the area does, what is missing, the next action, and a route-specific button.
+- Desktop command-center navigation must not show a visible horizontal scrollbar; overflow should be hidden or handled by the command menu.
 
 Future:
 - Formal Radix-backed dialogs/dropdowns/select primitives beyond the current Radix Slot foundation.

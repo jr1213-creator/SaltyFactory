@@ -14,6 +14,8 @@ import IntegrationsPage from "../apps/studio/app/studio/integrations/page";
 import AiEmployeesPage from "../apps/studio/app/studio/ai-employees/page";
 import BusinessProfilePage from "../apps/studio/app/studio/settings/business-profile/page";
 import AccountCenterPage from "../apps/studio/app/studio/account-center/page";
+import StudioSetupPage from "../apps/studio/app/studio/setup/page";
+import ShopifyProductsPage from "../apps/studio/app/studio/shopify-products/page";
 import CustomerCommandCenterPage from "../apps/studio/app/studio/customer-command-center/page";
 import CustomersPage from "../apps/studio/app/studio/customers/page";
 import CustomerSegmentsPage from "../apps/studio/app/studio/customer-segments/page";
@@ -236,6 +238,16 @@ describe("production UI routes", () => {
     expect(html).toContain("Approval queue");
   });
 
+  it("Studio owner home separates metric values, statuses, and setup copy", async () => {
+    const html = renderToStaticMarkup(await StudioDashboard());
+    expect(html).toContain("owner-metric-grid");
+    expect(html).toContain("owner-metric-card");
+    expect(html).toContain("Persistent Studio storage is not fully connected");
+    expect(html).not.toMatch(/100%Profile completeness|Google connectedconnected|0%0 configured|Missing0 snapshots|1needs_review|0POD builder/);
+    expect(html).not.toMatch(/DATABASE_URL|REPOSITORY_ADAPTER|AI_IMAGE_ENABLED|PRINTIFY_API_TOKEN|SHOPIFY_ADMIN_TOKEN|SUPABASE_SERVICE_ROLE_KEY/);
+    expect(html).not.toContain("Search disabled");
+  });
+
   it("POD Launch Studio renders a polished command center without leaking setup internals", async () => {
     const html = renderToStaticMarkup(await PodLaunchStudioPage());
     expect(html).toContain("POD Launch Studio");
@@ -252,7 +264,34 @@ describe("production UI routes", () => {
     expect(html).not.toMatch(/DATABASE_URL|REPOSITORY_ADAPTER|AI_IMAGE_ENABLED|HF_API_TOKEN|HF_IMAGE_MODEL|PRINTIFY_API_TOKEN|PRINTIFY_SHOP_ID|SHOPIFY_ADMIN_TOKEN|SHOPIFY_STORE_DOMAIN|LIVE_PUBLISHING_ENABLED/);
     expect(html).not.toContain("0Internal source of truth");
     expect(html).not.toContain("1Idea needed");
+    expect(html).not.toContain("Launch statePrintify");
+    expect(html).not.toContain("not sentnot createdOpen Product Builder");
+    expect(html).toContain("No product drafts in the launch pipeline");
+    expect(html).toContain("Create 15-product batch");
     expect(html).not.toContain("Search disabled");
+  });
+
+  it("Setup page is sectioned, allows env names only there, and never displays secret values", () => {
+    const html = renderToStaticMarkup(StudioSetupPage());
+    expect(html).toContain("Quick Start");
+    expect(html).toContain("Provider Setup Required");
+    expect(html).toContain("Internal Features Ready");
+    expect(html).toContain("Partial / Local-Only Features");
+    expect(html).toContain("Safety Panel");
+    expect(html).toContain("Safe Local Testing");
+    expect(html).toContain("Future Integrations");
+    expect(html).toContain("DATABASE_URL");
+    expect(html).toContain("PRINTIFY_API_TOKEN");
+    expect(html).not.toMatch(/postgres:\/\/|shpat_|sk_live_|AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/i);
+  });
+
+  it("Shopify Products empty state explains the workflow and provides next actions", async () => {
+    const html = renderToStaticMarkup(await ShopifyProductsPage());
+    expect(html).toContain("No Shopify draft products yet");
+    expect(html).toContain("approved media, variants, pricing, collection routing");
+    expect(html).toContain("Open Publish Review");
+    expect(html).toContain("Open Setup");
+    expect(html).not.toMatch(/SHOPIFY_ADMIN_TOKEN|shpat_|sk_live_/);
   });
 
   it("Account Center renders production launch readiness without fake provider success", async () => {

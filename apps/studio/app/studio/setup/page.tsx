@@ -1,118 +1,168 @@
 import { buildFeatureReadiness, parseEnv, type FeatureReadiness } from "@saltyfactory/config";
-import { DataTable, PageHeader, StatusBadge } from "@saltyfactory/ui";
+import { PageHeader, StatusBadge } from "@saltyfactory/ui";
+import type { ReactNode } from "react";
 
-const statusTone = (status: string) =>
+type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
+
+const providerSetupKeys = new Set(["auth", "database", "storage", "imageGeneration", "worker", "printify", "shopify", "bankingPlaidNovo", "livePublish"]);
+const internalKeys = new Set(["podWorkflow", "aiEmployees", "businessCommandCenter", "businessIdentity", "documentOps", "authorityRequests"]);
+
+const statusTone = (status: string): Tone =>
   status === "ready" ? "success" :
     status === "config_blocked" || status === "error" ? "danger" :
       status === "disabled" || status === "future" ? "warning" :
         "info";
 
-function FeatureCard({ feature }: { feature: FeatureReadiness }) {
-  return <section className="surface-card feature-readiness-card">
-    <div className="card-header-row">
+function readableStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function EnvNameList({ values, empty = "None" }: { values: string[]; empty?: string }) {
+  return <div className="setup-env-list">
+    {values.length ? values.map((value) => <code key={value}>{value}</code>) : <span>{empty}</span>}
+  </div>;
+}
+
+function FeatureCard({ feature, compact = false }: { feature: FeatureReadiness; compact?: boolean }) {
+  return <article className={`setup-feature-card${compact ? " is-compact" : ""}`}>
+    <div className="setup-feature-header">
       <div>
-        <h2>{feature.label}</h2>
-        <p className="text-muted">{feature.notes.join(" ")}</p>
+        <h3>{feature.label}</h3>
+        <p>{feature.notes.join(" ")}</p>
       </div>
-      <StatusBadge status={feature.status.replace(/_/g, " ")} tone={statusTone(feature.status) as any} />
+      <StatusBadge status={readableStatus(feature.status)} tone={statusTone(feature.status)} />
     </div>
-    <div className="kv-list">
-      <span>Missing env</span>
-      <strong>{feature.missingEnv.length ? feature.missingEnv.join(", ") : "None"}</strong>
-      <span>Can test locally</span>
-      <strong>{feature.canTestWithoutProvider ? "Yes" : "No, provider config required"}</strong>
-      <span>Disabled flags</span>
-      <strong>{feature.disabledFlags.length ? feature.disabledFlags.join(", ") : "None"}</strong>
-    </div>
-    {feature.setupRequired.length ? <div className="blocker-inline"><strong>Setup required</strong><ul>{feature.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+    <dl className="setup-feature-facts">
+      <div>
+        <dt>Missing configuration</dt>
+        <dd><EnvNameList values={feature.missingEnv} /></dd>
+      </div>
+      <div>
+        <dt>Local testing</dt>
+        <dd>{feature.canTestWithoutProvider ? "Can be tested without live provider keys" : "Requires provider configuration"}</dd>
+      </div>
+      {!compact ? <div>
+        <dt>Disabled flags</dt>
+        <dd><EnvNameList values={feature.disabledFlags} /></dd>
+      </div> : null}
+    </dl>
+    {feature.setupRequired.length ? <div className="setup-required-list">
+      <strong>Setup required</strong>
+      <ul>{feature.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div> : null}
     <div className="action-bar">
       {feature.safeLocalRoute ? <a className="btn btn-secondary" href={feature.safeLocalRoute}>Open Feature</a> : null}
-      <a className="btn btn-ghost" href={`#setup-${feature.featureKey}`}>View Setup Instructions</a>
+      <a className="btn btn-ghost" href={`#setup-${feature.featureKey}`}>Setup Instructions</a>
     </div>
+  </article>;
+}
+
+function SetupSection({ title, description, children, eyebrow = "Feature readiness" }: { title: string; description: string; children: ReactNode; eyebrow?: string }) {
+  return <section className="setup-section">
+    <div className="setup-section-header">
+      <div>
+        <p className="eyebrow-label">{eyebrow}</p>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+    </div>
+    {children}
   </section>;
 }
 
 export default function StudioSetupPage() {
   const report = buildFeatureReadiness(parseEnv());
-  const byKey = Object.fromEntries(report.features.map((feature) => [feature.featureKey, feature]));
-  const providerCards = ["imageGeneration", "printify", "shopify", "podWorkflow", "aiEmployees", "businessCommandCenter", "documentOps", "printStudio", "bankingPlaidNovo", "livePublish"]
-    .map((key) => byKey[key])
-    .filter(Boolean) as FeatureReadiness[];
-  const providerBlocks = report.features
-    .filter((feature) => feature.status === "config_blocked" || feature.status === "disabled" || feature.status === "partial")
-    .map((feature) => [feature.label, feature.status.replace(/_/g, " "), feature.setupRequired.join(", ") || "No setup action required."]);
-  const safetyRows = report.features
-    .filter((feature) => feature.dangerousActionsBlocked.length)
-    .map((feature) => [feature.label, feature.dangerousActionsBlocked.join(", "), feature.disabledFlags.join(", ") || "Guardrail enforced in code"]);
+  const providerSetup = report.features.filter((feature) => providerSetupKeys.has(feature.featureKey));
+  const internalReady = report.features.filter((feature) => internalKeys.has(feature.featureKey));
+  const partialLocal = report.features.filter((feature) => ["partial", "disabled", "owner_gated"].includes(feature.status) && !providerSetupKeys.has(feature.featureKey));
+  const future = report.features.filter((feature) => feature.status === "future");
+  const safetyRows = report.features.filter((feature) => feature.dangerousActionsBlocked.length);
 
-  return <>
+  return <div className="setup-command-page">
     <PageHeader
+      className="pod-page-header"
       title="Setup / Feature Readiness"
       eyebrow="Local configuration"
-      description="A redacted owner setup view showing what works now, what is config-blocked, and which dangerous actions are intentionally disabled."
+      description="A redacted owner setup view showing what works now, what is config-blocked, what can be tested locally, and which dangerous actions remain intentionally disabled."
     />
 
-    <section className="surface-card" id="quick-start">
-      <h2>Quick Start</h2>
-      <div className="layout-grid layout-grid-3">
-        <div>
-          <h3>What can I test right now?</h3>
-          <ul>{report.safeLocalTesting.slice(0, 10).map((item) => <li key={item.featureKey}>{item.route ? <a href={item.route}>{item.label}</a> : item.label}</li>)}</ul>
-        </div>
-        <div>
-          <h3>Recommended setup order</h3>
-          <ol>{report.recommendedSetupOrder.map((item) => <li key={item}>{item}</li>)}</ol>
-        </div>
-        <div>
-          <h3>Needs provider keys</h3>
-          <ul>
-            <li>Image generation: HuggingFace token/model or local dev fixture flags.</li>
-            <li>Printify: enabled flag, API token, shop ID.</li>
-            <li>Shopify: enabled flag, store domain, Admin token, collection ID.</li>
-            <li>Plaid: client ID, secret, env, owner consent; banking stays read-only.</li>
-          </ul>
-        </div>
+    <section className="setup-hero" id="quick-start">
+      <div className="setup-hero-copy">
+        <span className="pod-secure-kicker">Quick Start</span>
+        <h2>Configure safely, then test one workflow at a time.</h2>
+        <p>Internal command centers can be reviewed without live provider keys. Provider-backed image generation, Printify, Shopify, Plaid, and live publish remain blocked until their protected configuration and owner gates are ready.</p>
+      </div>
+      <div className="setup-summary-grid" aria-label="Setup readiness summary">
+        <article><strong>{report.summary.ready}</strong><span>Ready</span></article>
+        <article><strong>{report.summary.configBlocked}</strong><span>Config blocked</span></article>
+        <article><strong>{report.summary.partial}</strong><span>Partial/local</span></article>
+        <article><strong>{report.summary.future}</strong><span>Future</span></article>
+      </div>
+      <div className="setup-order-card">
+        <h3>Recommended setup order</h3>
+        <ol>{report.recommendedSetupOrder.map((item) => <li key={item}>{item}</li>)}</ol>
       </div>
     </section>
 
-    <section style={{ marginTop: 18 }}>
-      <div className="section-header">
-        <div>
-          <h2>Feature Readiness Cards</h2>
-          <p className="text-muted">Missing values are shown by env var name only. Secrets are never displayed.</p>
-        </div>
+    <SetupSection title="Provider Setup Required" eyebrow="Feature Readiness Cards" description="These areas unlock real provider actions only after protected server-side configuration is present. Values are never displayed here.">
+      <div className="setup-card-grid">
+        {providerSetup.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} />)}
       </div>
-      <div className="layout-grid layout-grid-3">
-        {providerCards.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} />)}
+    </SetupSection>
+
+    <SetupSection title="Internal Features Ready" description="These workflows can be exercised with internal records or local fixtures without claiming provider success.">
+      <div className="setup-card-grid">
+        {internalReady.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} compact />)}
       </div>
-    </section>
+    </SetupSection>
 
-    <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Safe Local Testing</h2>
-      <DataTable columns={["Feature", "Route", "Expected behavior"]} rows={report.safeLocalTesting.map((item) => [item.label, item.route ?? "Internal API only", "Uses internal records or honest blocker UI; no live provider success is faked."])} />
-    </section>
+    <SetupSection title="Partial / Local-Only Features" description="These are honest foundations or local-only workflows. They should not be read as live external integration success.">
+      <div className="setup-card-grid">
+        {partialLocal.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} compact />)}
+      </div>
+    </SetupSection>
 
-    <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Provider Setup Blocks</h2>
-      <DataTable columns={["Feature", "Status", "Exact blocker"]} rows={providerBlocks} />
-    </section>
-
-    <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Safety Panel</h2>
-      <p className="text-muted">Live publish, money movement, external ordering, and AI permission escalation remain disabled or owner-gated by default.</p>
-      <DataTable columns={["Area", "Dangerous actions blocked", "Disabled flags / guardrail"]} rows={safetyRows} />
-    </section>
-
-    <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Setup Instructions</h2>
-      <div className="layout-grid layout-grid-2">
-        {report.features.map((feature) => <article key={feature.featureKey} id={`setup-${feature.featureKey}`} className="subcard">
-          <h3>{feature.label}</h3>
-          <p><strong>Required env:</strong> {feature.requiredEnv.length ? feature.requiredEnv.join(", ") : "None"}</p>
-          <p><strong>Expected blocker:</strong> {feature.setupRequired.length ? feature.setupRequired.join(", ") : "No blocker recorded."}</p>
-          <p><strong>Notes:</strong> {feature.notes.join(" ")}</p>
+    <SetupSection title="Safety Panel" description="Dangerous actions remain disabled or owner-gated by default. This section shows guardrails, not secret values.">
+      <div className="setup-safety-grid">
+        {safetyRows.map((feature) => <article className="setup-safety-card" key={feature.featureKey}>
+          <div className="setup-feature-header">
+            <h3>{feature.label}</h3>
+            <StatusBadge status={readableStatus(feature.status)} tone={statusTone(feature.status)} />
+          </div>
+          <strong>Dangerous actions blocked</strong>
+          <ul>{feature.dangerousActionsBlocked.map((action) => <li key={action}>{readableStatus(action)}</li>)}</ul>
+          <strong>Disabled flags / guardrail</strong>
+          <EnvNameList values={feature.disabledFlags} empty="Guardrail enforced in code" />
         </article>)}
       </div>
-    </section>
-  </>;
+    </SetupSection>
+
+    <SetupSection title="Safe Local Testing" description="These are the areas Jennie can open safely to inspect internal workflows or explicit blocker UI without live provider credentials.">
+      <div className="setup-local-grid">
+        {report.safeLocalTesting.map((item) => <a className="setup-local-card" href={item.route ?? "/studio/setup"} key={item.featureKey}>
+          <strong>{item.label}</strong>
+          <span>{item.route ?? "Internal API only"}</span>
+          <small>Uses internal records or honest blockers; no live provider success is faked.</small>
+        </a>)}
+      </div>
+    </SetupSection>
+
+    <SetupSection title="Future Integrations" description="These features are intentionally not live. They should stay disabled until a verified provider integration and owner gate exist.">
+      <div className="setup-card-grid">
+        {future.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} compact />)}
+      </div>
+    </SetupSection>
+
+    <SetupSection title="Setup Instructions" description="Exact env var names are listed here only. Values, tokens, and secret-like strings are never shown in the Studio UI.">
+      <div className="setup-instruction-grid">
+        {report.features.map((feature) => <article key={feature.featureKey} id={`setup-${feature.featureKey}`} className="setup-instruction-card">
+          <h3>{feature.label}</h3>
+          <p><strong>Required env names</strong></p>
+          <EnvNameList values={feature.requiredEnv} />
+          <p><strong>Expected blocker</strong></p>
+          <ul>{feature.setupRequired.length ? feature.setupRequired.map((item) => <li key={item}>{item}</li>) : <li>No blocker recorded.</li>}</ul>
+        </article>)}
+      </div>
+    </SetupSection>
+  </div>;
 }

@@ -260,19 +260,33 @@ export default async function PodLaunchStudioPage() {
           </div>
           <a className="pod-table-link" href="/studio/listing-drafts">Open listing drafts</a>
         </div>
-        <DataTable columns={["Product", "Launch state", "Printify", "Shopify", "Next step"]} rows={drafts.length ? drafts.slice(0, 12).map((draft: any) => [
-          <span className="pod-table-title" key={`${draft.id}-title`}>{draft.title ?? draft.id}<small>{draft.product_type ?? draft.productType ?? "Product draft"}</small></span>,
-          <StatusBadge key={`${draft.id}-status`} status={humanStatus(draft.status, "draft")} tone={String(draft.status ?? "").includes("ready") ? "success" : "warning"} />,
-          <StatusBadge key={`${draft.id}-printify`} status={humanStatus(draft.printify_status ?? draft.printifyStatus, "not created")} tone={isCreated(draft.printify_status ?? draft.printifyStatus) ? "success" : "warning"} />,
-          <StatusBadge key={`${draft.id}-shopify`} status={humanStatus(draft.shopify_status ?? draft.shopifyStatus, "not created")} tone={isCreated(draft.shopify_status ?? draft.shopifyStatus) ? "success" : "warning"} />,
-          <a className="pod-table-link" key={`${draft.id}-publish`} href="/studio/publish-review">Inspect gates</a>
-        ]) : [[
-          <span className="pod-table-title" key="empty-product">No product drafts yet<small>Create a draft before provider actions unlock.</small></span>,
-          <StatusBadge key="empty-status" status="empty" tone="neutral" />,
-          <StatusBadge key="empty-printify" status="not sent" tone="warning" />,
-          <StatusBadge key="empty-shopify" status="not created" tone="warning" />,
-          <a className="pod-table-link" key="builder" href="/studio/product-builder">Open Product Builder</a>
-        ]]} />
+        {drafts.length ? <div className="pod-pipeline-list">
+          {drafts.slice(0, 12).map((draft: any) => <article className="pod-pipeline-row" key={draft.id}>
+            <div className="pod-table-title">{draft.title ?? draft.id}<small>{draft.product_type ?? draft.productType ?? "Product draft"}</small></div>
+            <div className="pod-pipeline-status-grid">
+              <div>
+                <span>Launch state</span>
+                <StatusBadge status={humanStatus(draft.status, "draft")} tone={String(draft.status ?? "").includes("ready") ? "success" : "warning"} />
+              </div>
+              <div>
+                <span>Printify</span>
+                <StatusBadge status={humanStatus(draft.printify_status ?? draft.printifyStatus, "not created")} tone={isCreated(draft.printify_status ?? draft.printifyStatus) ? "success" : "warning"} />
+              </div>
+              <div>
+                <span>Shopify</span>
+                <StatusBadge status={humanStatus(draft.shopify_status ?? draft.shopifyStatus, "not created")} tone={isCreated(draft.shopify_status ?? draft.shopifyStatus) ? "success" : "warning"} />
+              </div>
+            </div>
+            <a className="btn btn-secondary" href="/studio/publish-review">Inspect gates</a>
+          </article>)}
+        </div> : <div className="pod-empty-state pod-pipeline-empty">
+          <strong>No product drafts in the launch pipeline</strong>
+          <p>This board fills after a product idea or batch item creates a real draft. Provider statuses stay blocked until product media, variants, pricing, and review gates exist.</p>
+          <div className="button-row">
+            <a className="btn btn-primary" href="/studio/product-builder">Open Product Builder</a>
+            <a className="btn btn-secondary" href="/studio/pod-batches/new">Create 15-product batch</a>
+          </div>
+        </div>}
       </section>
 
       <aside className="pod-action-column" aria-label="Launch actions and blockers">

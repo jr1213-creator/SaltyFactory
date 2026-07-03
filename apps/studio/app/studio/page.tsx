@@ -1,7 +1,36 @@
 import { parseEnv } from "@saltyfactory/config";
 import { createAgenticApprovalQueue, deriveNextBestActions, runAgenticPodWorkflow, scoreChannelCompleteness } from "@saltyfactory/domain";
-import { AiEmployeeCard, BarList, ChartCard, DataTable, LineChartCard, MetricCard, PageHeader, ProviderStatusCard, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
-import { getStudioLists, SchemaSetupState } from "./data";
+import { AiEmployeeCard, BarList, ChartCard, DataTable, LineChartCard, PageHeader, ProviderStatusCard, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
+import { getStudioLists } from "./data";
+
+type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
+
+function statusLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function OwnerMetricCard({ label, value, status, helper, tone = "primary" }: { label: string; value: string; status: string; helper: string; tone?: Tone }) {
+  return <article className="owner-metric-card">
+    <div className="owner-metric-header">
+      <span>{label}</span>
+      <StatusBadge status={status} tone={tone} />
+    </div>
+    <strong className="owner-metric-value">{value}</strong>
+    <p>{helper}</p>
+  </article>;
+}
+
+function SafeStudioSetupNotice({ show }: { show: boolean }) {
+  if (!show) return null;
+  return <section className="owner-setup-notice" aria-label="Studio data storage readiness">
+    <StatusBadge status="Storage setup needed" tone="warning" />
+    <div>
+      <h2>Persistent Studio storage is not fully connected</h2>
+      <p>Local fixture views can render, but production workflow data needs the protected database connection before this command center should be treated as the source of truth.</p>
+    </div>
+    <a className="btn btn-secondary" href="/studio/setup">Open setup guidance</a>
+  </section>;
+}
 
 export default async function Page() {
   const cfg = parseEnv();
@@ -100,12 +129,84 @@ export default async function Page() {
       status: "owner setup"
     }
   ];
+  const ownerMetrics = [
+    {
+      label: "Business readiness",
+      value: `${businessProfileScore}%`,
+      status: "Profile completeness",
+      helper: "Based on saved business profile fields only.",
+      tone: businessProfileScore >= 90 ? "success" as const : "warning" as const
+    },
+    {
+      label: "Data readiness",
+      value: googleStatus === "connected" ? "Google connected" : "Setup needed",
+      status: statusLabel(googleStatus),
+      helper: "Analytics and Search data stay empty until providers are verified.",
+      tone: googleStatus === "connected" ? "success" as const : "warning" as const
+    },
+    {
+      label: "Channel completeness",
+      value: `${channelScore.score}%`,
+      status: `${channelScore.configuredCount} configured`,
+      helper: "Configured channel records, not fake performance.",
+      tone: channelScore.score >= 80 ? "success" as const : "warning" as const
+    },
+    {
+      label: "Baseline and impact",
+      value: lists.baselines.length ? "Captured" : "Missing",
+      status: `${lists.baselines.length} snapshot${lists.baselines.length === 1 ? "" : "s"}`,
+      helper: "Impact reports require saved baseline snapshots.",
+      tone: lists.baselines.length ? "success" as const : "warning" as const
+    },
+    {
+      label: "Trend reports",
+      value: String(trendReportCount),
+      status: statusLabel(String(workflowPreview.outputs[0]?.status ?? "needs source data")),
+      helper: "AI employee output records awaiting owner review.",
+      tone: trendReportCount ? "warning" as const : "info" as const
+    },
+    {
+      label: "Approval queue",
+      value: String(approvalQueue.length),
+      status: approvalQueue.length ? "Owner review" : "Clear",
+      helper: "Human approval remains required for public or provider actions.",
+      tone: approvalQueue.length ? "warning" as const : "success" as const
+    },
+    {
+      label: "Product ideas",
+      value: String(lists.podCandidates.length),
+      status: "POD builder",
+      helper: "Saved POD candidates ready for review or drafting.",
+      tone: lists.podCandidates.length ? "success" as const : "info" as const
+    },
+    {
+      label: "Active AI employees",
+      value: String(lists.aiEmployees.filter((row: any) => ["ready", "active"].includes(row.status)).length),
+      status: cfg.providers.aiText.enabled ? "Model configured" : "Rules fallback",
+      helper: "Employees draft recommendations; they do not self-publish.",
+      tone: "info" as const
+    },
+    {
+      label: "Designs in pipeline",
+      value: String(designs),
+      status: "Workspace data",
+      helper: "Assets, drafts, and generation jobs saved in the workflow.",
+      tone: designs ? "success" as const : "info" as const
+    },
+    {
+      label: "Approved for publish",
+      value: String(approved),
+      status: "Gate evaluated",
+      helper: "Only publish reviews with all gates passed count here.",
+      tone: "success" as const
+    }
+  ];
 
   return <>
     <PageHeader title="Salty Cowhide AI POD Business Command Center" description="AI employees prepare trends, product ideas, design concepts, prompts, listings, margins, launch checks, and marketing drafts. Jennie approves what goes public.">
       <StatusBadge status="Human approval required" tone="warning" />
     </PageHeader>
-    <SchemaSetupState message={lists.setupMessage} />
+    <SafeStudioSetupNotice show={Boolean(lists.setupMessage)} />
     <section className="surface-card command-center-launchpad">
       <div className="section-header">
         <div>
@@ -121,19 +222,10 @@ export default async function Page() {
         </a>)}
       </div>
     </section>
-    <div className="layout-grid layout-grid-4">
-      <MetricCard title="Business readiness" value={`${businessProfileScore}%`} delta="Profile completeness" tone={businessProfileScore >= 90 ? "success" : "warning"} />
-      <MetricCard title="Data readiness" value={googleStatus === "connected" ? "Google connected" : "Setup needed"} delta={googleStatus} tone={googleStatus === "connected" ? "success" : "warning"} />
-      <MetricCard title="Channel completeness" value={`${channelScore.score}%`} delta={`${channelScore.configuredCount} configured`} tone={channelScore.score >= 80 ? "success" : "warning"} />
-      <MetricCard title="Baseline & Impact" value={lists.baselines.length ? "Captured" : "Missing"} delta={`${lists.baselines.length} snapshots`} tone={lists.baselines.length ? "success" : "warning"} />
-      <MetricCard title="Trend reports" value={String(trendReportCount)} delta={workflowPreview.outputs[0]?.status ?? "needs source data"} icon="TR" />
-      <MetricCard title="Approval queue" value={String(approvalQueue.length)} delta="Owner review items" tone={approvalQueue.length ? "warning" : "success"} icon="OK" />
-      <MetricCard title="Product ideas" value={String(lists.podCandidates.length)} delta="POD builder" />
-      <MetricCard title="Active AI employees" value={String(lists.aiEmployees.filter((row: any) => ["ready", "active"].includes(row.status)).length)} delta={cfg.providers.aiText.enabled ? "Model configured" : "Rules fallback"} tone="info" icon="AI" />
-      <MetricCard title="Designs in pipeline" value={String(designs)} delta="Saved workspace data" icon="ART" />
-      <MetricCard title="Approved for publish" value={String(approved)} delta="Gate evaluated" tone="success" icon="OK" />
+    <div className="owner-metric-grid" aria-label="Owner command center metrics">
+      {ownerMetrics.map((metric) => <OwnerMetricCard key={metric.label} {...metric} />)}
     </div>
-    <div className="layout-rail" style={{ marginTop: 18 }}>
+    <div className="layout-rail owner-home-rail">
       <div className="layout-grid">
         <DataTable columns={["Next best action", "Why", "Open"]} rows={nextBestActions.slice(0, 8).map((action) => [action.title, action.reason, <a key={action.href} href={action.href}>Open</a>])} />
         <DataTable columns={["Approval item", "Type", "Status", "Next action"]} rows={approvalQueue.length ? approvalQueue.slice(0, 6).map((item) => [item.title, item.type.replace(/_/g, " "), <StatusBadge key={item.id} status={item.status.replace(/_/g, " ")} tone={item.status.includes("blocked") || item.status.includes("needed") ? "warning" : "primary"} />, item.nextAction]) : [["No approval items", "AI work queue", <StatusBadge key="empty" status="clear" tone="success" />, "Run AI employees or create a draft workflow item"]]} />
