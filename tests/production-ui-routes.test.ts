@@ -103,6 +103,9 @@ describe("production UI routes", () => {
     expect(source).toContain("aria-expanded");
     expect(source).toContain("aria-controls");
     expect(source).toContain("STUDIO_NAV_STORAGE_KEY");
+    expect(source).toContain("StudioTopNavDropdowns");
+    expect(source).toContain("Studio command center navigation");
+    expect(source).toContain("studio-top-nav-menu");
   });
 
   it("Studio navigation primary links point at existing Studio routes", () => {

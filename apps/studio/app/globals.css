@@ -24,11 +24,11 @@
   --color-coral: #e87373;
   --color-blush: #fff1f2;
   --color-turquoise: #25b9c7;
-  --color-success: #16a36a;
+  --color-success: #0f6b46;
   --color-success-soft: #e8f8ef;
-  --color-warning: #b86b00;
+  --color-warning: #7a4200;
   --color-warning-soft: #fff7e6;
-  --color-destructive: #d12f3b;
+  --color-destructive: #b4232f;
   --color-destructive-soft: #ffecec;
   --color-info: #2563eb;
   --color-info-soft: #eaf1ff;
@@ -170,11 +170,43 @@
   }
 
   .studio-topbar {
-    @apply sticky top-0 z-10 grid h-[72px] grid-cols-[220px_minmax(220px,520px)_auto] items-center gap-6 border-b border-border bg-card/85 px-7 backdrop-blur;
+    @apply sticky top-0 z-10 grid h-[72px] grid-cols-[190px_minmax(320px,1fr)_minmax(220px,420px)_auto] items-center gap-4 border-b border-border bg-card/85 px-7 backdrop-blur;
   }
 
   .studio-content {
     @apply mx-auto max-w-[1680px] p-7;
+  }
+
+  .studio-top-nav {
+    @apply flex min-w-0 items-center gap-1 overflow-visible;
+  }
+
+  .studio-top-nav-dropdown {
+    @apply relative;
+  }
+
+  .studio-top-nav-dropdown summary {
+    @apply flex cursor-pointer list-none items-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm font-extrabold text-muted-foreground transition-colors hover:border-border hover:bg-primary-soft hover:text-primary-dark;
+  }
+
+  .studio-top-nav-dropdown summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .studio-top-nav-dropdown summary.is-active {
+    @apply border-primary/20 bg-primary-soft text-primary-dark;
+  }
+
+  .studio-top-nav-menu {
+    @apply absolute left-0 top-[calc(100%+10px)] z-30 grid min-w-[260px] max-w-[360px] gap-1 rounded-lg border border-border bg-card p-2 shadow-floating;
+  }
+
+  .studio-top-nav-menu a {
+    @apply rounded-md px-3 py-2 text-sm font-semibold text-foreground hover:bg-primary-soft hover:text-primary-dark;
+  }
+
+  .studio-top-nav-menu a[aria-current="page"] {
+    @apply bg-primary-soft text-primary-dark;
   }
 
   .workspace-switcher,
@@ -844,6 +876,10 @@
       @apply h-auto grid-cols-1 gap-2.5 px-5 py-3.5;
     }
 
+    .studio-top-nav {
+      @apply flex-wrap;
+    }
+
     .studio-content {
       @apply p-5;
     }
@@ -868,6 +904,14 @@
 
     .page-actions {
       @apply mt-3;
+    }
+
+    .studio-top-nav {
+      @apply max-h-28 overflow-auto;
+    }
+
+    .studio-top-nav-menu {
+      @apply fixed left-4 right-4 top-32 max-w-none;
     }
 
     .layout-grid-2 {

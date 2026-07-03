@@ -8,6 +8,7 @@ import { PrintifyProviderLive, ShopifyAdminProviderLive } from "@saltyfactory/co
 import { computePerceptualHash, duplicateSimilarity, evaluateAssetQaFromMetadata, generateMockup } from "@saltyfactory/image-pipeline";
 import { createMemoryRepositories } from "../packages/db/src/repositories/memory";
 import { runWorkerOnce } from "../apps/worker/src/index";
+import { extractProviderProductId, fetchPrintifyProductWithMockupRetry, getApprovedMockupMedia } from "../apps/studio/app/api/studio/publish/_provider-workflow";
 
 async function pngBuffer(color: string, width = 256, height = 256) {
   return sharp({ create: { width, height, channels: 4, background: color } }).png().toBuffer();
@@ -97,6 +98,84 @@ describe("provider-backed POD functional API mapping", () => {
     expect(productPayload.variants[0]).toMatchObject({ id: 17390, price: 3200, is_enabled: true });
     expect(productPayload.print_areas[0].placeholders[0].images[0]).toMatchObject({ id: "upload_real_1", x: 0.5, y: 0.5, scale: 1, angle: 0 });
     expect(JSON.stringify(created)).not.toContain("printify_token");
+  });
+
+  it("Printify product sync polls for real provider mockup URLs without fabricating media", async () => {
+    const calls: string[] = [];
+    const fetcher = async (url: string | URL | Request) => {
+      calls.push(String(url));
+      if (calls.length === 1) return jsonResponse({ id: "printify_product_1", images: [] });
+      return jsonResponse({
+        id: "printify_product_1",
+        status: "draft",
+        images: [
+          { src: "https://images.printify.com/mockup-front.png" },
+          { preview_url: "https://images.printify.com/mockup-back.png" }
+        ]
+      });
+    };
+    const printify = new PrintifyProviderLive("printify_token", "shop_123", fetcher as typeof fetch);
+    const sync = await fetchPrintifyProductWithMockupRetry(printify, "printify_product_1", {
+      attempts: 2,
+      delaysMs: [0],
+      wait: async () => undefined
+    });
+
+    expect(sync).toMatchObject({
+      ok: true,
+      status: "mockups_synced",
+      mockupUrls: [
+        "https://images.printify.com/mockup-front.png",
+        "https://images.printify.com/mockup-back.png"
+      ],
+      attempts: 2
+    });
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(sync)).not.toContain("printify_token");
+  });
+
+  it("Printify provider refs require a real product id from the provider response", () => {
+    expect(extractProviderProductId({ id: "printify_product_1" })).toBe("printify_product_1");
+    expect(extractProviderProductId({ product_id: "printify_product_2" })).toBe("printify_product_2");
+    expect(extractProviderProductId({ productId: "printify_product_3" })).toBe("printify_product_3");
+    expect(extractProviderProductId({ status: "draft" })).toBe("");
+    expect(extractProviderProductId(null)).toBe("");
+  });
+
+  it("Shopify media selection can read persisted Printify mockup URLs as next-stage media", async () => {
+    const repos = createMemoryRepositories();
+    const draft = await repos.draft.create({
+      id: "draft_printify_media",
+      workspace_id: "wks_default",
+      title: "Coastal Cowhide Tee",
+      description: "Owner-approved product draft.",
+      mockup_ids: []
+    });
+    await repos.printify.create({
+      id: "ptyref_media",
+      workspace_id: "wks_default",
+      product_draft_id: draft.id,
+      printify_product_id: "printify_product_1",
+      printify_shop_id: "shop_123",
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      printify_variant_ids: ["17390"],
+      print_areas: [],
+      mockup_urls: ["https://images.printify.com/mockup-front.png"],
+      sync_status: "draft_created_mockups_synced"
+    });
+
+    const media = await getApprovedMockupMedia({ repos, workspaceId: "wks_default", draft, config: {} as any });
+
+    expect(media).toMatchObject({
+      ok: true,
+      media: [
+        {
+          mockupId: "printify:ptyref_media:0",
+          url: "https://images.printify.com/mockup-front.png"
+        }
+      ]
+    });
   });
 
   it("Sharp mockup compositor writes artwork pixels into product template output", async () => {

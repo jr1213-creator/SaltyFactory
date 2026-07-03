@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createStorageProvider } from "@saltyfactory/storage";
 import type { RuntimeConfig } from "@saltyfactory/config";
 import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
+import type { CommerceResult } from "@saltyfactory/commerce";
 
 export type ProviderBlock = {
   ok: false;
@@ -23,6 +24,7 @@ export type MediaSource = {
 const now = () => new Date().toISOString();
 const asArray = (value: unknown) => Array.isArray(value) ? value : [];
 const text = (value: unknown, fallback = "") => typeof value === "string" && value.trim() ? value.trim() : fallback;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function metadataOf(row: WorkspaceRow | null | undefined) {
   return row?.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
@@ -133,11 +135,26 @@ export async function getApprovedMockupMedia(input: { repos: RepositoryBundle; w
     media.push({ ...source, mockupId });
   }
 
+  const printifyRefs = (await input.repos.printify.listByWorkspace(input.workspaceId))
+    .filter((row) => String(row.product_draft_id ?? row.productDraftId ?? "") === input.draft.id);
+  for (const ref of printifyRefs) {
+    const urls = asArray(ref.mockup_urls ?? ref.mockupUrls).map(String).filter((url) => /^https?:\/\//i.test(url));
+    urls.forEach((url, index) => {
+      if (!media.some((item) => item.url === url)) {
+        media.push({
+          mockupId: `printify:${ref.id}:${index}`,
+          fileName: `printify-${safeSegment(ref.id)}-${index + 1}.png`,
+          url
+        });
+      }
+    });
+  }
+
   if (!media.length) {
     return {
       ok: false as const,
       status: "blocked_by_guardrail" as const,
-      blockingReasons: blockers.length ? [...new Set(blockers)] : ["approved_mockup_media_required"],
+      blockingReasons: blockers.length ? [...new Set(blockers)] : ["approved_mockup_media_required", "printify_mockup_urls_required"],
       setupRequired: blockers.includes("shopify_media_requires_signed_or_public_url")
         ? ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"]
         : undefined
@@ -189,6 +206,82 @@ export function defaultPrintAreas(input: { uploadId: string; variantIds: string[
       }]
     }]
   }];
+}
+
+export function extractPrintifyMockupUrls(payload: unknown): string[] {
+  const urls = new Set<string>();
+  const mediaPathHints = ["image", "images", "mockup", "mockups", "preview", "src", "url"];
+
+  function walk(value: unknown, path: string[]) {
+    if (typeof value === "string") {
+      const isUrl = /^https?:\/\//i.test(value);
+      const pathSuggestsMedia = path.some((segment) => mediaPathHints.some((hint) => segment.toLowerCase().includes(hint)));
+      if (isUrl && pathSuggestsMedia) urls.add(value);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => walk(item, [...path, String(index)]));
+      return;
+    }
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      walk(nested, [...path, key]);
+    }
+  }
+
+  walk(payload, []);
+  return [...urls];
+}
+
+export function extractProviderProductId(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const data = payload as Record<string, unknown>;
+  return text(data.id ?? data.product_id ?? data.productId);
+}
+
+export async function fetchPrintifyProductWithMockupRetry(
+  printify: { getProduct(id: string): Promise<CommerceResult<unknown>> },
+  productId: string,
+  input: { attempts?: number; delaysMs?: number[]; wait?: (ms: number) => Promise<void> } = {}
+) {
+  const attempts = Math.max(1, input.attempts ?? 3);
+  const delaysMs = input.delaysMs ?? [250, 1000];
+  const wait = input.wait ?? sleep;
+  let lastData: Record<string, unknown> | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = await printify.getProduct(productId);
+    if (!result.ok) {
+      return {
+        ok: false as const,
+        status: "mockup_sync_failed",
+        error: result.error,
+        retryable: result.retryable,
+        rateLimited: result.rateLimited,
+        setupRequired: result.setupRequired
+      };
+    }
+    lastData = result.data && typeof result.data === "object" ? result.data as Record<string, unknown> : {};
+    const mockupUrls = extractPrintifyMockupUrls(lastData);
+    if (mockupUrls.length) {
+      return {
+        ok: true as const,
+        status: "mockups_synced",
+        product: lastData,
+        mockupUrls,
+        attempts: attempt
+      };
+    }
+    if (attempt < attempts) await wait(delaysMs[Math.min(attempt - 1, delaysMs.length - 1)] ?? 1000);
+  }
+
+  return {
+    ok: true as const,
+    status: "mockups_pending",
+    product: lastData,
+    mockupUrls: [] as string[],
+    attempts
+  };
 }
 
 export async function writeProviderEvent(input: {

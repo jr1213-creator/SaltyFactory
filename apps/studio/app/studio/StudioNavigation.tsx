@@ -249,3 +249,23 @@ export function StudioNavigation() {
     })}
   </nav>;
 }
+
+export function StudioTopNavDropdowns() {
+  const pathname = usePathname() || "/studio";
+  const activeSectionIds = useMemo(() => activeStudioNavSectionIds(pathname), [pathname]);
+
+  return <nav className="studio-top-nav" aria-label="Studio command center navigation">
+    {STUDIO_NAV_SECTIONS.map((section) => {
+      const active = activeSectionIds.includes(section.id);
+      return <details className="studio-top-nav-dropdown" key={section.id}>
+        <summary className={active ? "is-active" : undefined}>
+          <span>{section.label}</span>
+          <span aria-hidden="true">v</span>
+        </summary>
+        <div className="studio-top-nav-menu">
+          {section.links.map(([label, href]) => <a key={`${section.id}-top-${href}-${label}`} href={href} aria-current={isActiveStudioHref(pathname, href) ? "page" : undefined}>{label}</a>)}
+        </div>
+      </details>;
+    })}
+  </nav>;
+}

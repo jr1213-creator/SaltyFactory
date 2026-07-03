@@ -24,4 +24,4 @@ Status: partial quality harness implemented.
 - Browser protection spec in `e2e/studio-frontend-quality.spec.ts`.
 - Frontend QA docs and scripts: `storybook`, `storybook:build`, `frontend:qa`.
 
-Authenticated Playwright route rendering is intentionally skipped until a real Supabase browser-session fixture exists. The app must not bypass production auth for screenshots.
+Authenticated Playwright route rendering now runs when `STUDIO_E2E_STORAGE_STATE` points to a browser-safe Supabase Playwright storage-state file. Without that fixture, authenticated route rendering is skipped so screenshots are not produced from a fake auth path.

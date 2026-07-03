@@ -81,7 +81,8 @@ describe("frontend quality harness", () => {
     expect(spec).toContain("/studio/ai-employees/models");
     expect(spec).toContain("redirects unauthenticated users");
     expect(spec).toContain("test.skip");
-    expect(spec).toContain("do not bypass production auth");
+    expect(spec).toContain("STUDIO_E2E_STORAGE_STATE");
+    expect(spec).toContain("renders authenticated without console errors");
     expect(spec).not.toMatch(/STUDIO_AUTH_ENABLED=false|auth bypass|sf_studio_session/i);
   });
 

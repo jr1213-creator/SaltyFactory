@@ -14,11 +14,18 @@ Implemented:
 - Storybook component stories in `packages/ui/src/frontend-quality.stories.tsx`
 - Playwright unauthenticated route-protection harness in `e2e/studio-frontend-quality.spec.ts`
 - zero remaining legacy factory-prefixed selectors or class references in `apps/studio`, `apps/storefront`, and `packages/ui`
+- WCAG AA token contrast audit in `scripts/check-frontend-contrast.ts`
+- generated contrast report in `docs/frontend-contrast-report-v1.md`
 
 Build note:
 - Tailwind v4 loads through `@tailwindcss/postcss`.
 - This Windows environment blocks the native `@tailwindcss/oxide` `.node` binding through Application Control, so `apps/studio/postcss.config.mjs` and `apps/storefront/postcss.config.mjs` set `NAPI_RS_FORCE_WASI=true` and the repo includes `@tailwindcss/oxide-wasm32-wasi`.
 - The WASI fallback emits Node's experimental WASI warning during build, but the production build passes.
+
+Contrast:
+- `corepack pnpm check:frontend-contrast` verifies critical Studio and storefront token pairs.
+- Current report status: pass for all checked normal-text AA pairs.
+- The report is a token-pair audit; authenticated browser screenshots remain a separate gate.
 
 Accessibility rules:
 - Buttons use meaningful labels.

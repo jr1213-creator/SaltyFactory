@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireStudioUser } from "@saltyfactory/auth";
 import { NotificationBell, ProgressBar, SearchCommand, UserMenu, WorkspaceSwitcher } from "@saltyfactory/ui";
-import { StudioNavigation } from "./StudioNavigation";
+import { StudioNavigation, StudioTopNavDropdowns } from "./StudioNavigation";
 
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -30,6 +30,7 @@ export default async function StudioLayout({ children }: { children: React.React
     <div className="studio-main">
       <header className="studio-topbar">
         <WorkspaceSwitcher />
+        <StudioTopNavDropdowns />
         <SearchCommand />
         <div className="page-actions"><NotificationBell /><UserMenu /></div>
       </header>

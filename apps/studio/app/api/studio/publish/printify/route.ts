@@ -8,6 +8,8 @@ import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../_auth";
 import {
   defaultPrintAreas,
+  extractProviderProductId,
+  fetchPrintifyProductWithMockupRetry,
   getApprovedGeneratedArtwork,
   getDraftVariants,
   metadataOf,
@@ -92,6 +94,20 @@ export async function POST(req: Request) {
       printAreas
     });
     if (!result.ok) return NextResponse.json({ ok: false, status: "failed", message: result.error, retryable: result.retryable, rateLimited: result.rateLimited, setupRequired: result.setupRequired }, { status: result.rateLimited ? 429 : 502 });
+    const printifyProductId = extractProviderProductId(result.data);
+    if (!printifyProductId) {
+      await writeProviderEvent({
+        repos,
+        workspaceId,
+        actorId: user.id,
+        provider: "printify",
+        entityId: productDraftId,
+        action: "draft_create_failed",
+        status: "provider_response_missing_product_id",
+        details: { productDraftId, blueprintId, printProviderId, variantCount: variantIds.length }
+      });
+      return NextResponse.json({ ok: false, status: "failed", message: "Printify product creation response did not include a product id." }, { status: 502 });
+    }
     const sourceRecord = await repos.shared.sourceRecords.create({
       id: `src_printify_${Date.now()}`,
       workspace_id: workspaceId,
@@ -109,7 +125,7 @@ export async function POST(req: Request) {
       id: `ptyref_${Date.now()}`,
       workspace_id: workspaceId,
       product_draft_id: productDraftId,
-      printify_product_id: String((result.data as any).id ?? ""),
+      printify_product_id: printifyProductId,
       printify_shop_id: config.PRINTIFY_SHOP_ID,
       printify_blueprint_id: blueprintId,
       printify_print_provider_id: printProviderId,
@@ -120,14 +136,70 @@ export async function POST(req: Request) {
       printify_published: false,
       sync_status: "draft_created",
       source_record_id: sourceRecord.id,
-      metadata: { provider_response_id: String((result.data as any).id ?? ""), uploadId, variantIds, printAreas },
+      metadata: { provider_response_id: printifyProductId, uploadId, variantIds, printAreas },
       synced_at: new Date().toISOString(),
       updated_by: user.id,
       created_by: user.id
     });
-    await repos.draft.update(productDraftId, { printify_status: "draft_created", updated_by: user.id });
-    await writeProviderEvent({ repos, workspaceId, actorId: user.id, provider: "printify", entityId: saved.id, action: "draft_created", status: "draft_created", details: { productDraftId, uploadId, variantIds } });
-    return NextResponse.json({ ok: true, status: "draft_created", provider: "printify", reference: saved, uploadId, variantIds });
+    let reference = saved;
+    let mockupSyncStatus = "mockups_not_checked";
+    let mockupUrls: string[] = [];
+    if (printifyProductId) {
+      const mockupSync = await fetchPrintifyProductWithMockupRetry(commerce.printify, printifyProductId);
+      mockupSyncStatus = mockupSync.status;
+      if (mockupSync.ok) {
+        mockupUrls = mockupSync.mockupUrls;
+        const productData = mockupSync.product && typeof mockupSync.product === "object" ? mockupSync.product as Record<string, unknown> : {};
+        reference = await repos.printify.update(saved.id, {
+          mockup_urls: mockupUrls,
+          printify_status: String(productData.status ?? saved.printify_status ?? "draft"),
+          sync_status: mockupUrls.length ? "draft_created_mockups_synced" : "draft_created_mockups_pending",
+          metadata: {
+            ...metadataOf(saved),
+            mockupSyncStatus,
+            mockupSyncAttempts: mockupSync.attempts,
+            printifyProductSnapshot: {
+              id: productData.id ?? printifyProductId,
+              status: productData.status ?? null,
+              title: productData.title ?? null,
+              imageCount: Array.isArray(productData.images) ? productData.images.length : null
+            }
+          },
+          synced_at: new Date().toISOString(),
+          updated_by: user.id
+        });
+        await writeProviderEvent({
+          repos,
+          workspaceId,
+          actorId: user.id,
+          provider: "printify",
+          entityId: saved.id,
+          action: mockupUrls.length ? "mockups_synced" : "mockups_pending",
+          status: mockupSyncStatus,
+          details: { productDraftId, mockupCount: mockupUrls.length, attempts: mockupSync.attempts }
+        });
+      } else {
+        reference = await repos.printify.update(saved.id, {
+          sync_status: "draft_created_mockups_pending",
+          last_error: sanitizeProviderError(mockupSync.error),
+          metadata: { ...metadataOf(saved), mockupSyncStatus, retryable: mockupSync.retryable === true, rateLimited: mockupSync.rateLimited === true },
+          updated_by: user.id
+        });
+        await writeProviderEvent({
+          repos,
+          workspaceId,
+          actorId: user.id,
+          provider: "printify",
+          entityId: saved.id,
+          action: "mockup_sync_failed",
+          status: mockupSyncStatus,
+          details: { productDraftId, retryable: mockupSync.retryable === true, rateLimited: mockupSync.rateLimited === true }
+        });
+      }
+    }
+    await repos.draft.update(productDraftId, { printify_status: reference.sync_status ?? "draft_created", updated_by: user.id });
+    await writeProviderEvent({ repos, workspaceId, actorId: user.id, provider: "printify", entityId: reference.id, action: "draft_created", status: String(reference.sync_status ?? "draft_created"), details: { productDraftId, uploadId, variantIds, mockupCount: mockupUrls.length } });
+    return NextResponse.json({ ok: true, status: reference.sync_status ?? "draft_created", provider: "printify", reference, uploadId, variantIds, mockupUrls, mockupSyncStatus });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return NextResponse.json({ ok: false, status: "failed", message: sanitizeProviderError(error) }, { status: 500 });

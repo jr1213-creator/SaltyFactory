@@ -12,8 +12,8 @@
 | Shipping snapshot | `GET /api/studio/integrations/printify/catalog/blueprints/:id/providers/:providerId/shipping` | `/studio/printify-catalog` | Loads provider shipping data when available. |
 | Variant selection persistence | `POST /api/studio/integrations/printify/catalog/selection` | `/studio/printify-catalog` | Persists selected blueprint/provider/variant IDs and owner-entered pricing to `product_variants`. |
 | Image upload | `POST /api/studio/integrations/printify/uploads`, `PrintifyProviderLive.uploadImage` | `/studio/printify-catalog`, `/studio/publish-review` | Uploads approved generated artwork to Printify `/v1/uploads/images.json` and persists returned upload ID. |
-| Product creation | `POST /api/studio/publish/printify`, `PrintifyProviderLive.createProduct` | `/studio/publish-review` | Creates a Printify draft product from approved generated artwork, upload ID, selected variants, print areas, pricing, listing copy, gates, and owner permission. |
-| Product retrieval | `PrintifyProviderLive.getProduct` | adapter/tested; route-level retrieval future | Retrieves real Printify product by ID. |
+| Product creation | `POST /api/studio/publish/printify`, `PrintifyProviderLive.createProduct` | `/studio/publish-review` | Creates a Printify draft product from approved generated artwork, upload ID, selected variants, print areas, pricing, listing copy, gates, and owner permission. The route rejects a provider success response that does not include a real Printify product ID and does not persist an empty provider ref. |
+| Product retrieval and mockup URL sync | `POST /api/studio/publish/printify`, `PrintifyProviderLive.getProduct` | `/studio/publish-review` | After draft creation, performs bounded provider polling, stores real returned mockup URLs in `printify_product_refs.mockup_urls`, and leaves `draft_created_mockups_pending` if Printify has not generated media yet. |
 
 ## Blocked By Config
 
@@ -31,4 +31,4 @@ Product creation also requires approved generated artwork, passed asset QA, sele
 
 - Printify order/fulfillment lifecycle UI.
 - Automatic Printify to Shopify publish bridge. SaltyFactory intentionally uses its own internal mapping instead.
-- Provider-generated mockup retrieval as the primary mockup source.
+- Background retry job for delayed Printify mockup generation after the route-level retry window.
