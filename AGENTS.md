@@ -33,6 +33,33 @@ If code conflicts with the locked architecture, fix the code or explicitly repor
 
 ---
 
+## Staff Engineer Build Standard
+
+Breadth without depth is a defect. A feature is not complete because routes, tables, docs, or UI panels exist; it is complete only when the full user-triggered path is walkable and verified.
+
+Apply these rules before calling any feature done:
+
+1. Finish one vertical slice before moving to the next: real browser action -> UI call -> API route -> provider action or honest provider block -> database write -> downstream read.
+2. No orphaned code: every backend route touched or added must have a real UI caller, and every UI action must call a real backend route or be visibly disabled with a specific reason.
+3. No silent partial implementations: incomplete provider/interface methods must fail loudly and specifically, not inherit a generic success-looking fallback.
+4. Test success paths, not only blocked paths: each feature needs at least one test with realistic mocked provider output and assertions on persisted side effects.
+5. Docs describe verified reality only: do not call intended behavior functional until the UI -> API -> DB/provider -> downstream path has been verified.
+6. Prefer readable, reviewable code over dense one-liners or compressed logic.
+7. Do not silently resolve conflicts with locked guardrails. Report the conflict, the options, and the safest recommendation.
+8. Run this Definition of Done before reporting completion:
+   - A real user can trigger it through the actual UI.
+   - UI actions call real backend routes.
+   - External provider calls are real or visibly config-blocked with exact setup requirements.
+   - Production-capable paths persist through the repository/database layer.
+   - The next pipeline stage can read what was written.
+   - At least one success-path test asserts real side effects.
+   - No involved method, class, or route silently falls back to a misleading stub.
+   - No dead code or abandoned parallel implementation remains.
+   - Docs match verified behavior.
+   - The full flow has been walked as a user would experience it, or the unverified gap is explicitly reported.
+
+---
+
 ## Product Scope
 
 SaltyFactory must support:

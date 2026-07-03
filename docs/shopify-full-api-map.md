@@ -10,6 +10,7 @@
 | Product update | `ShopifyAdminProviderLive.updateProduct` | adapter/tested; route-level edit future | Updates Shopify product payload safely as draft by default. |
 | Collection assignment | `ShopifyAdminProviderLive.assignCollection` | `/studio/publish-review` required collection ID | Creates a Shopify collect for the provided Shopify collection ID. A display collection name is not treated as a verified collection assignment. |
 | Product retrieval | `ShopifyAdminProviderLive.getProduct` | adapter/tested; route-level retrieval future | Retrieves real Shopify product by ID. |
+| Live product publish | `POST /api/studio/publish/shopify/[refId]/go-live`, `ShopifyAdminProviderLive.publishProductGuarded` | `/studio/shopify-products` | Publishes an existing Shopify draft only when publish gates pass, `LIVE_PUBLISHING_ENABLED=true`, `SHOPIFY_ALLOW_PRODUCT_PUBLISH=true`, Shopify Admin is configured, and the owner types `PUBLISH LIVE`. Fails closed by default. |
 | Provider refs | `shopify_product_refs` | `/studio/shopify-products`, `/studio/products`, `/studio/launch-packet` | Stores Shopify product ID, GID, handle, admin URL, media, SEO, sync status, and source record. |
 
 ## Draft Product Payload
@@ -40,4 +41,4 @@ It also requires persisted product draft, publish review, passing gates, product
 
 ## Publish Rule
 
-Draft creation does not publish to saltycowhide.com. Storefront publish remains blocked unless live publishing is explicitly enabled, gates pass, and the owner confirms the publish action.
+Draft creation does not publish to saltycowhide.com. Storefront publish remains blocked unless live publishing is explicitly enabled, `SHOPIFY_ALLOW_PRODUCT_PUBLISH=true`, gates pass, Shopify Admin is configured, and the owner confirms the publish action with `PUBLISH LIVE`.

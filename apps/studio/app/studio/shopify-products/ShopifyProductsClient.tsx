@@ -25,11 +25,48 @@ export function ShopifyProductsClient({ refs }: { refs: Row[] }) {
     }
   }
 
+  async function goLive(ref: Row) {
+    const confirmationText = window.prompt(`Type PUBLISH LIVE to publish ${ref.shopify_handle ?? ref.shopify_product_id ?? ref.id} to the Shopify storefront.`);
+    if (confirmationText !== "PUBLISH LIVE") {
+      setResult({
+        ok: false,
+        status: "confirmation_cancelled",
+        message: "Shopify go-live was not called because the confirmation phrase was not entered."
+      });
+      return;
+    }
+    setBusy(`go-live-${ref.id}`);
+    try {
+      const response = await fetch(`/api/studio/publish/shopify/${encodeURIComponent(ref.id)}/go-live`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownerConfirmed: true, confirmationText })
+      });
+      const data = await response.json().catch(() => ({ ok: false, status: "invalid_json_response" }));
+      setResult({ httpStatus: response.status, ...data });
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to call Shopify go-live route." });
+    } finally {
+      setBusy("");
+    }
+  }
+
   return <section className="sf-card" style={{ marginTop: 18 }}>
-    <h2>Shopify Media Actions</h2>
-    <p className="sf-muted">Re-upload approved mockup media to an existing Shopify draft. This calls the real media route and never publishes live.</p>
+    <h2>Shopify Provider Actions</h2>
+    <p className="sf-muted">Media upload keeps the product in draft. Go-live calls the guarded publish route and fails closed unless server-side live flags, owner confirmation, provider config, and publish gates all pass.</p>
     <div className="sf-action-bar">
-      {refs.map((ref) => <button key={ref.id} className="sf-button sf-button-secondary" type="button" disabled={busy === ref.id} onClick={() => uploadMedia(ref)}>Upload Media for {ref.shopify_handle ?? ref.id}</button>)}
+      {refs.map((ref) => <span key={ref.id} className="sf-action-bar">
+        <button className="sf-button sf-button-secondary" type="button" disabled={busy === ref.id} onClick={() => uploadMedia(ref)}>Upload Media for {ref.shopify_handle ?? ref.id}</button>
+        <button
+          className="sf-button sf-button-danger"
+          type="button"
+          disabled={busy === `go-live-${ref.id}` || !ref.shopify_product_id}
+          title={!ref.shopify_product_id ? "Shopify product ID is required before go-live." : "Requires PUBLISH LIVE confirmation and server-side live publish flags."}
+          onClick={() => goLive(ref)}
+        >
+          Go Live on Shopify
+        </button>
+      </span>)}
     </div>
     {result ? <pre className="sf-code sf-provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
