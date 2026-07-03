@@ -74,6 +74,7 @@ describe("production UI routes", () => {
     expect(source).toContain('["Approvals", "/studio/marketing/approvals"]');
     expect(source).toContain('["Social Care", "/studio/marketing/social-care"]');
     expect(source).toContain('["Account Center", "/studio/account-center"]');
+    expect(source).toContain('["Feature Readiness", "/studio/setup"]');
     expect(source).toContain('label: "AI Employees"');
     expect(source).toContain('["Hiring Desk", "/studio/ai-employees/hiring"]');
     expect(source).toContain('label: "Business"');
@@ -96,7 +97,7 @@ describe("production UI routes", () => {
   it("Studio navigation respects persisted localStorage state and exposes accordion accessibility attributes", () => {
     expect(parseStoredStudioNavSections(JSON.stringify(["operations", "bad-id"]))).toEqual(["operations"]);
     expect(resolveExpandedStudioNavSections({ pathname: "/studio/channels", storedValue: JSON.stringify(["operations"]) }).sort()).toEqual(["marketing", "operations"]);
-    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Business Profile", "Integrations", "Setup Guide", "Vertical Pack", "Settings", "Billing"]);
+    expect(visibleStudioNavLinks({ pathname: "/studio", expandedIds: ["operations"] })).toEqual(["Account Center", "Feature Readiness", "Business Profile", "Integrations", "Setup Guide", "Vertical Pack", "Settings", "Billing"]);
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
     expect(source).toContain("aria-expanded");
     expect(source).toContain("aria-controls");
@@ -176,6 +177,7 @@ describe("production UI routes", () => {
       "/studio/trends",
       "/studio/baseline",
       "/studio/account-center",
+      "/studio/setup",
       "/studio/settings/business-profile",
       "/studio/migration-guide",
       "/studio/settings/vertical-pack",

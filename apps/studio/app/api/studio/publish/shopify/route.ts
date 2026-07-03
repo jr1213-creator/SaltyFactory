@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, status: mediaResult.status, blockingReasons: mediaResult.blockingReasons, setupRequired: mediaResult.setupRequired }, { status: mediaResult.setupRequired?.length ? 503 : 409 });
     }
     const metadata = metadataOf(draft);
-    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || "");
+    const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || config.SHOPIFY_DEFAULT_COLLECTION_ID || "");
     if (!collectionId) {
       return NextResponse.json({
         ok: false,

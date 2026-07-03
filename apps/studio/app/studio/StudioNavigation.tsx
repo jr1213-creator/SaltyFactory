@@ -126,6 +126,7 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     label: "Operations",
     links: [
       ["Account Center", "/studio/account-center"],
+      ["Feature Readiness", "/studio/setup"],
       ["Business Profile", "/studio/settings/business-profile"],
       ["Integrations", "/studio/integrations"],
       ["Setup Guide", "/studio/migration-guide"],
