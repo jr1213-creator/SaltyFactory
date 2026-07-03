@@ -27,7 +27,7 @@ export default async function MarketingCampaignDetailPage({ params }: { params: 
       <LinkButton href="/studio/marketing-command-center/launch-campaign" variant="secondary">Run Workflow</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <DataTable columns={["Field", "Value"]} rows={[
         ["Goal", campaign?.goal ?? "-"],
         ["Audience", campaign?.audience ?? "Owner-defined audience required"],
@@ -37,8 +37,8 @@ export default async function MarketingCampaignDetailPage({ params }: { params: 
         ["Source", campaign?.source_label ?? campaign?.sourceLabel ?? "System-generated"]
       ]} />
     </section>
-    <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
-      <section className="sf-card">
+    <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
+      <section className="surface-card">
         <h2>Channel Drafts</h2>
         <DataTable columns={["Channel", "Status", "Approval", "Manual export", "Open"]} rows={channels.length ? channels.map((channel: any) => [
           marketingChannelLabels[String(channel.channel_type ?? channel.channelType)] ?? fmt(channel.channel_type ?? channel.channelType),
@@ -47,20 +47,20 @@ export default async function MarketingCampaignDetailPage({ params }: { params: 
           "copy/export only",
           <a key={`${channel.id}-open`} href={`/studio/marketing/drafts/${channel.id}`}>Open</a>
         ]) : [["No channel drafts", "Create from workflow or channel studios.", "-", "manual/export-ready", "-"]]} />
-        <form className="sf-grid sf-grid-2" action="/api/studio/shared/campaign-channels" method="post">
+        <form className="layout-grid layout-grid-2" action="/api/studio/shared/campaign-channels" method="post">
           <input type="hidden" name="next" value={`/studio/marketing-campaigns/${campaignId}`} />
           <input type="hidden" name="campaign_id" value={campaignId} />
           <label>Channel<select name="channel_type" defaultValue="pinterest"><option value="pinterest">Pinterest</option><option value="instagram">Instagram</option><option value="email">Email</option><option value="google_ads">Google Ads</option><option value="meta_ads">Meta Ads</option><option value="seo_geo">SEO/AEO/GEO</option></select></label>
           <label>Status<select name="status" defaultValue="draft"><option value="draft">Draft</option><option value="ready_for_review">Ready for review</option><option value="export_ready">Export ready</option><option value="blocked">Blocked</option></select></label>
           <label>Draft content JSON<textarea name="draft_content" defaultValue='{"copy":"Draft content only. Owner review required.","manualExport":true}' /></label>
-          <button className="sf-button" type="submit">Add Draft</button>
+          <button className="btn" type="submit">Add Draft</button>
         </form>
       </section>
-      <section className="sf-card">
+      <section className="surface-card">
         <h2>Proof Packs & Growth Plans</h2>
         <DataTable columns={["Package", "Type", "Status"]} rows={packages.length ? packages.map((pack: any) => [pack.title, fmt(pack.package_type ?? pack.packageType), fmt(pack.status ?? "draft")]) : [["No packages", "Run workflow to generate proof pack and growth plan.", "needed"]]} />
       </section>
-      <section className="sf-card">
+      <section className="surface-card">
         <h2>Readiness Scores</h2>
         <DataTable columns={["Score", "Value", "Status", "Blockers"]} rows={scores.length ? scores.map((score: any) => [
           fmt(score.score_type ?? score.scoreType),
@@ -69,7 +69,7 @@ export default async function MarketingCampaignDetailPage({ params }: { params: 
           Array.isArray(score.blockers) ? score.blockers.join(", ") : JSON.stringify(score.blockers ?? [])
         ]) : [["No readiness score", "0/100", "setup needed", "Run workflow or create score."]]} />
       </section>
-      <section className="sf-card">
+      <section className="surface-card">
         <h2>Assets / UTMs / Approvals</h2>
         <DataTable columns={["Type", "Count", "Status"]} rows={[
           ["Asset specs", String(assets.length), assets.length ? "ready" : "needed"],

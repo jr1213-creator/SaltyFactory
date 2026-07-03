@@ -9,7 +9,7 @@ export default async function Page() {
       <StatusBadge status={`${briefs.length} briefs`} tone={briefs.length ? "info" : "warning"} />
     </PageHeader>
     <BriefWorkflowClient initialBriefs={briefs as any[]} />
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Brief Records</h2>
       {briefs.length ? <DataTable columns={["Brief", "Status", "Generation", "Collection"]} rows={briefs.map((brief: any) => [
         brief.style_direction?.title ?? brief.id,

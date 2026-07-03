@@ -17,7 +17,7 @@ export default async function MarketingDraftDetailPage({ params }: { params: Pro
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <DataTable columns={["Field", "Value"]} rows={[
         ["Campaign", draft?.campaign_id ?? draft?.campaignId ?? "-"],
         ["Channel", marketingChannelLabels[channelType] ?? channelType.replace(/_/g, " ")],

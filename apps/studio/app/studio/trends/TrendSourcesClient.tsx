@@ -38,17 +38,17 @@ export function TrendSourcesClient() {
     }
   }
 
-  return <section className="sf-card">
+  return <section className="surface-card">
     <h2>Trend Source Setup</h2>
-    <form action={createSource} className="sf-form-grid">
+    <form action={createSource} className="form-grid">
       <label>Name<input name="name" placeholder="Owned blog, supplier feed, public RSS" required /></label>
       <label>Allowed public URL<input name="source_url" type="url" placeholder="https://example.com/feed.xml" required /></label>
-      <button className="sf-button sf-button-primary" disabled={busy}>Create Source</button>
+      <button className="btn btn-primary" disabled={busy}>Create Source</button>
     </form>
-    <div className="sf-action-bar" style={{ marginTop: 12 }}>
+    <div className="action-bar" style={{ marginTop: 12 }}>
       <label>Source ID<input value={sourceId} onChange={(event) => setSourceId(event.target.value)} placeholder="tsrc_..." /></label>
-      <button className="sf-button sf-button-secondary" disabled={busy || !sourceId} onClick={ingest}>Ingest Source</button>
+      <button className="btn btn-secondary" disabled={busy || !sourceId} onClick={ingest}>Ingest Source</button>
     </div>
-    {result && <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
+    {result && <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
   </section>;
 }

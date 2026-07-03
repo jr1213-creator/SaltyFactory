@@ -1,107 +1,156 @@
 import React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
 type Props = React.PropsWithChildren<{ className?: string | undefined; title?: string | undefined; eyebrow?: string | undefined; description?: string | undefined }>;
 
-const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
-
-export function Button({ children, className, variant = "primary", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger" }) {
-  return <button className={cx("sf-button", `sf-button-${variant}`, className)} {...props}>{children}</button>;
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }
 
-export function LinkButton({ children, className, variant = "primary", ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { variant?: "primary" | "secondary" | "ghost" }) {
-  return <a className={cx("sf-button", `sf-button-${variant}`, className)} {...props}>{children}</a>;
+const toneText: Record<Tone, string> = {
+  neutral: "text-muted-foreground",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-destructive",
+  info: "text-info",
+  primary: "text-primary"
+};
+
+const badgeTone: Record<Tone, string> = {
+  neutral: "border-border bg-muted text-muted-foreground",
+  success: "border-success/20 bg-success-soft text-success",
+  warning: "border-warning/25 bg-warning-soft text-warning",
+  danger: "border-destructive/20 bg-destructive-soft text-destructive",
+  info: "border-info/20 bg-info-soft text-info",
+  primary: "border-primary/20 bg-primary-soft text-primary"
+};
+
+const buttonVariants = cva(
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60",
+  {
+    variants: {
+      variant: {
+        primary: "border-primary bg-primary text-primary-foreground hover:bg-primary-dark",
+        secondary: "border-border bg-card text-foreground hover:bg-muted",
+        ghost: "border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+        danger: "border-destructive bg-destructive text-white hover:bg-destructive/90"
+      }
+    },
+    defaultVariants: {
+      variant: "primary"
+    }
+  }
+);
+
+export function Button({
+  children,
+  className,
+  variant,
+  asChild = false,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot : "button";
+  return <Comp className={cn(buttonVariants({ variant }), className)} {...props}>{children}</Comp>;
+}
+
+export function LinkButton({ children, className, variant = "primary", ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & VariantProps<typeof buttonVariants>) {
+  return <a className={cn(buttonVariants({ variant }), className)} {...props}>{children}</a>;
 }
 
 export function Card({ children, className }: Props) {
-  return <section className={cx("sf-card", className)}>{children}</section>;
+  return <section className={cn("rounded-lg border border-border bg-card p-5 shadow-card", className)}>{children}</section>;
 }
 
 export function DashboardCard({ children, className, title, description }: Props) {
-  return <section className={cx("sf-card sf-dashboard-card", className)}>{title && <h2>{title}</h2>}{description && <p className="sf-muted">{description}</p>}{children}</section>;
+  return <Card className={cn("min-h-28", className)}>{title && <h2 className="text-lg font-bold">{title}</h2>}{description && <p className="text-muted-foreground">{description}</p>}{children}</Card>;
 }
 
 export function PageHeader({ title, eyebrow, description, children, className }: Props) {
-  return <header className={cx("sf-page-header", className)}><div>{eyebrow && <p className="sf-eyebrow">{eyebrow}</p>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{children && <div className="sf-page-actions">{children}</div>}</header>;
+  return <header className={cn("mb-6 flex items-start justify-between gap-5", className)}><div>{eyebrow && <p className="text-xs font-extrabold uppercase tracking-wide text-primary">{eyebrow}</p>}<h1 className="text-3xl font-black leading-tight tracking-normal text-foreground md:text-4xl">{title}</h1>{description && <p className="mt-2 max-w-3xl text-muted-foreground">{description}</p>}</div>{children && <div className="flex flex-wrap items-center gap-2.5">{children}</div>}</header>;
 }
 
 export function MetricCard({ title, value, delta, tone = "primary", icon }: { title: string; value: string; delta?: string; tone?: Tone; icon?: string }) {
-  return <section className="sf-card sf-metric-card"><div><p>{title}</p><strong>{value}</strong>{delta && <span className={`sf-delta sf-${tone}`}>{delta}</span>}</div>{icon && <span className={`sf-icon-bubble sf-${tone}`}>{icon}</span>}</section>;
+  return <Card className="flex min-h-28 items-center justify-between gap-4"><div><p className="mb-1 font-bold text-muted-foreground">{title}</p><strong className="block text-3xl leading-none">{value}</strong>{delta && <span className={cn("mt-2 block text-xs font-bold", toneText[tone])}>{delta}</span>}</div>{icon && <span className={cn("grid size-13 place-items-center rounded-lg bg-primary-soft font-black", toneText[tone])}>{icon}</span>}</Card>;
 }
 
 export function SparklineCard(props: { title: string; value: string; delta?: string }) {
-  return <MetricCard {...props} icon="⌁" />;
+  return <MetricCard {...props} icon="~" />;
 }
 
 export function StatusBadge({ status, tone = "neutral" }: { status: string; tone?: Tone }) {
-  return <span className={`sf-badge sf-${tone}`}>{status}</span>;
+  return <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold", badgeTone[tone])}>{status}</span>;
 }
 
 export function ReadinessBadge({ ready, label }: { ready: boolean; label?: string }) {
   return <StatusBadge status={label ?? (ready ? "Ready" : "Blocked")} tone={ready ? "success" : "danger"} />;
 }
 
-export const ScoreBadge = ({ score, label = "Score" }: { score: number; label?: string }) => <span className={cx("sf-score", score >= 85 ? "sf-success" : score >= 70 ? "sf-warning" : "sf-danger")}><strong>{score}</strong> {label}</span>;
+export const ScoreBadge = ({ score, label = "Score" }: { score: number; label?: string }) => <span className={cn(score >= 85 ? toneText.success : score >= 70 ? toneText.warning : toneText.danger)}><strong>{score}</strong> {label}</span>;
 export const RiskBadge = ({ score }: { score: number }) => <ScoreBadge score={score} label={score > 65 ? "High risk" : score > 35 ? "Review" : "Low risk"} />;
 
 export function ProgressBar({ value, label }: { value: number; label?: string }) {
-  return <div className="sf-progress-wrap">{label && <div className="sf-progress-label"><span>{label}</span><span>{value}%</span></div>}<div className="sf-progress"><span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div></div>;
+  const safe = Math.max(0, Math.min(100, value));
+  return <div>{label && <div className="mb-1 flex justify-between gap-3 text-xs text-muted-foreground"><span>{label}</span><span>{safe}%</span></div>}<div className="h-2.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-gradient-to-r from-primary to-turquoise" style={{ width: `${safe}%` }} /></div></div>;
 }
 
 export function WorkflowStepHeader({ step, title, status, description }: { step: string; title: string; status: string; description?: string }) {
-  return <header className="sf-workflow-step-header"><span>{step}</span><div><h2>{title}</h2>{description && <p>{description}</p>}</div><StatusBadge status={status} tone={status === "ready" || status === "connected" ? "success" : "warning"} /></header>;
+  return <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-lg border border-border bg-gradient-to-br from-card to-primary-soft p-4"><span className="grid size-10 place-items-center rounded-md bg-primary font-black text-primary-foreground">{step}</span><div><h2 className="mb-1 text-lg font-bold">{title}</h2>{description && <p className="m-0 text-muted-foreground">{description}</p>}</div><StatusBadge status={status} tone={status === "ready" || status === "connected" ? "success" : "warning"} /></header>;
 }
 
 export function WorkflowProgress({ steps }: { steps: Array<{ label: string; status: string; complete?: boolean }> }) {
-  return <ol className="sf-workflow-progress">{steps.map((step, index) => <li key={step.label} className={step.complete ? "is-complete" : ""}><span>{index + 1}</span><strong>{step.label}</strong><small>{step.status}</small></li>)}</ol>;
+  return <ol className="grid list-none gap-2.5 p-0 [grid-template-columns:repeat(auto-fit,minmax(130px,1fr))]">{steps.map((step, index) => <li key={step.label} className={cn("grid gap-1 rounded-md border border-border bg-card p-3", step.complete && "border-success/30 bg-success-soft")}><span className="grid size-7 place-items-center rounded-full bg-primary-soft font-black text-primary">{index + 1}</span><strong className="text-sm">{step.label}</strong><small className="text-muted-foreground">{step.status}</small></li>)}</ol>;
 }
 
 export function ProgressRing({ value, label }: { value: number; label?: string }) {
   const safe = Math.max(0, Math.min(100, value));
-  return <div className="sf-ring" style={{ "--value": `${safe * 3.6}deg` } as React.CSSProperties}><strong>{safe}</strong>{label && <span>{label}</span>}</div>;
+  return <div className="progress-ring" style={{ "--value": `${safe * 3.6}deg` } as React.CSSProperties}><strong>{safe}</strong>{label && <span>{label}</span>}</div>;
 }
 
 export function MiniTrendLine() {
-  return <svg className="sf-mini-line" viewBox="0 0 120 36" aria-hidden="true"><path d="M2 28 C18 18, 24 28, 38 18 S58 8, 72 16 S96 32, 118 6" /></svg>;
+  return <svg className="mini-line" viewBox="0 0 120 36" aria-hidden="true"><path d="M2 28 C18 18, 24 28, 38 18 S58 8, 72 16 S96 32, 118 6" /></svg>;
 }
 
 export function DonutChart({ value = 68 }: { value?: number }) {
-  return <div className="sf-donut" style={{ "--value": `${value * 3.6}deg` } as React.CSSProperties}><span>{value}%</span></div>;
+  return <div className="donut-chart" style={{ "--value": `${value * 3.6}deg` } as React.CSSProperties}><span>{value}%</span></div>;
 }
 
 export function BarList({ items }: { items: Array<{ label: string; value: string; percent: number }> }) {
-  return <div className="sf-bar-list">{items.map((item) => <div key={item.label}><div><span>{item.label}</span><strong>{item.value}</strong></div><ProgressBar value={item.percent} /></div>)}</div>;
+  return <div className="grid gap-3">{items.map((item) => <div key={item.label}><div className="mb-1 flex justify-between"><span>{item.label}</span><strong>{item.value}</strong></div><ProgressBar value={item.percent} /></div>)}</div>;
 }
 
 export function LineChartCard({ title = "Performance", children }: Props) {
-  return <ChartCard title={title}><div className="sf-line-chart"><MiniTrendLine /></div>{children}</ChartCard>;
+  return <ChartCard title={title}><div className="line-chart"><MiniTrendLine /></div>{children}</ChartCard>;
 }
 
 export function ChartCard({ title, children, className }: Props) {
-  return <section className={cx("sf-card sf-chart-card", className)}>{title && <h2>{title}</h2>}{children}</section>;
+  return <Card className={className}>{title && <h2 className="text-lg font-bold">{title}</h2>}{children}</Card>;
 }
 
 export function DataTable({ columns, rows }: { columns: string[]; rows: Array<Array<React.ReactNode>> }) {
-  return <div className="sf-table-wrap"><table className="sf-table"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="overflow-auto rounded-lg border border-border bg-card"><table className="w-full min-w-[760px] border-collapse"><thead><tr>{columns.map((column) => <th className="border-b border-border bg-muted px-4 py-3 text-left text-xs text-muted-foreground" key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr className="hover:bg-muted/50" key={index}>{row.map((cell, cellIndex) => <td className="border-b border-border px-4 py-3 align-middle" key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
 }
 
-export const TableToolbar = ({ children }: Props) => <div className="sf-toolbar">{children}</div>;
-export const FilterBar = ({ children }: Props) => <div className="sf-filter-bar">{children}</div>;
+export const TableToolbar = ({ children }: Props) => <div className="mb-5 flex flex-wrap gap-2.5">{children}</div>;
+export const FilterBar = ({ children }: Props) => <div className="mb-5 flex flex-wrap gap-2.5">{children}</div>;
 
 export function EmptyState({ title = "No records yet", description = "When records are available, they will appear here.", action }: { title?: string; description?: string; action?: React.ReactNode }) {
-  return <section className="sf-empty"><strong>{title}</strong><p>{description}</p>{action}</section>;
+  return <section className="rounded-lg border border-dashed border-border-strong bg-card p-8 text-center text-muted-foreground"><strong className="block text-lg text-foreground">{title}</strong><p>{description}</p>{action}</section>;
 }
 
 export function HelpTooltip({ label, help }: { label: string; help: string }) {
   const id = `help-${label.replace(/\W+/g, "-")}`;
-  return <span className="sf-help-tooltip"><button type="button" aria-describedby={id}>?</button><span role="tooltip" id={id}>{help}</span></span>;
+  return <span className="help-tooltip"><button type="button" aria-describedby={id}>?</button><span role="tooltip" id={id}>{help}</span></span>;
 }
 
-export const LoadingState = ({ title = "Loading" }: { title?: string }) => <section className="sf-empty"><strong>{title}</strong><p>Preparing the latest workspace view.</p></section>;
-export const ErrorState = ({ title = "Unable to load", description = "Try again in a moment." }: { title?: string; description?: string }) => <section className="sf-empty sf-danger"><strong>{title}</strong><p>{description}</p></section>;
+export const LoadingState = ({ title = "Loading" }: { title?: string }) => <EmptyState title={title} description="Preparing the latest workspace view." />;
+export const ErrorState = ({ title = "Unable to load", description = "Try again in a moment." }: { title?: string; description?: string }) => <section className="rounded-lg border border-destructive/20 bg-destructive-soft p-8 text-center text-destructive"><strong className="block text-lg">{title}</strong><p>{description}</p></section>;
 
 export function ApprovalGateList({ gates }: { gates: Array<{ label: string; passed: boolean; detail?: string }> }) {
-  return <ul className="sf-gate-list">{gates.map((gate) => <li key={gate.label}><span className={gate.passed ? "sf-check" : "sf-block"}>{gate.passed ? "✓" : "!"}</span><div><strong>{gate.label}</strong>{gate.detail && <p>{gate.detail}</p>}</div><StatusBadge status={gate.passed ? "Pass" : "Blocked"} tone={gate.passed ? "success" : "danger"} /></li>)}</ul>;
+  return <ul className="m-0 grid list-none gap-2.5 p-0">{gates.map((gate) => <li className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border border-border p-3" key={gate.label}><span className={cn("grid size-7 place-items-center rounded-full font-black", gate.passed ? "bg-success-soft text-success" : "bg-destructive-soft text-destructive")}>{gate.passed ? "OK" : "!"}</span><div><strong>{gate.label}</strong>{gate.detail && <p className="m-0 text-xs text-muted-foreground">{gate.detail}</p>}</div><StatusBadge status={gate.passed ? "Pass" : "Blocked"} tone={gate.passed ? "success" : "danger"} /></li>)}</ul>;
 }
 
 export function ValidationChecklist({ items }: { items: Array<{ label: string; status: string; passed: boolean }> }) {
@@ -109,15 +158,15 @@ export function ValidationChecklist({ items }: { items: Array<{ label: string; s
 }
 
 export function AuditTimeline({ events }: { events: Array<{ title: string; detail: string; time: string }> }) {
-  return <ol className="sf-timeline">{events.map((event) => <li key={`${event.title}-${event.time}`}><span /><div><strong>{event.title}</strong><p>{event.detail}</p><small>{event.time}</small></div></li>)}</ol>;
+  return <ol className="m-0 grid list-none gap-2.5 p-0">{events.map((event) => <li className="grid grid-cols-[20px_1fr] gap-3" key={`${event.title}-${event.time}`}><span className="mt-1 size-3 rounded-full bg-primary" /><div><strong>{event.title}</strong><p className="m-0 text-muted-foreground">{event.detail}</p><small className="text-muted-foreground">{event.time}</small></div></li>)}</ol>;
 }
 
 export function GuardrailPanel({ title = "Guardrails active", children }: Props) {
-  return <aside className="sf-card sf-guardrail"><h2>{title}</h2>{children}</aside>;
+  return <aside className="rounded-lg border border-warning/25 bg-warning-soft p-5"><h2 className="text-lg font-bold">{title}</h2>{children}</aside>;
 }
 
 export function ProviderStatusCard({ title, status = "Disabled", description, tone = "warning" }: { title: string; status?: string; description?: string; tone?: Tone }) {
-  return <section className="sf-card sf-provider-card"><div><strong>{title}</strong>{description && <p>{description}</p>}</div><StatusBadge status={status} tone={tone} /></section>;
+  return <Card className="flex items-start justify-between gap-3"><div><strong>{title}</strong>{description && <p className="m-0 mt-1 text-muted-foreground">{description}</p>}</div><StatusBadge status={status} tone={tone} /></Card>;
 }
 
 export const IntegrationCard = ProviderStatusCard;
@@ -126,56 +175,56 @@ export const ProviderReadinessCard = ProviderStatusCard;
 export const ProviderHealthCard = ProviderStatusCard;
 
 export function SetupRequiredPanel({ title = "Setup required", items }: { title?: string; items: string[] }) {
-  return <section className="sf-card sf-blocker-card" aria-label={title}>
+  return <section className="rounded-lg border border-destructive/20 bg-destructive-soft p-5" aria-label={title}>
     <strong>{title}</strong>
-    <ul>{items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>No setup blockers recorded.</li>}</ul>
+    <ul className="mt-2 list-disc pl-5">{items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>No setup blockers recorded.</li>}</ul>
   </section>;
 }
 
 export function ProviderResultPanel({ title = "Provider result", status, children }: Props & { status?: string }) {
-  return <section className="sf-card sf-provider-result-panel">
-    <div className="sf-card-header-row">
-      <h2>{title}</h2>
+  return <Card>
+    <div className="flex items-start justify-between gap-4">
+      <h2 className="text-lg font-bold">{title}</h2>
       {status ? <StatusBadge status={status} tone={status === "success" || status === "ready" ? "success" : status === "failed" ? "danger" : "warning"} /> : null}
     </div>
-    <div className="sf-provider-result">{children}</div>
-  </section>;
+    <div className="provider-result">{children}</div>
+  </Card>;
 }
 
 export function AiReadinessScoreCard({ title, score }: { title: string; score: number }) {
-  return <section className="sf-card sf-score-card"><div><p>{title}</p><strong>{score}<span>/100</span></strong><span className="sf-delta sf-primary">Configuration score</span></div><ProgressRing value={score} /></section>;
+  return <Card className="flex items-center justify-between"><div><p className="font-bold text-muted-foreground">{title}</p><strong className="text-3xl">{score}<span className="text-base text-muted-foreground">/100</span></strong><span className="block text-xs font-bold text-primary">Configuration score</span></div><ProgressRing value={score} /></Card>;
 }
 
 export function AiEmployeeCard({ name, role, status = "Disabled", tasks = "0", description }: { name: string; role: string; status?: string; tasks?: string; description?: string }) {
-  return <article className="sf-card sf-ai-card"><div className="sf-avatar" aria-hidden="true">{name.slice(0, 1)}</div><div><h3>{name}</h3><p>{role}</p>{description && <small>{description}</small>}</div><StatusBadge status={status} tone={status === "Active" ? "success" : "warning"} /><span>{tasks} tasks</span></article>;
+  return <article className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-border bg-card p-5 shadow-card"><div className="grid size-9 place-items-center rounded-full bg-sand font-extrabold text-navy" aria-hidden="true">{name.slice(0, 1)}</div><div><h3 className="mb-1 font-bold">{name}</h3><p className="m-0 text-muted-foreground">{role}</p>{description && <small>{description}</small>}</div><StatusBadge status={status} tone={status === "Active" ? "success" : "warning"} /><span className="col-span-2 col-start-2 text-xs text-muted-foreground">{tasks} tasks</span></article>;
 }
 
 export function AiEmployeeStatusList({ employees }: { employees: Array<{ name: string; role: string; status: string }> }) {
-  return <div className="sf-stack">{employees.map((employee) => <AiEmployeeCard key={employee.name} {...employee} />)}</div>;
+  return <div className="grid gap-3">{employees.map((employee) => <AiEmployeeCard key={employee.name} {...employee} />)}</div>;
 }
 
 export function RecommendationCard({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
-  return <section className="sf-card sf-recommendation"><strong>{title}</strong><p>{description}</p>{action}</section>;
+  return <section className="rounded-lg border border-border bg-gradient-to-br from-card to-primary-soft p-5 shadow-card"><strong>{title}</strong><p>{description}</p>{action}</section>;
 }
 
 export function BlockerCard({ title, blockers }: { title: string; blockers: string[] }) {
-  return <section className="sf-card sf-blocker-card"><strong>{title}</strong><ul>{blockers.length ? blockers.map((blocker) => <li key={blocker}>{blocker}</li>) : <li>No blockers recorded.</li>}</ul></section>;
+  return <section className="rounded-lg border border-destructive/20 bg-destructive-soft p-5"><strong>{title}</strong><ul className="mt-2 list-disc pl-5">{blockers.length ? blockers.map((blocker) => <li key={blocker}>{blocker}</li>) : <li>No blockers recorded.</li>}</ul></section>;
 }
 
 export function NextActionCard({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
-  return <section className="sf-card sf-next-action"><strong>{title}</strong><p>{description}</p>{action}</section>;
+  return <section className="rounded-lg border border-border bg-gradient-to-br from-card to-sand p-5 shadow-card"><strong>{title}</strong><p>{description}</p>{action}</section>;
 }
 
 export function ProductPipelineCard({ title, stages }: { title: string; stages: Array<{ label: string; status: string; complete?: boolean }> }) {
-  return <section className="sf-card"><h2>{title}</h2><WorkflowProgress steps={stages} /></section>;
+  return <Card><h2 className="text-lg font-bold">{title}</h2><WorkflowProgress steps={stages} /></Card>;
 }
 
 export function PrintifyCatalogCard({ title, description, children }: Props) {
-  return <section className="sf-card sf-catalog-card"><h2>{title}</h2>{description && <p className="sf-muted">{description}</p>}{children}</section>;
+  return <Card className="border-border-strong"><h2 className="text-lg font-bold">{title}</h2>{description && <p className="text-muted-foreground">{description}</p>}{children}</Card>;
 }
 
 export function ImageGenerationJobCard({ title, status, prompt }: { title: string; status: string; prompt?: string }) {
-  return <section className="sf-card sf-image-job-card"><div><h3>{title}</h3>{prompt && <p>{prompt}</p>}</div><StatusBadge status={status} tone={status === "completed" ? "success" : status === "failed" ? "danger" : "warning"} /></section>;
+  return <Card className="flex items-start justify-between gap-4"><div><h3 className="font-bold">{title}</h3>{prompt && <p className="m-0 text-muted-foreground">{prompt}</p>}</div><StatusBadge status={status} tone={status === "completed" ? "success" : status === "failed" ? "danger" : "warning"} /></Card>;
 }
 
 export function VariantMarginMatrix({ rows }: { rows: Array<{ variant: string; cost: string; price: string; margin: string; status: string }> }) {
@@ -185,107 +234,107 @@ export function VariantMarginMatrix({ rows }: { rows: Array<{ variant: string; c
 export const PublishGateChecklist = ApprovalGateList;
 
 export function LaunchPacketSection({ title, children }: Props) {
-  return <section className="sf-card sf-launch-packet"><h2>{title}</h2>{children}</section>;
+  return <Card className="border-border-strong"><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
 }
 
 export function SourceLabel({ label }: { label: string }) {
-  return <span className="sf-source-label">{label}</span>;
+  return <span className="inline-flex rounded-full bg-sand px-2.5 py-1 text-xs font-extrabold text-navy">{label}</span>;
 }
 
 export function FutureIntegrationBadge({ label = "Future integration" }: { label?: string }) {
   return <StatusBadge status={label} tone="warning" />;
 }
 
-export function ProductArt({ label = "Salty Cowhide", variant = "tee" }: { label?: string; variant?: string }) {
-  return <div className={`sf-product-art sf-product-${variant}`}><span>{label}</span></div>;
+export function ProductArt({ label = "Salty Cowhide" }: { label?: string; variant?: string }) {
+  return <div className="product-art"><span>{label}</span></div>;
 }
 
 export function ProductCard({ title, price, description, badge }: { title: string; price?: string; description?: string; badge?: string }) {
-  return <article className="sf-product-card"><ProductArt label={title} />{badge && <StatusBadge status={badge} tone="primary" />}<h3>{title}</h3>{description && <p>{description}</p>}{price && <strong>{price}</strong>}</article>;
+  return <article className="relative rounded-lg border border-border bg-card p-4 shadow-card"><ProductArt label={title} />{badge && <StatusBadge status={badge} tone="primary" />}<h3 className="my-3 font-bold">{title}</h3>{description && <p className="text-muted-foreground">{description}</p>}{price && <strong>{price}</strong>}</article>;
 }
 
 export function ProductGrid({ children }: Props) {
-  return <div className="sf-product-grid">{children}</div>;
+  return <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">{children}</div>;
 }
 
 export function ProductImageGallery({ title = "Coastal Cowboy Tee" }: { title?: string }) {
-  return <div className="sf-gallery"><div className="sf-thumbs"><ProductArt label="Front" /><ProductArt label="Back" /><ProductArt label="Detail" /></div><ProductArt label={title} /></div>;
+  return <div className="grid gap-4 md:grid-cols-[86px_1fr]"><div className="grid gap-2.5 sm:grid-cols-3 md:grid-cols-1"><ProductArt label="Front" /><ProductArt label="Back" /><ProductArt label="Detail" /></div><ProductArt label={title} /></div>;
 }
 
 export const ProductMockupPreview = ProductArt;
 
 export function VariantSelector({ label, options }: { label: string; options: string[] }) {
-  return <fieldset className="sf-variants"><legend>{label}</legend>{options.map((option, index) => <button type="button" disabled title="Variant selection is disabled until checkout is configured." className={index === 0 ? "is-selected" : ""} key={option}>{option}</button>)}</fieldset>;
+  return <fieldset className="m-0 flex flex-wrap gap-2 border-0 p-0"><legend className="mb-2 w-full font-extrabold">{label}</legend>{options.map((option, index) => <button type="button" disabled title="Variant selection is disabled until checkout is configured." className={cn("rounded-md border border-border bg-card px-3 py-2", index === 0 && "border-primary shadow-[0_0_0_3px_var(--color-primary-soft)]")} key={option}>{option}</button>)}</fieldset>;
 }
 
 export function PriceMarginPanel() {
-  return <DashboardCard title="Pricing & Margin"><div className="sf-kv"><span>Cost</span><strong>$12.95</strong><span>Price</span><strong>$32.00</strong><span>Margin</span><strong>Healthy</strong></div></DashboardCard>;
+  return <DashboardCard title="Pricing & Margin"><div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-muted-foreground"><span>Cost</span><strong className="text-foreground">$12.95</strong><span>Price</span><strong className="text-foreground">$32.00</strong><span>Margin</span><strong className="text-foreground">Healthy</strong></div></DashboardCard>;
 }
 
 export function StructuredDataPreview({ title = "Product JSON-LD" }: { title?: string }) {
-  return <pre className="sf-code">{`{\n  "@type": "Product",\n  "name": "${title}",\n  "availability": "review_required"\n}`}</pre>;
+  return <pre className="code-block">{`{\n  "@type": "Product",\n  "name": "${title}",\n  "availability": "review_required"\n}`}</pre>;
 }
 
-export const SearchCommand = () => <label className="sf-search" title="Search is disabled until a workspace search index is configured."><span>Search</span><input placeholder="Search disabled" aria-label="Search disabled" disabled /></label>;
-export const NotificationBell = () => <button className="sf-icon-button" aria-label="Notifications disabled" disabled title="Notifications are not configured yet.">○<span>0</span></button>;
-export const UserMenu = () => <button className="sf-user-menu" aria-label="User menu disabled" disabled title="User menu actions are not configured yet."><span className="sf-avatar">A</span><span>Studio Owner<small>Authenticated session</small></span></button>;
-export const WorkspaceSwitcher = () => <button className="sf-workspace-switcher" disabled title="Single workspace is active in this local Studio session.">Salty Cowhide <span>⌄</span></button>;
+export const SearchCommand = () => <label className="search-field" title="Search is disabled until a workspace search index is configured."><span>Search</span><input placeholder="Search disabled" aria-label="Search disabled" disabled /></label>;
+export const NotificationBell = () => <button className="icon-button" aria-label="Notifications disabled" disabled title="Notifications are not configured yet.">o<span>0</span></button>;
+export const UserMenu = () => <button className="user-menu" aria-label="User menu disabled" disabled title="User menu actions are not configured yet."><span className="grid size-9 place-items-center rounded-full bg-sand font-extrabold text-navy">A</span><span>Studio Owner<small>Authenticated session</small></span></button>;
+export const WorkspaceSwitcher = () => <button className="workspace-switcher" disabled title="Single workspace is active in this local Studio session.">Salty Cowhide <span>v</span></button>;
 
 export function ActionBar({ children }: Props) {
-  return <div className="sf-action-bar">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-2.5">{children}</div>;
 }
 
 export const ActionButtonGroup = ActionBar;
 
 export function ApprovalActionBar({ children, label = "Approval actions" }: Props & { label?: string }) {
-  return <div className="sf-action-bar" aria-label={label}>{children}</div>;
+  return <div className="flex flex-wrap items-center gap-2.5" aria-label={label}>{children}</div>;
 }
 
 export function SplitPane({ children }: Props) {
-  return <div className="sf-split-pane">{children}</div>;
+  return <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">{children}</div>;
 }
 
 export function DetailDrawer({ children, title }: Props) {
-  return <aside className="sf-detail-drawer">{title && <h2>{title}</h2>}{children}</aside>;
+  return <aside className="rounded-lg border border-border bg-card p-5 shadow-card">{title && <h2 className="text-lg font-bold">{title}</h2>}{children}</aside>;
 }
 
-export const StudioAppShell = ({ children }: Props) => <div className="sf-studio-app-shell">{children}</div>;
-export const StudioSidebar = ({ children }: Props) => <aside className="sf-studio-sidebar-panel">{children}</aside>;
-export const StudioTopNav = ({ children }: Props) => <header className="sf-studio-top-nav">{children}</header>;
+export const StudioAppShell = ({ children }: Props) => <div className="grid gap-3">{children}</div>;
+export const StudioSidebar = ({ children }: Props) => <aside className="grid gap-3">{children}</aside>;
+export const StudioTopNav = ({ children }: Props) => <header className="grid gap-3">{children}</header>;
 export const CommandCenterHeader = PageHeader;
-export const SectionHeader = ({ title, description, children }: Props) => <header className="sf-section-header"><div><h2>{title}</h2>{description && <p className="sf-muted">{description}</p>}</div>{children}</header>;
-export const EntityDetailLayout = ({ children }: Props) => <div className="sf-layout-rail">{children}</div>;
-export const WorkflowCanvas = ({ children }: Props) => <section className="sf-workflow-canvas">{children}</section>;
-export const StickyActionFooter = ({ children }: Props) => <div className="sf-sticky-action-footer">{children}</div>;
+export const SectionHeader = ({ title, description, children }: Props) => <header className="mb-4 flex items-start justify-between gap-4"><div><h2 className="text-lg font-bold">{title}</h2>{description && <p className="text-muted-foreground">{description}</p>}</div>{children}</header>;
+export const EntityDetailLayout = ({ children }: Props) => <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">{children}</div>;
+export const WorkflowCanvas = ({ children }: Props) => <section className="grid gap-5">{children}</section>;
+export const StickyActionFooter = ({ children }: Props) => <div className="sticky bottom-4 z-10 flex justify-end gap-2.5 rounded-lg border border-border bg-card/90 p-3 shadow-floating backdrop-blur">{children}</div>;
 
 export const ImpactBadge = ({ impact }: { impact: string }) => <StatusBadge status={impact} tone={impact === "high" ? "success" : impact === "critical" ? "danger" : "info"} />;
 export const ProviderHealthBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "connected" || status === "ready" ? "success" : "warning"} />;
 export const ApprovalBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "approved" ? "success" : status === "rejected" ? "danger" : "warning"} />;
 export const SyncStatusBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status.includes("created") || status === "synced" ? "success" : status === "failed" ? "danger" : "warning"} />;
 export const ProfitabilityBadge = ({ status }: { status: string }) => <StatusBadge status={status} tone={status === "healthy" ? "success" : status === "blocked" ? "danger" : "warning"} />;
-export const PipelineStageBadge = ({ label, status }: { label: string; status: string }) => <span className="sf-pipeline-stage-badge"><strong>{label}</strong><StatusBadge status={status} tone={status === "complete" || status === "ready" ? "success" : "warning"} /></span>;
+export const PipelineStageBadge = ({ label, status }: { label: string; status: string }) => <span className="grid gap-2 rounded-md border border-border bg-muted p-3"><strong>{label}</strong><StatusBadge status={status} tone={status === "complete" || status === "ready" ? "success" : "warning"} /></span>;
 
 export function ProductPipelineBoard({ stages }: { stages: Array<{ label: string; status: string }> }) {
-  return <section className="sf-card sf-product-pipeline-board">{stages.map((stage) => <PipelineStageBadge key={stage.label} {...stage} />)}</section>;
+  return <Card className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(140px,1fr))]">{stages.map((stage) => <PipelineStageBadge key={stage.label} {...stage} />)}</Card>;
 }
 
 export function OwnerDecisionPanel({ title, description, children }: Props) {
-  return <section className="sf-card sf-owner-decision-panel"><h2>{title}</h2>{description && <p>{description}</p>}<ApprovalActionBar>{children}</ApprovalActionBar></section>;
+  return <Card className="border-border-strong"><h2 className="text-lg font-bold">{title}</h2>{description && <p>{description}</p>}<ApprovalActionBar>{children}</ApprovalActionBar></Card>;
 }
 
 export const BlueprintCard = ({ title, description, children }: Props) => <PrintifyCatalogCard title={title} description={description}>{children}</PrintifyCatalogCard>;
 export const PrintProviderCard = BlueprintCard;
 
 export function ArtworkPlacementPanel({ title = "Artwork placement", blockers = [] as string[] }: { title?: string; blockers?: string[] }) {
-  return <section className="sf-card"><h2>{title}</h2><div className="sf-artwork-placement-preview"><span>Front</span></div>{blockers.length ? <BlockerCard title="Placement blockers" blockers={blockers} /> : <p className="sf-muted">Centered placement: x 0.5, y 0.5, scale 1, angle 0.</p>}</section>;
+  return <Card><h2 className="text-lg font-bold">{title}</h2><div className="artwork-placement-preview"><span>Front</span></div>{blockers.length ? <BlockerCard title="Placement blockers" blockers={blockers} /> : <p className="text-muted-foreground">Centered placement: x 0.5, y 0.5, scale 1, angle 0.</p>}</Card>;
 }
 
-export const ArtworkPreviewPanel = ({ children, title = "Artwork preview" }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
-export const MockupPreviewCard = ({ children, title = "Mockup preview" }: Props) => <section className="sf-card sf-mockup-preview-card"><h2>{title}</h2>{children}</section>;
-export const ShopifyDraftCard = ({ title, status, children }: Props & { status?: string }) => <section className="sf-card"><h2>{title}</h2>{status && <SyncStatusBadge status={status} />}{children}</section>;
+export const ArtworkPreviewPanel = ({ children, title = "Artwork preview" }: Props) => <Card><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
+export const MockupPreviewCard = ({ children, title = "Mockup preview" }: Props) => <Card><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
+export const ShopifyDraftCard = ({ title, status, children }: Props & { status?: string }) => <Card><h2 className="text-lg font-bold">{title}</h2>{status && <SyncStatusBadge status={status} />}{children}</Card>;
 
-export const AiEmployeeResumePanel = ({ children, title = "Role resume" }: Props) => <section className="sf-card sf-resume-panel"><h2>{title}</h2>{children}</section>;
-export const HiringRequestCard = ({ title, status, children }: Props & { status?: string }) => <section className="sf-card"><h2>{title}</h2>{status && <ApprovalBadge status={status} />}{children}</section>;
+export const AiEmployeeResumePanel = ({ children, title = "Role resume" }: Props) => <Card><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
+export const HiringRequestCard = ({ title, status, children }: Props & { status?: string }) => <Card><h2 className="text-lg font-bold">{title}</h2>{status && <ApprovalBadge status={status} />}{children}</Card>;
 export const ImprovementSuggestionCard = HiringRequestCard;
 export const CapabilityRequestPanel = HiringRequestCard;
 export const ToolAccessPanel = HiringRequestCard;
@@ -298,11 +347,11 @@ export function PermissionScopeMatrix({ rows }: { rows: Array<{ scope: string; l
 }
 
 export const BusinessKpiCard = MetricCard;
-export const UnitEconomicsCard = ({ title, status, margin }: { title: string; status: string; margin: string }) => <section className="sf-card"><h2>{title}</h2><ProfitabilityBadge status={status} /><p className="sf-muted">Contribution margin: {margin}</p></section>;
+export const UnitEconomicsCard = ({ title, status, margin }: { title: string; status: string; margin: string }) => <Card><h2 className="text-lg font-bold">{title}</h2><ProfitabilityBadge status={status} /><p className="text-muted-foreground">Contribution margin: {margin}</p></Card>;
 export const OpportunityCard = ({ title, description, children, action }: Props & { action?: React.ReactNode }) => <RecommendationCard title={title ?? "Opportunity"} description={description ?? ""} action={action ?? children} />;
-export const DecisionMemoPanel = ({ title, children }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
+export const DecisionMemoPanel = ({ title, children }: Props) => <Card><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
 export const ForecastScenarioCard = DecisionMemoPanel;
-export const AssumptionEditor = ({ children, title = "Assumptions" }: Props) => <section className="sf-card"><h2>{title}</h2>{children}</section>;
+export const AssumptionEditor = ({ children, title = "Assumptions" }: Props) => <Card><h2 className="text-lg font-bold">{title}</h2>{children}</Card>;
 export const ChannelReadinessCard = ({ channel, readiness }: { channel: string; readiness: string }) => <ProviderStatusCard title={channel} status={readiness} tone={readiness === "ready" ? "success" : readiness === "blocked" ? "danger" : "warning"} />;
 export const ProductProfitabilityTable = VariantMarginMatrix;
 export const CustomerSegmentValueMatrix = DataTable;
@@ -313,4 +362,4 @@ export const BusinessDocumentCard = HiringRequestCard;
 export const AuthorityRequestPanel = HiringRequestCard;
 export const BankingConnectionCard = ProviderStatusCard;
 export const TransactionClassifierTable = DataTable;
-export const BusinessCardPreview = ({ svg }: { svg: string }) => <div className="sf-business-card-preview" dangerouslySetInnerHTML={{ __html: svg }} />;
+export const BusinessCardPreview = ({ svg }: { svg: string }) => <div className="business-card-preview" dangerouslySetInnerHTML={{ __html: svg }} />;

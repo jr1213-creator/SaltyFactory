@@ -12,7 +12,7 @@ export default async function BusinessProfilePage() {
       <StatusBadge status={readiness.status} tone={readiness.status === "ready" ? "success" : "warning"} />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Readiness" value={`${readiness.score}%`} delta="Saved workspace data" tone={readiness.score >= 90 ? "success" : "warning"} />
       <MetricCard title="Brand" value={String(profile?.public_brand_name ?? profileJson.publicBrandName ?? "Not set")} delta="Public-facing" />
       <MetricCard title="Model" value={String(profile?.business_type ?? profileJson.businessType ?? "Not set")} delta="Business type" />
@@ -20,7 +20,7 @@ export default async function BusinessProfilePage() {
     </div>
     <section className="card" style={{ marginTop: 18 }}>
       <h2>Update Profile</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/business-profile" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/business-profile" method="post">
         <label>Business name<input name="businessName" defaultValue={profileJson.businessName ?? ""} required /></label>
         <label>Public brand name<input name="publicBrandName" defaultValue={profileJson.publicBrandName ?? ""} required /></label>
         <label>Business type<select name="businessType" defaultValue={profileJson.businessType ?? "hybrid"}><option value="POD">POD</option><option value="ecommerce">ecommerce</option><option value="handmade">handmade</option><option value="dropshipping">dropshipping</option><option value="hybrid">hybrid</option></select></label>
@@ -37,7 +37,7 @@ export default async function BusinessProfilePage() {
         <label>Production partner disclosure<textarea name="productionPartnerDisclosureNotes" defaultValue={profileJson.productionPartnerDisclosureNotes ?? ""} /></label>
         <label>Banned words<input name="bannedWords" defaultValue={(profileJson.bannedWords ?? []).join(", ")} /></label>
         <label>Trademark caution list<input name="trademarkCautionList" defaultValue={(profileJson.trademarkCautionList ?? []).join(", ")} /></label>
-        <button className="sf-button" type="submit">Save Business Profile</button>
+        <button className="btn" type="submit">Save Business Profile</button>
       </form>
     </section>
     <DataTable columns={["Readiness blocker"]} rows={readiness.blockers.length ? readiness.blockers.map((blocker) => [blocker]) : [["No blockers"]]} />

@@ -54,11 +54,11 @@ export function BlockerCardDefault() {
 }
 
 export function MockupPreviewDefault() {
-  return <MockupPreviewCard title="Mockup preview"><p className="sf-muted">Rendered mockups appear here after approved artwork and template QA pass.</p></MockupPreviewCard>;
+  return <MockupPreviewCard title="Mockup preview"><p className="text-muted">Rendered mockups appear here after approved artwork and template QA pass.</p></MockupPreviewCard>;
 }
 
 export function ShopifyDraftDefault() {
-  return <ShopifyDraftCard title="Shopify draft" status="not_created"><p className="sf-muted">Draft creation is blocked until provider config and publish gates pass.</p></ShopifyDraftCard>;
+  return <ShopifyDraftCard title="Shopify draft" status="not_created"><p className="text-muted">Draft creation is blocked until provider config and publish gates pass.</p></ShopifyDraftCard>;
 }
 
 export function HiringRequestDefault() {

@@ -62,18 +62,18 @@ export function AiEmployeeWorkflowClient() {
     }
   }
 
-  return <section className="sf-card" style={{ marginTop: 18 }}>
+  return <section className="surface-card" style={{ marginTop: 18 }}>
     <h2>Run AI Employees</h2>
-    <p className="sf-muted">Runs safe internal draft tasks only. AI employees cannot publish, sync, post, submit feeds, send messages, change DNS, or spend money.</p>
-    <div className="sf-form-grid">
+    <p className="text-muted">Runs safe internal draft tasks only. AI employees cannot publish, sync, post, submit feeds, send messages, change DNS, or spend money.</p>
+    <div className="form-grid">
       <label>Run mode<select value={runMode} onChange={(event) => setRunMode(event.target.value)}>{runModes.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <button className="sf-button sf-button-primary" disabled={busy} onClick={runAgenticWorkflow}>Run AI Employees</button>
+      <button className="btn btn-primary" disabled={busy} onClick={runAgenticWorkflow}>Run AI Employees</button>
       <label>Single employee<select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <button className="sf-button" disabled={busy} onClick={runSingleEmployee}>Run Single Draft</button>
+      <button className="btn" disabled={busy} onClick={runSingleEmployee}>Run Single Draft</button>
     </div>
-    {result && <div className="sf-stack" style={{ marginTop: 12 }}>
-      <p className="sf-muted">Status: {result.status || "unknown"}{result.workflow?.approvalQueue ? ` - ${result.workflow.approvalQueue.length} approval items` : ""}</p>
-      <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>
+    {result && <div className="stack-list" style={{ marginTop: 12 }}>
+      <p className="text-muted">Status: {result.status || "unknown"}{result.workflow?.approvalQueue ? ` - ${result.workflow.approvalQueue.length} approval items` : ""}</p>
+      <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>
     </div>}
   </section>;
 }

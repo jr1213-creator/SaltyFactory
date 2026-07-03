@@ -14,7 +14,7 @@ export default async function MigrationGuidePage() {
       <StatusBadge status={latest?.status ?? "not_started"} tone={latest ? "info" : "warning"} />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Setup readiness" value={`${plan.migrationReadinessScore}%`} delta={plan.sourceLabel} />
       <MetricCard title="Completed steps" value={String((latest?.completed_steps ?? latest?.completedSteps ?? []).length || 0)} delta="11 total" />
       <MetricCard title="Recommendations" value={String(plan.recommendations.length)} delta="Draft only" tone="info" />
@@ -22,11 +22,11 @@ export default async function MigrationGuidePage() {
     </div>
     <section className="card" style={{ marginTop: 18 }}>
       <h2>Save Progress</h2>
-      <form className="sf-grid sf-grid-3" action="/api/studio/migration-guide" method="post">
+      <form className="layout-grid layout-grid-3" action="/api/studio/migration-guide" method="post">
         <label>Current step<input name="currentStep" type="number" min="1" max="11" defaultValue="1" /></label>
         <label><input name="googleConnected" type="checkbox" defaultChecked={googleConnected} /> Google connected</label>
         <label><input name="aiProviderConfigured" type="checkbox" /> AI provider configured</label>
-        <button className="sf-button" type="submit">Save Setup Plan</button>
+        <button className="btn" type="submit">Save Setup Plan</button>
       </form>
     </section>
     <DataTable columns={["First 30-day action", "Phase", "Link"]} rows={plan.firstThirtyDayPlan.map((item) => [item.action, item.dayRange, <a key={item.href} href={item.href}>{item.href}</a>])} />

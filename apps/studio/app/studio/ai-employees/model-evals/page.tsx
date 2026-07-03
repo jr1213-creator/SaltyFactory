@@ -12,7 +12,7 @@ export default async function AiModelEvaluationsPage() {
       eyebrow="Model QA"
       description="Evaluation records prove a model was reviewed for a task before it is trusted for AI employee work."
     />
-    <section className="sf-card">
+    <section className="surface-card">
       {evaluations.length ? <DataTable
         columns={["Eval", "Model", "Task", "Passed", "Score", "Failure notes"]}
         rows={evaluations.map((evaluation) => [

@@ -15,8 +15,8 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
       <LinkButton href={`/studio/opportunities/${opportunityId}`} variant="secondary">View Opportunity</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/crm/opportunities/${opportunityId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/crm/opportunities/${opportunityId}`} method="post">
         <input type="hidden" name="next" value={`/studio/opportunities/${opportunityId}`} />
         <label>Title<input name="title" defaultValue={opportunity?.title ?? ""} required /></label>
         <label>Stage<select name="stage" defaultValue={opportunity?.stage ?? "new"}><option value="new">New</option><option value="qualified">Qualified</option><option value="proposal">Proposal</option><option value="won">Won</option><option value="lost">Lost</option></select></label>
@@ -26,7 +26,7 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
         <label>Expected close date<input name="expected_close_date" type="date" defaultValue={opportunity?.expected_close_date ?? opportunity?.expectedCloseDate ?? ""} /></label>
         <label>Product/service interest<input name="product_interest" defaultValue={opportunity?.product_interest ?? opportunity?.productInterest ?? ""} /></label>
         <label>Next action<input name="next_action" defaultValue={opportunity?.next_action ?? opportunity?.nextAction ?? ""} /></label>
-        <button className="sf-button" type="submit">Save Opportunity</button>
+        <button className="btn" type="submit">Save Opportunity</button>
       </form>
     </section>
   </>;

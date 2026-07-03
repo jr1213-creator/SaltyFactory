@@ -15,9 +15,9 @@ export default async function ListingDraftDetailPage({ params }: { params: Promi
       <StatusBadge status={draft?.validation_status ?? draft?.validationStatus ?? "draft"} tone={(draft?.validation_status ?? draft?.validationStatus) === "ready_for_export" ? "success" : "warning"} />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    {draft ? <section className="sf-card">
+    {draft ? <section className="surface-card">
       <h2>Edit Draft</h2>
-      <form className="sf-grid sf-grid-2" action={`/api/studio/listing-drafts/${encodeURIComponent(id)}`} method="post">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/listing-drafts/${encodeURIComponent(id)}`} method="post">
         <label>Target channel<input name="targetChannel" defaultValue={draft.target_channel ?? draft.targetChannel ?? listing.targetChannel ?? "Shopify"} /></label>
         <label>Title<input name="title" defaultValue={draft.title ?? listing.title ?? ""} required /></label>
         <label>Product type<input name="productType" defaultValue={listing.productType ?? ""} /></label>
@@ -30,10 +30,10 @@ export default async function ListingDraftDetailPage({ params }: { params: Promi
         <label>Safety status<select name="safetyStatus" defaultValue={listing.safetyStatus ?? "not_checked"}><option value="not_checked">Not checked</option><option value="passed">Passed</option><option value="blocked">Blocked</option></select></label>
         <label>Margin status<select name="marginStatus" defaultValue={listing.marginStatus ?? "not_checked"}><option value="not_checked">Not checked</option><option value="passed">Passed</option><option value="critically_low">Critically low</option><option value="owner_override">Owner override</option></select></label>
         <label><input name="ownerApproved" type="checkbox" defaultChecked={Boolean(listing.ownerApproved || draft.approval_status === "approved" || draft.approvalStatus === "approved")} /> Owner approved for manual/export review</label>
-        <button className="sf-button sf-button-primary" type="submit">Save Listing Draft</button>
+        <button className="btn btn-primary" type="submit">Save Listing Draft</button>
       </form>
     </section> : null}
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Validation Blockers</h2>
       <DataTable columns={["Blocker", "State"]} rows={blockers.length ? blockers.map((blocker: string) => [blocker, "Must be resolved before export-ready status"]) : [["No blockers", "Ready for owner publish-review workflow"]]} />
     </section>

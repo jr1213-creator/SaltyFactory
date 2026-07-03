@@ -13,9 +13,9 @@ export default async function CampaignAssetStudioPage() {
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <h2>Create Asset Spec</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/shared/assets" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/shared/assets" method="post">
         <input type="hidden" name="next" value="/studio/marketing/assets" />
         <input type="hidden" name="entity_type" value="campaign" />
         <label>Campaign ID<input name="entity_id" required /></label>
@@ -24,10 +24,10 @@ export default async function CampaignAssetStudioPage() {
         <label>Status<select name="status" defaultValue="needed"><option value="needed">Needed</option><option value="draft">Draft</option><option value="ready_for_review">Ready for review</option><option value="approved">Approved</option><option value="exported">Exported</option></select></label>
         <label>Description<textarea name="description" defaultValue="Asset spec only. No generated creative claimed." /></label>
         <label>Spec JSON<textarea name="spec" defaultValue={JSON.stringify({ dimensions: "1080x1080", platform: "manual", generatedMedia: false, ownerApprovalRequired: true }, null, 2)} /></label>
-        <button className="sf-button" type="submit">Save Asset Spec</button>
+        <button className="btn" type="submit">Save Asset Spec</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved Asset Specs</h2>
       <DataTable columns={["Title", "Type", "Campaign", "Status", "Generated?"]} rows={data.assets.length ? data.assets.map((asset: any) => [
         asset.title,
@@ -37,7 +37,7 @@ export default async function CampaignAssetStudioPage() {
         "No generated media claimed"
       ]) : [["No asset specs", "Create one above or run launch workflow.", "-", "needed", "No"]]} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Presets</h2>
       <DataTable columns={["Preset", "Status"]} rows={presets.map((preset) => [preset, "available as spec"])} />
     </section>

@@ -7,8 +7,8 @@ export default function NewOpportunityPage() {
     <PageHeader eyebrow="Opportunity pipeline" title="Create Opportunity" description="Create a persisted opportunity for custom orders, wholesale interest, boutique work, or consulting follow-up.">
       <LinkButton href="/studio/opportunities" variant="secondary">All Opportunities</LinkButton>
     </PageHeader>
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action="/api/studio/crm/opportunities" method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action="/api/studio/crm/opportunities" method="post">
         <input type="hidden" name="next" value="/studio/opportunities/{id}" />
         <label>Title<input name="title" required /></label>
         <label>Stage<select name="stage" defaultValue="new"><option value="new">New</option><option value="qualified">Qualified</option><option value="proposal">Proposal</option><option value="won">Won</option><option value="lost">Lost</option></select></label>
@@ -18,7 +18,7 @@ export default function NewOpportunityPage() {
         <label>Expected close date<input name="expected_close_date" type="date" /></label>
         <label>Product/service interest<input name="product_interest" /></label>
         <label>Next action<input name="next_action" defaultValue="Review opportunity follow-up" /></label>
-        <button className="sf-button" type="submit">Save Opportunity</button>
+        <button className="btn" type="submit">Save Opportunity</button>
       </form>
     </section>
   </>;

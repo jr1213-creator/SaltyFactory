@@ -91,18 +91,18 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
     <h2>Internal Mockup Workflow</h2>
-    <div className="sf-form-grid">
+    <div className="form-grid">
       <label>Approved art<select value={assetId} onChange={(event) => setAssetId(event.target.value)}>{approvedAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename ?? asset.file_path ?? asset.id}</option>)}</select></label>
       <label>Template<select value={productType} onChange={(event) => setProductType(event.target.value)}><option value="tee_front">Tee front</option><option value="sweatshirt_front">Sweatshirt front</option><option value="tote">Tote</option><option value="mug">Mug</option><option value="sticker">Sticker</option></select></label>
-      <button className="sf-button sf-button-primary" disabled={busy || !assetId} onClick={generate}>Generate Internal Mockup</button>
+      <button className="btn btn-primary" disabled={busy || !assetId} onClick={generate}>Generate Internal Mockup</button>
     </div>
     <label>Mockup<select value={selectedMockupId} onChange={(event) => setSelectedMockupId(event.target.value)}>{mockups.map((mockup) => <option key={mockup.id} value={mockup.id}>{mockup.file_path ?? mockup.id}</option>)}</select></label>
-    {selected ? <p className="sf-muted">{selected.status} · approved for product {String(Boolean(selected.approved_for_product ?? selected.approvedForProduct))} · internal preview only</p> : <p className="sf-muted">Generate a mockup from an approved asset first.</p>}
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-primary" disabled={!selected || busy || selected?.approved_for_product} onClick={() => review("approve")}>Approve Mockup</button>
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => review("reject")}>Reject Mockup</button>
-      <button className="sf-button sf-button-primary" disabled={!selected || busy || !(selected?.approved_for_product || selected?.approvedForProduct)} onClick={createDraft}>Create Draft</button>
+    {selected ? <p className="text-muted">{selected.status} · approved for product {String(Boolean(selected.approved_for_product ?? selected.approvedForProduct))} · internal preview only</p> : <p className="text-muted">Generate a mockup from an approved asset first.</p>}
+    <div className="action-bar">
+      <button className="btn btn-primary" disabled={!selected || busy || selected?.approved_for_product} onClick={() => review("approve")}>Approve Mockup</button>
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => review("reject")}>Reject Mockup</button>
+      <button className="btn btn-primary" disabled={!selected || busy || !(selected?.approved_for_product || selected?.approvedForProduct)} onClick={createDraft}>Create Draft</button>
     </div>
-    {result ? <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
 }

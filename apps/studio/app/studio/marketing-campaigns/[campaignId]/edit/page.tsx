@@ -15,8 +15,8 @@ export default async function EditMarketingCampaignPage({ params }: { params: Pr
       <LinkButton href={`/studio/marketing-campaigns/${campaignId}`} variant="secondary">View Campaign</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/shared/campaigns/${campaignId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/shared/campaigns/${campaignId}`} method="post">
         <input type="hidden" name="next" value={`/studio/marketing-campaigns/${campaignId}`} />
         <label>Name<input name="name" defaultValue={campaign?.name ?? ""} required /></label>
         <label>Status<select name="status" defaultValue={campaign?.status ?? "draft"}><option value="draft">Draft</option><option value="planning">Planning</option><option value="ready_for_review">Ready for review</option><option value="approved">Approved</option><option value="exported">Exported</option><option value="manually_published">Manually published</option><option value="archived">Archived</option></select></label>
@@ -26,7 +26,7 @@ export default async function EditMarketingCampaignPage({ params }: { params: Pr
         <label>Offer<input name="offer" defaultValue={campaign?.offer ?? ""} /></label>
         <label>Landing URL<input name="landing_url" defaultValue={campaign?.landing_url ?? campaign?.landingUrl ?? ""} /></label>
         <label>Manual offer JSON<textarea name="manual_offer" defaultValue={JSON.stringify(campaign?.manual_offer ?? campaign?.manualOffer ?? {}, null, 2)} /></label>
-        <button className="sf-button" type="submit">Save Campaign</button>
+        <button className="btn" type="submit">Save Campaign</button>
       </form>
     </section>
   </>;

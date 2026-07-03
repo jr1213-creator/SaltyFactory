@@ -21,14 +21,14 @@ export default async function SocialCareOpportunitiesPage() {
       <LinkButton href="/studio/marketing/research" variant="secondary">Research Board</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-3">
+    <div className="layout-grid layout-grid-3">
       <ProviderStatusCard title="Input mode" status="manual/import only" tone="warning" description="Paste or import owner-reviewed comments. No scraping or social provider inbox is called." />
       <ProviderStatusCard title="Response mode" status="draft only" tone="info" description="Response text is stored as a note for owner review; it is never sent from SaltyFactory." />
       <ProviderStatusCard title="Follow-up" status="task-backed" tone="info" description="Buying intent, complaints, wholesale, and custom-order comments can create high-priority tasks." />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Record Comment Opportunity</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/marketing/social-care" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/marketing/social-care" method="post">
         <input type="hidden" name="next" value="/studio/marketing/social-care" />
         <label>Platform<select name="platform" defaultValue="manual">{platforms.map((platform) => <option key={platform} value={platform}>{platform.replace(/_/g, " ")}</option>)}</select></label>
         <label>Classification<select name="classification" defaultValue="question">{classifications.map((classification) => <option key={classification} value={classification}>{classification.replace(/_/g, " ")}</option>)}</select></label>
@@ -40,10 +40,10 @@ export default async function SocialCareOpportunitiesPage() {
         <label>Response draft<textarea name="response_draft" defaultValue="Draft response for owner review. Do not send automatically." /></label>
         <label><input type="checkbox" name="owner_verified" /> Owner verified source/context</label>
         <label><input type="checkbox" name="create_task" defaultChecked /> Create follow-up task</label>
-        <button className="sf-button" type="submit">Save Opportunity</button>
+        <button className="btn" type="submit">Save Opportunity</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved Opportunities</h2>
       <DataTable columns={["Platform", "Classification", "Linked", "Response", "Status"]} rows={opportunities.length ? opportunities.map((record: any) => {
         const payload = payloadOf(record);
@@ -58,7 +58,7 @@ export default async function SocialCareOpportunitiesPage() {
         ];
       }) : [["No comment opportunities", "Paste/import a comment above.", "not linked", "draft needed", "manual only"]]} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Follow-Up Tasks</h2>
       <DataTable columns={["Task", "Priority", "Status"]} rows={responseNotes.length ? responseNotes.map((task: any) => [
         task.title,

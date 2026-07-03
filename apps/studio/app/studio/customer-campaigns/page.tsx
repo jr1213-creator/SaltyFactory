@@ -21,13 +21,13 @@ export default async function CustomerCampaignsPage() {
       <LinkButton href="/studio/customer-command-center" variant="secondary">Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Saved campaigns" value={String(data.campaigns.length)} delta="Workspace drafts" />
       <MetricCard title="Default campaign ideas" value={String(data.defaultCampaignIdeas.length)} delta="Draft ideas only" />
       <MetricCard title="Message templates" value={String(data.defaultMessageTemplates.length)} delta="No sending provider" />
       <MetricCard title="Email sends" value="Disabled" delta="Owner/provider required" tone="warning" />
     </div>
-    {data.campaigns.length > 0 && <section className="sf-card" style={{ marginTop: 18 }}>
+    {data.campaigns.length > 0 && <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved Campaign Drafts</h2>
       <DataTable
         columns={["Campaign", "Goal", "Target segment", "Status", "Consent readiness", "Open"]}
@@ -41,7 +41,7 @@ export default async function CustomerCampaignsPage() {
         ])}
       />
     </section>}
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Default Campaign Ideas</h2>
       <DataTable
         columns={["Campaign", "Status", "Provider", "Email send", "Consent readiness"]}
@@ -54,7 +54,7 @@ export default async function CustomerCampaignsPage() {
         ])}
       />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Message Template Foundation</h2>
       <DataTable columns={["Template", "Subject", "Status", "Source"]} rows={data.defaultMessageTemplates.map((template: any) => [
         template.name,

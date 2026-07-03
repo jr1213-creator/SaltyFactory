@@ -6,7 +6,7 @@ type Asset = Record<string, any>;
 
 function ResultPanel({ result }: { result: any }) {
   if (!result) return null;
-  return <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>;
+  return <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>;
 }
 
 async function postJson(url: string, body?: Record<string, unknown>) {
@@ -70,24 +70,24 @@ export function AssetWorkflowClient({ initialAssets }: { initialAssets: Asset[] 
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
     <h2>Manual POD Asset Workflow</h2>
-    <form action={upload} className="sf-form-grid">
+    <form action={upload} className="form-grid">
       <label>Private image file<input name="file" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
       <label>Asset type<select name="asset_type" defaultValue="source_art"><option value="source_art">Source art</option><option value="transparent_png">Transparent PNG</option><option value="print_file">Print file</option><option value="mockup">Mockup</option><option value="product_photo">Product photo</option></select></label>
-      <button className="sf-button sf-button-primary" disabled={busy}>Upload Private Asset</button>
+      <button className="btn btn-primary" disabled={busy}>Upload Private Asset</button>
     </form>
-    <div className="sf-form-grid">
+    <div className="form-grid">
       <label>Asset<select value={selectedAssetId} onChange={(event) => setSelectedAssetId(event.target.value)}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename ?? asset.file_path ?? asset.id}</option>)}</select></label>
-      <div className="sf-action-bar">
-        <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => runAction("qa")}>Run QA</button>
-        <button className="sf-button sf-button-primary" disabled={!selected || busy || selected?.qa_status !== "passed"} onClick={() => runAction("approve")}>Approve Asset</button>
-        <button className="sf-button sf-button-danger" disabled={!selected || busy} onClick={() => runAction("reject")}>Reject</button>
+      <div className="action-bar">
+        <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => runAction("qa")}>Run QA</button>
+        <button className="btn btn-primary" disabled={!selected || busy || selected?.qa_status !== "passed"} onClick={() => runAction("approve")}>Approve Asset</button>
+        <button className="btn btn-danger" disabled={!selected || busy} onClick={() => runAction("reject")}>Reject</button>
         {selected && selectedApprovedForMockup
-          ? <a className="sf-button sf-button-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(selected.id))}`}>Go to Mockups</a>
-          : <button className="sf-button sf-button-secondary" disabled>Go to Mockups</button>}
+          ? <a className="btn btn-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(selected.id))}`}>Go to Mockups</a>
+          : <button className="btn btn-secondary" disabled>Go to Mockups</button>}
       </div>
     </div>
-    {selected && !selectedApprovedForMockup ? <p className="sf-muted">Create an approved mockup before creating a draft.</p> : null}
-    {selected && <div className="sf-muted">Selected asset: {selected.id} · QA {selected.qa_status ?? selected.qaStatus ?? "pending"} · Approval {selected.approval_status ?? selected.approvalStatus ?? "pending"} · Visibility {selected.visibility ?? "private"}</div>}
+    {selected && !selectedApprovedForMockup ? <p className="text-muted">Create an approved mockup before creating a draft.</p> : null}
+    {selected && <div className="text-muted">Selected asset: {selected.id} · QA {selected.qa_status ?? selected.qaStatus ?? "pending"} · Approval {selected.approval_status ?? selected.approvalStatus ?? "pending"} · Visibility {selected.visibility ?? "private"}</div>}
     <ResultPanel result={result} />
   </section>;
 }

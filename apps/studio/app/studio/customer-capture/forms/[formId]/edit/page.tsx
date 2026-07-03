@@ -20,8 +20,8 @@ export default async function EditCaptureFormPage({ params }: { params: Promise<
       <LinkButton href={`/studio/customer-capture/forms/${formId}`} variant="secondary">View Form</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/crm/forms/${formId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/crm/forms/${formId}`} method="post">
         <input type="hidden" name="next" value={`/studio/customer-capture/forms/${formId}`} />
         <label>Title<input name="title" defaultValue={form?.title ?? ""} required /></label>
         <label>Status<select name="status" defaultValue={form?.status ?? "draft"}><option value="draft">Draft</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
@@ -31,7 +31,7 @@ export default async function EditCaptureFormPage({ params }: { params: Promise<
         <label>Suggested follow-up task<input name="suggested_follow_up_task" defaultValue={form?.suggested_follow_up_task ?? form?.suggestedFollowUpTask ?? ""} /></label>
         <label>Consent language<textarea name="consent_language" defaultValue={form?.consent_language ?? form?.consentLanguage ?? ""} /></label>
         <label>Embed readiness<select name="embed_readiness_status" defaultValue={form?.embed_readiness_status ?? form?.embedReadinessStatus ?? "future_integration"}><option value="future_integration">Future integration</option><option value="internal_preview_ready">Internal preview ready</option><option value="manual_action_required">Manual action required</option></select></label>
-        <button className="sf-button" type="submit">Save Form</button>
+        <button className="btn" type="submit">Save Form</button>
       </form>
     </section>
   </>;

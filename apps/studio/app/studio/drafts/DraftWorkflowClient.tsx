@@ -48,12 +48,12 @@ export function DraftWorkflowClient({ initialDrafts, initialDraftId }: { initial
   return <section className="card" style={{ display: "grid", gap: 14 }}>
     <h2>Draft Workflow</h2>
     <label>Draft<select value={selectedDraftId} onChange={(event) => setSelectedDraftId(event.target.value)}>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.title ?? draft.id}</option>)}</select></label>
-    {selected ? <p className="sf-muted">{selected.status ?? "draft"} · validation {selected.validation_status ?? selected.validationStatus ?? "pending"} · target {(selected.metadata as any)?.provider_target ?? "internal_only"}</p> : <p className="sf-muted">Create a draft from an approved asset first.</p>}
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => run("validate")}>Run Validation</button>
-      <button className="sf-button sf-button-primary" disabled={!selected || busy} onClick={() => run("review")}>Create Publish Review</button>
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => run("projection")}>Create Public Projection</button>
+    {selected ? <p className="text-muted">{selected.status ?? "draft"} · validation {selected.validation_status ?? selected.validationStatus ?? "pending"} · target {(selected.metadata as any)?.provider_target ?? "internal_only"}</p> : <p className="text-muted">Create a draft from an approved asset first.</p>}
+    <div className="action-bar">
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("validate")}>Run Validation</button>
+      <button className="btn btn-primary" disabled={!selected || busy} onClick={() => run("review")}>Create Publish Review</button>
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("projection")}>Create Public Projection</button>
     </div>
-    {result && <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
+    {result && <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
   </section>;
 }

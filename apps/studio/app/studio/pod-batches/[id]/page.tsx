@@ -26,15 +26,15 @@ export default async function PodBatchDetailPage({ params }: { params: Promise<{
       title={String(batch.name ?? batch.id)}
       description="Per-item workflow status for image generation, QA, mockups, Printify product creation, Shopify draft creation, and publish readiness."
     >
-      <a className="sf-button sf-button-secondary" href="/studio/pod-batches">All batches</a>
-      <a className="sf-button sf-button-primary" href="/studio/publish-review">Publish review</a>
+      <a className="btn btn-secondary" href="/studio/pod-batches">All batches</a>
+      <a className="btn btn-primary" href="/studio/publish-review">Publish review</a>
     </PageHeader>
-    <div className="sf-grid sf-grid-3">
+    <div className="layout-grid layout-grid-3">
       <ProviderStatusCard title="Items" status={String(items.length)} tone="info" description="Persisted product draft records in this batch." />
       <ProviderStatusCard title="Provider actions" status="per item only" tone="warning" description="Retry markers do not execute Printify, Shopify, image, or publish actions." />
       <BlockerCard title="Current Batch Blockers" blockers={blockers.slice(0, 8)} />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Batch Items</h2>
       <DataTable columns={["#", "Product", "Stage", "Blockers", "Provider state", "Retry"]} rows={items.map((item: any) => {
         const draft = draftMap.get(String(item.product_draft_id ?? item.productDraftId));
@@ -48,7 +48,7 @@ export default async function PodBatchDetailPage({ params }: { params: Promise<{
         ];
       })} />
     </section>
-    <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
+    <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
       {items.slice(0, 4).map((item: any) => {
         const draft = draftMap.get(String(item.product_draft_id ?? item.productDraftId));
         return <ProductPipelineCard key={item.id} title={draft?.title ?? `Item ${item.sequence ?? ""}`} stages={stageSteps(item)} />;

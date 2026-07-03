@@ -29,10 +29,10 @@ export function PodBatchRetryClient({ batchId, itemId, stage }: { batchId: strin
     window.setTimeout(() => window.location.reload(), 700);
   }
 
-  return <span className="sf-action-bar">
-    <button className="sf-button sf-button-secondary" type="button" onClick={retry} disabled={busy} title={busy ? "Retry marker is being saved." : "Save a retry marker for this item without executing a provider call."}>
+  return <span className="action-bar">
+    <button className="btn btn-secondary" type="button" onClick={retry} disabled={busy} title={busy ? "Retry marker is being saved." : "Save a retry marker for this item without executing a provider call."}>
       {busy ? "Saving" : "Retry marker"}
     </button>
-    {message && <small className="sf-muted" role="status">{message}</small>}
+    {message && <small className="text-muted" role="status">{message}</small>}
   </span>;
 }

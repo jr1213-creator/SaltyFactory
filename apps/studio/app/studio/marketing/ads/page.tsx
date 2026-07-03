@@ -14,13 +14,13 @@ export default async function AdsHubPage() {
       <LinkButton href="/studio/marketing/ads/meta" variant="secondary">Meta Ads Drafts</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Google ad drafts" value={String(google.length)} delta="Manual export only" />
       <MetricCard title="Meta ad drafts" value={String(meta.length)} delta="Manual export only" />
       <MetricCard title="Ad readiness scores" value={String(data.summary.adReadinessScores)} delta="Honest blockers" />
       <MetricCard title="Pending approvals" value={String(data.summary.approvalItems)} delta="Owner review" tone={data.summary.approvalItems ? "warning" : "info"} />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <DataTable columns={["Draft type", "Count", "Provider status", "Execution"]} rows={[
         ["Google Ads", String(google.length), <StatusBadge key="google" status={data.providerStatuses.google_ads.replace(/_/g, " ")} tone="warning" />, "manual export only"],
         ["Meta Ads", String(meta.length), <StatusBadge key="meta" status={data.providerStatuses.meta.replace(/_/g, " ")} tone="warning" />, "manual export only"],

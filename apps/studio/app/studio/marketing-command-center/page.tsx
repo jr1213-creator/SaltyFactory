@@ -21,7 +21,7 @@ export default async function MarketingCommandCenterPage() {
       <LinkButton href="/studio/marketing-campaigns" variant="secondary">Campaigns</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Campaigns" value={String(summary.campaigns)} delta="Persisted shared records" />
       <MetricCard title="Draft campaigns" value={String(summary.draftCampaigns)} delta="Manual/export-ready" />
       <MetricCard title="Approval items" value={String(summary.approvalItems)} delta="Owner approval queue" tone={summary.approvalItems ? "warning" : "info"} />
@@ -35,9 +35,9 @@ export default async function MarketingCommandCenterPage() {
       <MetricCard title="Email drafts" value={String(summary.emailDrafts)} delta="No sending engine" />
       <MetricCard title="Asset specs" value={String(summary.assetSpecs)} delta="Specs, not generated media" />
     </div>
-    <div className="sf-layout-rail" style={{ marginTop: 18 }}>
-      <div className="sf-grid">
-        <section className="sf-card">
+    <div className="layout-rail" style={{ marginTop: 18 }}>
+      <div className="layout-grid">
+        <section className="surface-card">
           <h2>Today's Marketing Actions</h2>
           <DataTable columns={["Action", "Status", "Link"]} rows={[
             ["Run launch campaign workflow", "manual/export-ready", <a key="workflow" href="/studio/marketing-command-center/launch-campaign">Open</a>],
@@ -47,7 +47,7 @@ export default async function MarketingCommandCenterPage() {
             ["Classify social care opportunities", summary.researchItems ? "manual/imported records exist" : "manual input ready", <a key="social-care" href="/studio/marketing/social-care">Social Care</a>]
           ]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Campaign Planner</h2>
           <DataTable columns={["Campaign", "Goal", "Status", "Open"]} rows={data.campaigns.length ? data.campaigns.slice(0, 8).map((campaign: any) => [
             campaign.name,
@@ -56,7 +56,7 @@ export default async function MarketingCommandCenterPage() {
             <a key={`${campaign.id}-open`} href={`/studio/marketing-campaigns/${campaign.id}`}>Open</a>
           ]) : [["No campaigns", "Create a campaign or run the guided workflow.", "empty", <a key="new" href="/studio/marketing-campaigns/new">Create</a>]]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Draft Channels</h2>
           <DataTable columns={["Channel", "Status", "Campaign", "Export"]} rows={data.channels.length ? data.channels.slice(0, 10).map((channel: any) => [
             marketingChannelLabels[String(channel.channel_type ?? channel.channelType)] ?? fmt(channel.channel_type ?? channel.channelType),
@@ -65,7 +65,7 @@ export default async function MarketingCommandCenterPage() {
             "manual/export-ready"
           ]) : [["No channel drafts", "Run workflow or create drafts in the channel studios.", "-", "manual/export-ready"]]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Provider Readiness</h2>
           <DataTable columns={["Provider", "Status", "Honesty note"]} rows={Object.entries(data.providerStatuses).map(([provider, status]) => [
             fmt(provider),
@@ -74,7 +74,7 @@ export default async function MarketingCommandCenterPage() {
           ])} />
         </section>
       </div>
-      <div className="sf-grid">
+      <div className="layout-grid">
         <ProviderStatusCard title="No-Ad Growth Planner" status={summary.growthPlans ? "ready" : "setup needed"} tone={summary.growthPlans ? "success" : "warning"} description="Rule-based growth plans can be generated without paid ad spend." />
         <ProviderStatusCard title="Ad Readiness Score" status={summary.adReadinessScores ? "ready" : "setup needed"} tone={summary.adReadinessScores ? "success" : "warning"} description="Ad drafts are manual/export-ready only; no Google/Meta APIs are called." />
         <ProviderStatusCard title="Campaign Proof Pack" status={summary.proofPacks ? "ready" : "setup needed"} tone={summary.proofPacks ? "success" : "warning"} description="Proof packs are stored as export packages with source labels and blockers." />

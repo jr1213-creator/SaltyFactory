@@ -9,8 +9,8 @@ export default async function BusinessDocumentDetailPage({ params }: { params: P
   if (!document) return <PageHeader title="Document not found" description="This document is not in the active workspace." />;
   return <>
     <PageHeader title={document.title} eyebrow="Business document" description="Review, approve, and create internal export manifests. No external sending is performed."><ApprovalBadge status={String(document.status)} /></PageHeader>
-    <div className="sf-layout-rail">
-      <section className="sf-card">
+    <div className="layout-rail">
+      <section className="surface-card">
         <DataTable columns={["Field", "Value"]} rows={[
           ["Type", document.document_type ?? document.documentType],
           ["Sensitive", document.requires_sensitive_data ? "Requires authority" : "No"],
@@ -19,8 +19,8 @@ export default async function BusinessDocumentDetailPage({ params }: { params: P
         ]} />
       </section>
       <OwnerDecisionPanel title="Document Actions" description="Export creates an internal manifest only. External submission remains future and owner-gated.">
-        <form action={`/api/studio/business/documents/${id}/approve`} method="post"><button className="sf-button sf-button-primary">Approve Document</button></form>
-        <form action={`/api/studio/business/documents/${id}/export`} method="post"><input type="hidden" name="exportType" value="pdf" /><button className="sf-button sf-button-secondary">Create PDF Export Manifest</button></form>
+        <form action={`/api/studio/business/documents/${id}/approve`} method="post"><button className="btn btn-primary">Approve Document</button></form>
+        <form action={`/api/studio/business/documents/${id}/export`} method="post"><input type="hidden" name="exportType" value="pdf" /><button className="btn btn-secondary">Create PDF Export Manifest</button></form>
       </OwnerDecisionPanel>
     </div>
   </>;

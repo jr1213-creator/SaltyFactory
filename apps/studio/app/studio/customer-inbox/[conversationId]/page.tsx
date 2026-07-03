@@ -16,7 +16,7 @@ export default async function ConversationDetailPage({ params }: { params: Promi
       <LinkButton href="/studio/customer-inbox" variant="secondary">Customer Inbox</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <DataTable columns={["Field", "Value"]} rows={[
         ["Subject", conversation?.subject ?? "-"],
         ["Customer", conversation?.customer_id ?? conversation?.customerId ?? "-"],
@@ -25,20 +25,20 @@ export default async function ConversationDetailPage({ params }: { params: Promi
         ["Source", data.sourceLabelFor(conversation?.source_label ?? conversation?.sourceLabel)]
       ]} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Messages</h2>
       <DataTable columns={["Direction", "Body", "Source"]} rows={messages.length ? messages.map((message: any) => [
         message.direction ?? "internal",
         message.body ?? "-",
         data.sourceLabelFor(message.source_label ?? message.sourceLabel)
       ]) : [["No messages", "Add internal notes or imported message excerpts manually.", "System-generated"]]} />
-      <form className="sf-grid sf-grid-2" action="/api/studio/crm/inbox/messages" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/crm/inbox/messages" method="post">
         <input type="hidden" name="next" value={`/studio/customer-inbox/${conversationId}`} />
         <input type="hidden" name="conversation_id" value={conversationId} />
         <input type="hidden" name="customer_id" value={conversation?.customer_id ?? conversation?.customerId ?? ""} />
         <label>Direction<select name="direction" defaultValue="internal"><option value="internal">Internal</option><option value="inbound">Inbound excerpt</option><option value="outbound_draft">Outbound draft</option></select></label>
         <label>Body<textarea name="body" required /></label>
-        <button className="sf-button" type="submit">Save Message</button>
+        <button className="btn" type="submit">Save Message</button>
       </form>
     </section>
     <ProviderStatusCard title="Live inbox channels" status="not configured" tone="warning" description="This native inbox foundation stores manual/imported conversation records only. It does not send replies." />

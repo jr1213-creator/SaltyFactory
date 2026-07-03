@@ -10,15 +10,15 @@ export default async function PricingPage() {
       <StatusBadge status="owner review required" tone="warning" />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Product ideas" value={String(lists.podCandidates.length)} delta={`${readyIdeas} ready for review`} />
       <MetricCard title="Listing drafts" value={String(lists.listingDraftsV1.length)} delta={`${readyDrafts} ready for export`} />
       <MetricCard title="Live sync" value="Guarded" delta="Provider + approval gates" />
       <MetricCard title="Margin data" value="Manual input" delta="No fake estimates" tone="warning" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Margin Calculator</h2>
-      <form className="sf-grid sf-grid-3" action="/api/studio/pricing/calculate" method="post">
+      <form className="layout-grid layout-grid-3" action="/api/studio/pricing/calculate" method="post">
         <label>Product draft<select name="productDraftId" defaultValue=""><option value="">Calculate only - do not save</option>{lists.drafts.map((draft: any) => <option key={draft.id} value={draft.id}>{draft.title ?? draft.id}</option>)}</select></label>
         <label>Base product cost<input name="baseProductCost" type="number" min="0" step="0.01" /></label>
         <label>Shipping cost<input name="shippingCost" type="number" min="0" step="0.01" /></label>
@@ -30,10 +30,10 @@ export default async function PricingPage() {
         <label>Discount %<input name="discountPercent" type="number" min="0" max="100" step="0.01" /></label>
         <label>Discount / promo notes<input name="discountNotes" placeholder="Manual note; no fake provider cost" /></label>
         <label>Sale price<input name="salePrice" type="number" min="0" step="0.01" /></label>
-        <button className="sf-button" type="submit">Calculate Margin</button>
+        <button className="btn" type="submit">Calculate Margin</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved Margin Checks</h2>
       <DataTable columns={["Draft", "Cost", "Shipping", "Price", "Margin", "Status"]} rows={lists.marginChecks.length ? lists.marginChecks.map((row: any) => [
         row.product_draft_id ?? row.productDraftId,

@@ -44,20 +44,20 @@ export function PodBatchCreateClient() {
     window.location.href = `/studio/pod-batches/${payload.batch.id}`;
   }
 
-  return <section className="sf-card">
+  return <section className="surface-card">
     <h2>Create 15-Product Batch</h2>
-    <form className="sf-grid sf-grid-2" onSubmit={onSubmit}>
+    <form className="layout-grid layout-grid-2" onSubmit={onSubmit}>
       <label>Batch name<input name="name" required placeholder="July coastal cowhide drop" /></label>
       <label>Target count<input name="targetCount" type="number" min="1" max="50" defaultValue={15} required /></label>
       <label>Trend source<input name="trendSource" defaultValue="owner_batch_input" /></label>
       <label>Collection<input name="collection" defaultValue="Batch Drafts" /></label>
       <label>Product mix<input name="productMix" defaultValue="tee,sweatshirt,tote" aria-describedby="product-mix-help" /></label>
-      <p id="product-mix-help" className="sf-muted">Comma-separated product types. The API creates drafts only; image generation, Printify, Shopify, and publish remain separate owner-gated actions.</p>
-      <button className="sf-button sf-button-primary" type="submit" disabled={submitting} title={submitting ? "Batch creation is in progress." : "Create persisted batch and product draft records."}>
+      <p id="product-mix-help" className="text-muted">Comma-separated product types. The API creates drafts only; image generation, Printify, Shopify, and publish remain separate owner-gated actions.</p>
+      <button className="btn btn-primary" type="submit" disabled={submitting} title={submitting ? "Batch creation is in progress." : "Create persisted batch and product draft records."}>
         {submitting ? "Creating batch" : "Create batch"}
       </button>
     </form>
-    {status && <p className="sf-provider-result" role="status">{status}</p>}
-    {error && <p className="sf-provider-result sf-danger" role="alert">{error}</p>}
+    {status && <p className="provider-result" role="status">{status}</p>}
+    {error && <p className="provider-result tone-danger" role="alert">{error}</p>}
   </section>;
 }

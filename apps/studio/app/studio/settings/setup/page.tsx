@@ -34,18 +34,18 @@ export default async function Page() {
   ];
   return <>
     <PageHeader title="Setup Guide" description="Configure real data sources. Test and sync actions stay disabled until credentials and permissions are present." />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       {integrations.filter((item) => ["google_oauth", "ga4", "google_search_console", "google_business_profile"].includes(item.key)).map((item) => <ProviderStatusCard key={item.key} title={item.label} status={String(persisted[item.key]?.status ?? item.status).replace(/_/g, " ")} tone={String(persisted[item.key]?.status ?? item.status) === "connected" ? "success" : "warning"} />)}
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Google Setup Steps</h2>
       <DataTable columns={["Step", "State", "Action"]} rows={steps} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Customer Command Center Setup</h2>
       <DataTable columns={["Step", "State", "Action"]} rows={customerSteps} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Connection Details</h2>
       <DataTable columns={["Provider", "Capabilities", "Credentials needed"]} rows={integrations.map((item) => [item.label, item.capabilities.join(", "), item.setupRequired.length ? item.setupRequired.join(", ") : "None"])} />
     </section>

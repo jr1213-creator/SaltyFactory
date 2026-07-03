@@ -29,7 +29,7 @@ export default async function CustomersPage({ searchParams }: { searchParams?: P
       <LinkButton href="/studio/customers/new" variant="secondary">Create Customer</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Customers" value={String(data.customers.length)} delta="No fake customer data" />
       <MetricCard title="Leads" value={String(data.leads.length)} delta="Manual/imported only" />
       <MetricCard title="Consent gaps" value={String(data.customers.filter((customer: any) => String(customer.marketing_consent_status ?? customer.marketingConsentStatus ?? "unknown") !== "granted").length)} delta="Campaign enrollment blocker" tone="warning" />
@@ -40,12 +40,12 @@ export default async function CustomersPage({ searchParams }: { searchParams?: P
       description="Connect Shopify customer/order sync, import customers, or turn on capture widgets to populate this list."
       action={<LinkButton href="/studio/customer-capture">Set up capture forms</LinkButton>}
     />}
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Customer List</h2>
-      <form className="sf-grid sf-grid-3" method="get" style={{ marginBottom: 14 }}>
+      <form className="layout-grid layout-grid-3" method="get" style={{ marginBottom: 14 }}>
         <label>Search<input name="q" defaultValue={filters.q ?? ""} placeholder="Name, email, phone, location" /></label>
         <label>Status<select name="status" defaultValue={status}><option value="">Any</option><option value="lead">Lead</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
-        <button className="sf-button" type="submit">Filter Customers</button>
+        <button className="btn" type="submit">Filter Customers</button>
       </form>
       <DataTable
         columns={["Name", "Email", "Phone", "Location", "Source", "Lifecycle", "LTV", "AOV", "Orders", "Consent", "Next action", "Open"]}

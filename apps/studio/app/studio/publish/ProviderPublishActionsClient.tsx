@@ -53,28 +53,28 @@ export function ProviderPublishActionsClient({ reviews, drafts }: { reviews: Row
     }
   }
 
-  return <section className="sf-card" style={{ display: "grid", gap: 14 }}>
-    <div className="sf-workflow-step-header">
+  return <section className="surface-card" style={{ display: "grid", gap: 14 }}>
+    <div className="workflow-step-header">
       <span>7</span>
       <div>
         <h2>Provider Actions</h2>
         <p>These buttons call the real guarded provider routes. They create drafts only; they do not publish live.</p>
       </div>
-      <a className="sf-button sf-button-secondary" href="/studio/integrations">View Provider Status</a>
+      <a className="btn btn-secondary" href="/studio/integrations">View Provider Status</a>
     </div>
     <label>Publish review<select value={selectedReviewId} onChange={(event) => setSelectedReviewId(event.target.value)}>{reviews.map((review) => <option key={review.id} value={review.id}>{draftIdOf(review) || review.id}</option>)}</select></label>
-    {selectedDraft ? <p className="sf-muted">Selected draft: {selectedDraft.title ?? selectedDraft.id}. Provider failures show setupRequired/blockingReasons from the API response below.</p> : <p className="sf-alert">Create and approve a publish review before provider actions are available.</p>}
-    <div className="sf-form-grid">
+    {selectedDraft ? <p className="text-muted">Selected draft: {selectedDraft.title ?? selectedDraft.id}. Provider failures show setupRequired/blockingReasons from the API response below.</p> : <p className="alert-panel">Create and approve a publish review before provider actions are available.</p>}
+    <div className="form-grid">
       <label>Printify blueprint ID<input value={blueprintId} onChange={(event) => setBlueprintId(event.target.value)} placeholder="From Printify Catalog" /></label>
       <label>Printify print provider ID<input value={printProviderId} onChange={(event) => setPrintProviderId(event.target.value)} placeholder="From Printify Catalog" /></label>
       <label>Shopify collection ID<input value={collectionId} onChange={(event) => setCollectionId(event.target.value)} placeholder="Required Shopify collection ID" /></label>
     </div>
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-primary" type="button" disabled={!hasReview || busy === "printify"} title={hasReview ? "Create a guarded Printify draft product from approved generated artwork and selected variants." : "Create and approve a publish review first."} onClick={() => run("printify")}>Send to Printify</button>
-      <button className="sf-button sf-button-primary" type="button" disabled={!hasReview || busy === "shopify"} title={hasReview ? "Create a guarded Shopify draft product with approved mockup media and variants." : "Create and approve a publish review first."} onClick={() => run("shopify")}>Create Shopify Draft</button>
-      <a className="sf-button sf-button-secondary" href={`/studio/launch-packet${selectedDraftId ? `?product_draft_id=${encodeURIComponent(selectedDraftId)}` : ""}`}>Create Launch Packet</a>
-      <a className="sf-button sf-button-secondary" href="/studio/printify-catalog">Open Printify Catalog</a>
+    <div className="action-bar">
+      <button className="btn btn-primary" type="button" disabled={!hasReview || busy === "printify"} title={hasReview ? "Create a guarded Printify draft product from approved generated artwork and selected variants." : "Create and approve a publish review first."} onClick={() => run("printify")}>Send to Printify</button>
+      <button className="btn btn-primary" type="button" disabled={!hasReview || busy === "shopify"} title={hasReview ? "Create a guarded Shopify draft product with approved mockup media and variants." : "Create and approve a publish review first."} onClick={() => run("shopify")}>Create Shopify Draft</button>
+      <a className="btn btn-secondary" href={`/studio/launch-packet${selectedDraftId ? `?product_draft_id=${encodeURIComponent(selectedDraftId)}` : ""}`}>Create Launch Packet</a>
+      <a className="btn btn-secondary" href="/studio/printify-catalog">Open Printify Catalog</a>
     </div>
-    {result ? <pre className="sf-code sf-provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
 }

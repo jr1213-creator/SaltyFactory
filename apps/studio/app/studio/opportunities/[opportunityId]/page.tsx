@@ -23,7 +23,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       <LinkButton href={`/studio/opportunities/${opportunityId}/edit`} variant="secondary">Edit Opportunity</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <DataTable columns={["Field", "Value"]} rows={[
         ["Title", opportunity?.title ?? "-"],
         ["Stage", <StatusBadge key="stage" status={String(opportunity?.stage ?? opportunity?.status ?? "new").replace(/_/g, " ")} />],
@@ -35,27 +35,27 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         ["Source", data.sourceLabelFor(opportunity?.source_label ?? opportunity?.sourceLabel)]
       ]} />
     </section>
-    <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
-      <section className="sf-card">
+    <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
+      <section className="surface-card">
         <h2>Tasks</h2>
         <DataTable columns={["Task", "Status", "Priority"]} rows={tasks.length ? tasks.map((task: any) => [task.title, task.status ?? "open", task.priority ?? "normal"]) : [["No tasks", "Create a next-step task.", "-"]]} />
-        <form className="sf-grid" action="/api/studio/shared/tasks" method="post">
+        <form className="layout-grid" action="/api/studio/shared/tasks" method="post">
           <input type="hidden" name="next" value={`/studio/opportunities/${opportunityId}`} />
           <input type="hidden" name="entity_type" value="opportunity" />
           <input type="hidden" name="entity_id" value={opportunityId} />
           <label>Task title<input name="title" defaultValue="Follow up on opportunity" required /></label>
-          <button className="sf-button" type="submit">Create Task</button>
+          <button className="btn" type="submit">Create Task</button>
         </form>
       </section>
-      <section className="sf-card">
+      <section className="surface-card">
         <h2>Notes</h2>
         <DataTable columns={["Note", "Source"]} rows={notes.length ? notes.map((note: any) => [note.title ?? note.body, data.sourceLabelFor(note.source_label ?? note.sourceLabel)]) : [["No notes", "Add context before the next follow-up."]]} />
-        <form className="sf-grid" action="/api/studio/shared/notes" method="post">
+        <form className="layout-grid" action="/api/studio/shared/notes" method="post">
           <input type="hidden" name="next" value={`/studio/opportunities/${opportunityId}`} />
           <input type="hidden" name="entity_type" value="opportunity" />
           <input type="hidden" name="entity_id" value={opportunityId} />
           <label>Note<textarea name="body" required /></label>
-          <button className="sf-button" type="submit">Save Note</button>
+          <button className="btn" type="submit">Save Note</button>
         </form>
       </section>
     </div>

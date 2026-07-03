@@ -69,19 +69,19 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
 
   return <section className="card" style={{ display: "grid", gap: 14 }}>
     <h2>Saved Brief Workflow</h2>
-    <div className="sf-form-grid">
+    <div className="form-grid">
       <label>Manual brief title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Phrase or motif<input value={phrase} onChange={(event) => setPhrase(event.target.value)} /></label>
       <label>Art direction<textarea value={artDirection} onChange={(event) => setArtDirection(event.target.value)} /></label>
-      <button className="sf-button sf-button-secondary" disabled={busy} onClick={createManualBrief}>Create Manual Brief</button>
+      <button className="btn btn-secondary" disabled={busy} onClick={createManualBrief}>Create Manual Brief</button>
     </div>
     <label>Brief<select value={selectedBriefId} onChange={(event) => setSelectedBriefId(event.target.value)}>{briefs.map((brief) => <option key={brief.id} value={brief.id}>{brief.style_direction?.title ?? brief.collection ?? brief.id}</option>)}</select></label>
-    {selected ? <p className="sf-muted">{selected.status ?? "draft"} · approved for generation {String(Boolean(selected.approved_for_generation ?? selected.approvedForGeneration))}</p> : <p className="sf-muted">Create or convert a suggestion into a brief first.</p>}
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-primary" disabled={!selected || busy || selected?.approved_for_generation} onClick={() => run("approve")}>Approve Brief</button>
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => run("reject")}>Reject Brief</button>
-      <button className="sf-button sf-button-primary" disabled={!selected || busy || !selected?.approved_for_generation} onClick={() => run("generation")}>Send to Generation</button>
+    {selected ? <p className="text-muted">{selected.status ?? "draft"} · approved for generation {String(Boolean(selected.approved_for_generation ?? selected.approvedForGeneration))}</p> : <p className="text-muted">Create or convert a suggestion into a brief first.</p>}
+    <div className="action-bar">
+      <button className="btn btn-primary" disabled={!selected || busy || selected?.approved_for_generation} onClick={() => run("approve")}>Approve Brief</button>
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("reject")}>Reject Brief</button>
+      <button className="btn btn-primary" disabled={!selected || busy || !selected?.approved_for_generation} onClick={() => run("generation")}>Send to Generation</button>
     </div>
-    {result ? <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
 }

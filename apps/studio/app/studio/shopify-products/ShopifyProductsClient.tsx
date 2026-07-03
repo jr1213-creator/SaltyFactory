@@ -51,14 +51,14 @@ export function ShopifyProductsClient({ refs }: { refs: Row[] }) {
     }
   }
 
-  return <section className="sf-card" style={{ marginTop: 18 }}>
+  return <section className="surface-card" style={{ marginTop: 18 }}>
     <h2>Shopify Provider Actions</h2>
-    <p className="sf-muted">Media upload keeps the product in draft. Go-live calls the guarded publish route and fails closed unless server-side live flags, owner confirmation, provider config, and publish gates all pass.</p>
-    <div className="sf-action-bar">
-      {refs.map((ref) => <span key={ref.id} className="sf-action-bar">
-        <button className="sf-button sf-button-secondary" type="button" disabled={busy === ref.id} onClick={() => uploadMedia(ref)}>Upload Media for {ref.shopify_handle ?? ref.id}</button>
+    <p className="text-muted">Media upload keeps the product in draft. Go-live calls the guarded publish route and fails closed unless server-side live flags, owner confirmation, provider config, and publish gates all pass.</p>
+    <div className="action-bar">
+      {refs.map((ref) => <span key={ref.id} className="action-bar">
+        <button className="btn btn-secondary" type="button" disabled={busy === ref.id} onClick={() => uploadMedia(ref)}>Upload Media for {ref.shopify_handle ?? ref.id}</button>
         <button
-          className="sf-button sf-button-danger"
+          className="btn btn-danger"
           type="button"
           disabled={busy === `go-live-${ref.id}` || !ref.shopify_product_id}
           title={!ref.shopify_product_id ? "Shopify product ID is required before go-live." : "Requires PUBLISH LIVE confirmation and server-side live publish flags."}
@@ -68,6 +68,6 @@ export function ShopifyProductsClient({ refs }: { refs: Row[] }) {
         </button>
       </span>)}
     </div>
-    {result ? <pre className="sf-code sf-provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
 }

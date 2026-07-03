@@ -46,15 +46,15 @@ export function PrintifyCatalogClient({ drafts }: { drafts: Row[] }) {
     }
   }
 
-  return <div className="sf-grid" style={{ marginTop: 18 }}>
+  return <div className="layout-grid" style={{ marginTop: 18 }}>
     <PrintifyCatalogCard title="Printify Connection" description="Discover real Printify shops and save the selected shop as setup evidence. Product creation still requires PRINTIFY_SHOP_ID in protected server config.">
-      <div className="sf-action-bar">
-        <button className="sf-button sf-button-secondary" type="button" disabled={busy === "shops"} onClick={() => run("shops", async () => {
+      <div className="action-bar">
+        <button className="btn btn-secondary" type="button" disabled={busy === "shops"} onClick={() => run("shops", async () => {
           const { data, response } = await getJson("/api/studio/integrations/printify/shops");
           setResult({ httpStatus: response.status, ...data });
           if (Array.isArray(data.shops)) setShops(data.shops);
         })}>Discover Shops</button>
-        <button className="sf-button sf-button-primary" type="button" disabled={!shopId || busy === "select-shop"} title={shopId ? "Persist selected shop metadata. Server env still controls live provider readiness." : "Discover and choose a Printify shop first."} onClick={() => run("select-shop", async () => {
+        <button className="btn btn-primary" type="button" disabled={!shopId || busy === "select-shop"} title={shopId ? "Persist selected shop metadata. Server env still controls live provider readiness." : "Discover and choose a Printify shop first."} onClick={() => run("select-shop", async () => {
           const selected = shops.find((shop) => shop.id === shopId);
           const { data, response } = await postJson("/api/studio/integrations/printify/shops/select", { shopId, title: selected?.title });
           setResult({ httpStatus: response.status, ...data });
@@ -64,60 +64,60 @@ export function PrintifyCatalogClient({ drafts }: { drafts: Row[] }) {
     </PrintifyCatalogCard>
 
     <PrintifyCatalogCard title="Catalog Browser" description="Fetch real blueprints, print providers, and variants from Printify. No IDs are invented.">
-      <div className="sf-action-bar">
-        <button className="sf-button sf-button-secondary" type="button" disabled={busy === "blueprints"} onClick={() => run("blueprints", async () => {
+      <div className="action-bar">
+        <button className="btn btn-secondary" type="button" disabled={busy === "blueprints"} onClick={() => run("blueprints", async () => {
           const { data, response } = await getJson("/api/studio/integrations/printify/catalog/blueprints");
           setResult({ httpStatus: response.status, ...data });
           if (Array.isArray(data.blueprints)) setBlueprints(data.blueprints);
         })}>Load Blueprints</button>
-        <button className="sf-button sf-button-secondary" type="button" disabled={!blueprintId || busy === "providers"} title={blueprintId ? "Load real print providers for the selected blueprint." : "Select a blueprint first."} onClick={() => run("providers", async () => {
+        <button className="btn btn-secondary" type="button" disabled={!blueprintId || busy === "providers"} title={blueprintId ? "Load real print providers for the selected blueprint." : "Select a blueprint first."} onClick={() => run("providers", async () => {
           const { data, response } = await getJson(`/api/studio/integrations/printify/catalog/blueprints/${encodeURIComponent(blueprintId)}/providers`);
           setResult({ httpStatus: response.status, ...data });
           if (Array.isArray(data.printProviders)) setProviders(data.printProviders);
         })}>Load Providers</button>
-        <button className="sf-button sf-button-secondary" type="button" disabled={!blueprintId || !providerId || busy === "variants"} title={blueprintId && providerId ? "Load real variants for the selected blueprint/provider pair." : "Select a blueprint and print provider first."} onClick={() => run("variants", async () => {
+        <button className="btn btn-secondary" type="button" disabled={!blueprintId || !providerId || busy === "variants"} title={blueprintId && providerId ? "Load real variants for the selected blueprint/provider pair." : "Select a blueprint and print provider first."} onClick={() => run("variants", async () => {
           const { data, response } = await getJson(`/api/studio/integrations/printify/catalog/blueprints/${encodeURIComponent(blueprintId)}/providers/${encodeURIComponent(providerId)}/variants`);
           setResult({ httpStatus: response.status, ...data });
           if (Array.isArray(data.variants)) setVariants(data.variants);
         })}>Load Variants</button>
-        <button className="sf-button sf-button-secondary" type="button" disabled={!blueprintId || !providerId || busy === "shipping"} title={blueprintId && providerId ? "Load real shipping and handling data for the selected blueprint/provider pair." : "Select a blueprint and print provider first."} onClick={() => run("shipping", async () => {
+        <button className="btn btn-secondary" type="button" disabled={!blueprintId || !providerId || busy === "shipping"} title={blueprintId && providerId ? "Load real shipping and handling data for the selected blueprint/provider pair." : "Select a blueprint and print provider first."} onClick={() => run("shipping", async () => {
           const { data, response } = await getJson(`/api/studio/integrations/printify/catalog/blueprints/${encodeURIComponent(blueprintId)}/providers/${encodeURIComponent(providerId)}/shipping`);
           setResult({ httpStatus: response.status, ...data });
           setShipping(data.shipping ?? null);
         })}>Load Shipping Snapshot</button>
       </div>
-      <div className="sf-form-grid">
+      <div className="form-grid">
         <label>Blueprint<select value={blueprintId} onChange={(event) => setBlueprintId(event.target.value)}><option value="">Choose blueprint</option>{blueprints.map((blueprint) => <option key={blueprint.id} value={blueprint.id}>{blueprint.title ?? blueprint.id}</option>)}</select></label>
         <label>Print provider<select value={providerId} onChange={(event) => setProviderId(event.target.value)}><option value="">Choose provider</option>{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.title ?? provider.id}</option>)}</select></label>
       </div>
-      {shipping ? <pre className="sf-code sf-provider-result">{JSON.stringify(shipping, null, 2)}</pre> : <p className="sf-muted">Shipping/cost snapshot appears here after provider and blueprint selection.</p>}
+      {shipping ? <pre className="code-block provider-result">{JSON.stringify(shipping, null, 2)}</pre> : <p className="text-muted">Shipping/cost snapshot appears here after provider and blueprint selection.</p>}
     </PrintifyCatalogCard>
 
     <PrintifyCatalogCard title="Variant Matrix" description="Persist selected Printify variants and owner-entered pricing to the product draft. These records feed publish review readiness.">
-      <div className="sf-form-grid">
+      <div className="form-grid">
         <label>Product draft<select value={productDraftId} onChange={(event) => setProductDraftId(event.target.value)}>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.title ?? draft.id}</option>)}</select></label>
         <label>Sale price<input value={salePrice} onChange={(event) => setSalePrice(event.target.value)} inputMode="decimal" /></label>
         <label>Base cost<input value={baseCost} onChange={(event) => setBaseCost(event.target.value)} inputMode="decimal" /></label>
       </div>
-      <div className="sf-table-wrap" style={{ marginTop: 12 }}>
-        <table className="sf-table"><thead><tr><th>Use</th><th>Variant</th><th>Size</th><th>Color</th><th>Cost snapshot</th><th>Status</th></tr></thead><tbody>{variants.length ? variants.slice(0, 24).map((variant) => {
+      <div className="table-wrap" style={{ marginTop: 12 }}>
+        <table className="data-table"><thead><tr><th>Use</th><th>Variant</th><th>Size</th><th>Color</th><th>Cost snapshot</th><th>Status</th></tr></thead><tbody>{variants.length ? variants.slice(0, 24).map((variant) => {
           const id = String(variant.id);
           const checked = selectedVariantIds.includes(id);
           return <tr key={id}><td><input aria-label={`Select variant ${variant.title ?? id}`} type="checkbox" checked={checked} onChange={(event) => setSelectedVariantIds((current) => event.target.checked ? [...current, id] : current.filter((item) => item !== id))} /></td><td>{variant.title ?? id}</td><td>{variant.size || "-"}</td><td>{variant.color || "-"}</td><td>{variant.cost || "Provider cost unavailable"}</td><td><StatusBadge status={variant.isAvailable === false ? "unavailable" : "available"} tone={variant.isAvailable === false ? "warning" : "success"} /></td></tr>;
         }) : <tr><td colSpan={6}>Load variants from a real Printify blueprint/provider pair.</td></tr>}</tbody></table>
       </div>
-      <div className="sf-action-bar" style={{ marginTop: 12 }}>
-        <button className="sf-button sf-button-primary" type="button" disabled={!productDraftId || !blueprintId || !providerId || selectedVariantIds.length === 0 || busy === "selection"} title={selectedVariantIds.length ? "Persist selected variants to the product draft." : "Select one or more variants first."} onClick={() => run("selection", async () => {
+      <div className="action-bar" style={{ marginTop: 12 }}>
+        <button className="btn btn-primary" type="button" disabled={!productDraftId || !blueprintId || !providerId || selectedVariantIds.length === 0 || busy === "selection"} title={selectedVariantIds.length ? "Persist selected variants to the product draft." : "Select one or more variants first."} onClick={() => run("selection", async () => {
           const selectedVariants = variants.filter((variant) => selectedVariantIds.includes(String(variant.id))).map((variant) => ({ ...variant, price: Number(salePrice), cost: Number(baseCost) || Number(variant.cost || 0) }));
           const { data, response } = await postJson("/api/studio/integrations/printify/catalog/selection", { productDraftId, blueprintId, printProviderId: providerId, variants: selectedVariants, price: Number(salePrice), cost: Number(baseCost) });
           setResult({ httpStatus: response.status, ...data });
         })}>Save Printify Variant Selection</button>
-        <button className="sf-button sf-button-secondary" type="button" disabled={!productDraftId || busy === "upload"} title={productDraftId ? "Upload the draft's approved generated artwork to Printify media library." : "Select a product draft first."} onClick={() => run("upload", async () => {
+        <button className="btn btn-secondary" type="button" disabled={!productDraftId || busy === "upload"} title={productDraftId ? "Upload the draft's approved generated artwork to Printify media library." : "Select a product draft first."} onClick={() => run("upload", async () => {
           const { data, response } = await postJson("/api/studio/integrations/printify/uploads", { productDraftId });
           setResult({ httpStatus: response.status, ...data });
         })}>Upload Artwork to Printify</button>
       </div>
     </PrintifyCatalogCard>
-    {result ? <pre className="sf-code sf-provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block provider-result">{JSON.stringify(result, null, 2)}</pre> : null}
   </div>;
 }

@@ -16,8 +16,8 @@ export default async function EditCustomerCampaignPage({ params }: { params: Pro
       <LinkButton href={`/studio/customer-campaigns/${campaignId}`} variant="secondary">View Campaign</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/crm/campaigns/${campaignId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/crm/campaigns/${campaignId}`} method="post">
         <input type="hidden" name="next" value={`/studio/customer-campaigns/${campaignId}`} />
         <label>Name<input name="name" defaultValue={campaign?.name ?? ""} required /></label>
         <label>Status<select name="status" defaultValue={campaign?.status ?? "draft"}><option value="draft">Draft</option><option value="ready">Ready</option><option value="blocked">Blocked</option><option value="archived">Archived</option></select></label>
@@ -25,7 +25,7 @@ export default async function EditCustomerCampaignPage({ params }: { params: Pro
         <label>Target segment ID<input name="target_segment_id" defaultValue={campaign?.target_segment_id ?? campaign?.targetSegmentId ?? ""} /></label>
         <label>Consent required<select name="consent_required" defaultValue={campaign?.consent_required === false || campaign?.consentRequired === false ? "false" : "true"}><option value="true">Yes</option><option value="false">No</option></select></label>
         <label>Campaign JSON<textarea name="campaign_json" defaultValue={campaignJson} /></label>
-        <button className="sf-button" type="submit">Save Campaign</button>
+        <button className="btn" type="submit">Save Campaign</button>
       </form>
     </section>
   </>;

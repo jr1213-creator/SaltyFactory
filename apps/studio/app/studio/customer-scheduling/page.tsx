@@ -17,13 +17,13 @@ export default async function CustomerSchedulingPage() {
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Appointment types" value={String(appointmentTypes.length)} delta={data.appointmentTypes.length ? "Saved workspace records" : "Default definitions"} />
       <MetricCard title="Booking requests" value={String(data.bookingRequests.length)} delta="Manual/imported only" />
       <MetricCard title="Calendar sync" value="Not configured" delta="No fake availability" tone="warning" />
       <MetricCard title="Customer links" value={String(data.consultations.filter((item: any) => item.customer_id || item.customerId).length)} delta="Consultations linked to profiles" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Appointment Types</h2>
       <DataTable columns={["Type", "Duration", "Booking readiness", "Status"]} rows={appointmentTypes.map((type: any) => [
         type.name,

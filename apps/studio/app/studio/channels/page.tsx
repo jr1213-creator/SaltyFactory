@@ -10,7 +10,7 @@ export default async function ChannelsPage() {
       <StatusBadge status={score.status} tone={score.status === "ready" ? "success" : "warning"} />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Completeness" value={`${score.score}%`} delta="Priority channels" tone={score.score >= 80 ? "success" : "warning"} />
       <MetricCard title="Configured" value={String(score.configuredCount)} delta="Manual records" />
       <MetricCard title="Missing priority" value={String(score.missingHighPriority.length)} delta="Next actions" tone={score.missingHighPriority.length ? "warning" : "success"} />
@@ -18,14 +18,14 @@ export default async function ChannelsPage() {
     </div>
     <section className="card" style={{ marginTop: 18 }}>
       <h2>Add Channel</h2>
-      <form className="sf-grid sf-grid-3" action="/api/studio/channels" method="post">
+      <form className="layout-grid layout-grid-3" action="/api/studio/channels" method="post">
         <label>Channel<select name="channelType">{channelCatalog.map(([key,, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
         <label>Display name<input name="displayName" required /></label>
         <label>URL<input name="url" type="url" /></label>
         <label>Handle<input name="handle" /></label>
         <label>Status<select name="status"><option value="configured">configured</option><option value="needs_review">needs_review</option><option value="missing">missing</option><option value="disabled">disabled</option></select></label>
         <label>Owner priority<input name="ownerPriority" type="number" min="1" max="5" defaultValue="3" /></label>
-        <button className="sf-button" type="submit">Add Channel</button>
+        <button className="btn" type="submit">Add Channel</button>
       </form>
     </section>
     <DataTable columns={["Channel", "Category", "URL", "Status", "Priority"]} rows={lists.channels.length ? lists.channels.map((channel: any) => [channel.display_name ?? channel.displayName, channel.category, channel.url ?? "-", <StatusBadge key={channel.id} status={channel.status} />, String(channel.owner_priority ?? channel.ownerPriority ?? 3)]) : [["No channels", "Add a channel", "-", "missing", "-"]]} />

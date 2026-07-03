@@ -11,7 +11,7 @@ export default async function MarketingApprovalsPage() {
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <h2>Approval Items</h2>
       <DataTable columns={["Type", "Entity", "Status", "Decide"]} rows={data.approvals.length ? data.approvals.map((approval: any) => [
         String(approval.approval_type ?? approval.approvalType ?? "approval").replace(/_/g, " "),
@@ -21,12 +21,12 @@ export default async function MarketingApprovalsPage() {
           ? <form key={`${approval.id}-decision`} action={`/api/studio/ai-employees/outputs/${approval.entity_id ?? approval.entityId}/review`} method="post">
             <select name="decision" defaultValue="needs_edits"><option value="approve">Approve</option><option value="reject">Reject</option><option value="needs_edits">Needs edits</option><option value="convert_to_task">Convert to task</option></select>
             <input name="notes" placeholder="Owner note" />
-            <button className="sf-button sf-button-secondary" type="submit">Save</button>
+            <button className="btn btn-secondary" type="submit">Save</button>
           </form>
           : <form key={`${approval.id}-decision`} action={`/api/studio/shared/approvals/${approval.id}`} method="post">
             <input type="hidden" name="next" value="/studio/marketing/approvals" />
             <select name="status" defaultValue={approval.status ?? "pending"}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_edits">Needs edits</option><option value="dismissed">Dismissed</option></select>
-            <button className="sf-button sf-button-secondary" type="submit">Save</button>
+            <button className="btn btn-secondary" type="submit">Save</button>
           </form>
       ]) : [["No approval items", "Run launch workflow to create approval queue.", "empty", "-"]]} />
     </section>

@@ -15,8 +15,8 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
       <LinkButton href={`/studio/customers/${customerId}`} variant="secondary">View Customer</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/crm/customers/${customerId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/crm/customers/${customerId}`} method="post">
         <input type="hidden" name="next" value={`/studio/customers/${customerId}`} />
         <label>Name<input name="name" defaultValue={customer?.name ?? ""} required /></label>
         <label>Email<input name="email" type="email" defaultValue={customer?.email ?? ""} /></label>
@@ -26,7 +26,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
         <label>Customer type<input name="customer_type" defaultValue={customer?.customer_type ?? customer?.customerType ?? ""} /></label>
         <label>Marketing consent<select name="marketing_consent_status" defaultValue={customer?.marketing_consent_status ?? customer?.marketingConsentStatus ?? "unknown"}><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="denied">Denied</option></select></label>
         <label>Next action<input name="next_action" defaultValue={customer?.next_action ?? customer?.nextAction ?? ""} /></label>
-        <button className="sf-button" type="submit">Save Customer</button>
+        <button className="btn" type="submit">Save Customer</button>
       </form>
     </section>
   </>;

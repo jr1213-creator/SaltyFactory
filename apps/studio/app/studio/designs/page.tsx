@@ -17,7 +17,7 @@ async function postJson(url: string, body?: Record<string, unknown>) {
 
 function ResultPanel({ result }: { result: unknown }) {
   if (!result) return null;
-  return <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>;
+  return <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>;
 }
 
 function SuggestionCard({ suggestion, onAction, busy }: { suggestion: Suggestion; onAction: (id: string, action: "approve" | "reject" | "brief") => void; busy: boolean }) {
@@ -25,27 +25,27 @@ function SuggestionCard({ suggestion, onAction, busy }: { suggestion: Suggestion
   const riskNotes = Array.isArray(suggestion.risk_notes) ? suggestion.risk_notes : [];
   const converted = suggestion.status === "converted_to_brief";
   return <Card>
-    <div className="sf-card-header">
+    <div className="card-header">
       <div>
         <h2>{suggestion.title}</h2>
-        <p className="sf-muted">{suggestion.concept_summary}</p>
+        <p className="text-muted">{suggestion.concept_summary}</p>
       </div>
       <StatusBadge status={suggestion.status ?? "suggested"} tone={suggestion.approved_for_design ? "success" : suggestion.status === "rejected" ? "danger" : "warning"} />
     </div>
-    <div className="sf-grid sf-grid-2">
+    <div className="layout-grid layout-grid-2">
       <p><strong>Phrase</strong><br />{suggestion.suggested_phrase}</p>
       <p><strong>Product</strong><br />{suggestion.product_type}</p>
       <p><strong>Audience</strong><br />{suggestion.target_audience}</p>
       <p><strong>Scores</strong><br />Trend {scores.trend ?? "-"} · Brand {scores.brandFit ?? "-"} · Print {scores.printability ?? "-"}</p>
     </div>
-    <p className="sf-muted">Style: {(suggestion.style_keywords ?? []).join(", ") || "Review required"}</p>
-    <p className="sf-muted">Palette: {(suggestion.color_palette ?? []).join(", ") || "Review required"}</p>
-    {suggestion.prompt_injection_flagged ? <p className="sf-alert">Prompt-injection-like text was flagged and treated as evidence only.</p> : null}
-    {riskNotes.length ? <ul className="sf-muted">{riskNotes.slice(0, 3).map((note: string) => <li key={note}>{note}</li>)}</ul> : null}
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-primary" disabled={busy || suggestion.approved_for_design} onClick={() => onAction(suggestion.id, "approve")}>Approve</button>
-      <button className="sf-button sf-button-secondary" disabled={busy || suggestion.status === "rejected"} onClick={() => onAction(suggestion.id, "reject")}>Reject</button>
-      <button className="sf-button sf-button-secondary" disabled={busy || !suggestion.approved_for_design || converted} onClick={() => onAction(suggestion.id, "brief")}>{converted ? "Brief Created" : "Convert to Brief"}</button>
+    <p className="text-muted">Style: {(suggestion.style_keywords ?? []).join(", ") || "Review required"}</p>
+    <p className="text-muted">Palette: {(suggestion.color_palette ?? []).join(", ") || "Review required"}</p>
+    {suggestion.prompt_injection_flagged ? <p className="alert-panel">Prompt-injection-like text was flagged and treated as evidence only.</p> : null}
+    {riskNotes.length ? <ul className="text-muted">{riskNotes.slice(0, 3).map((note: string) => <li key={note}>{note}</li>)}</ul> : null}
+    <div className="action-bar">
+      <button className="btn btn-primary" disabled={busy || suggestion.approved_for_design} onClick={() => onAction(suggestion.id, "approve")}>Approve</button>
+      <button className="btn btn-secondary" disabled={busy || suggestion.status === "rejected"} onClick={() => onAction(suggestion.id, "reject")}>Reject</button>
+      <button className="btn btn-secondary" disabled={busy || !suggestion.approved_for_design || converted} onClick={() => onAction(suggestion.id, "brief")}>{converted ? "Brief Created" : "Convert to Brief"}</button>
     </div>
   </Card>;
 }
@@ -104,29 +104,29 @@ export default function DesignsPage() {
     </PageHeader>
     <section className="card" style={{ display: "grid", gap: 14 }}>
       <h2>Manual Topic</h2>
-      <div className="sf-form-grid">
+      <div className="form-grid">
         <label>Topic or niche<input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="coastal cowgirl western beach boutique" /></label>
-        <button className="sf-button sf-button-primary" disabled={busy || topic.trim().length < 3} onClick={createSuggestions}>Create Suggestions</button>
+        <button className="btn btn-primary" disabled={busy || topic.trim().length < 3} onClick={createSuggestions}>Create Suggestions</button>
       </div>
-      <p className="sf-muted">Suggestions are persisted workspace records. No asset, draft, projection, or provider call is created at this step.</p>
+      <p className="text-muted">Suggestions are persisted workspace records. No asset, draft, projection, or provider call is created at this step.</p>
       <ResultPanel result={result} />
     </section>
     <section className="card" style={{ display: "grid", gap: 14, marginTop: 18 }}>
       <h2>AI Design Concepts</h2>
-      <p className="sf-muted">Persisted AI employee design concept drafts appear here for owner review. Image generation remains provider-gated and separate.</p>
+      <p className="text-muted">Persisted AI employee design concept drafts appear here for owner review. Image generation remains provider-gated and separate.</p>
       {aiDesignOutputs.length ? aiDesignOutputs.map((output) => {
         const payload = output.output_json ?? output.outputJson ?? {};
         return <Card key={output.id}>
-          <div className="sf-card-header">
+          <div className="card-header">
             <h3>{payload.title ?? output.id}</h3>
             <StatusBadge status={output.status ?? "pending review"} tone={output.status === "approved" ? "success" : "warning"} />
           </div>
           <p>{payload.body ?? payload.data?.prompt ?? "Design concept draft awaiting review."}</p>
-          <div className="sf-action-bar"><a className="sf-button sf-button-secondary" href="/studio/ai-employees">Review in AI Queue</a></div>
+          <div className="action-bar"><a className="btn btn-secondary" href="/studio/ai-employees">Review in AI Queue</a></div>
         </Card>;
       }) : <EmptyState title="No AI design concepts yet" description="Run Daily POD Planning to create persisted design concept drafts." />}
     </section>
-    <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
+    <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
       {suggestions.length ? suggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} onAction={runAction} busy={busy} />) : <EmptyState title="No design suggestions yet" description="Create suggestions from a manual topic to start the POD product workflow." />}
     </div>
   </>;

@@ -27,28 +27,28 @@ export default async function AiModelDetailPage({ params }: { params: Promise<{ 
       eyebrow="Model review"
       description="Models must be evaluated and approved before assignment. Dangerous actions remain deterministic owner-gated operations."
     >
-      <a className="sf-button sf-button-secondary" href="/studio/ai-employees/models">Back to registry</a>
+      <a className="btn btn-secondary" href="/studio/ai-employees/models">Back to registry</a>
     </PageHeader>
 
-    <section className="sf-grid sf-grid-3">
-      <div className="sf-card">
+    <section className="layout-grid layout-grid-3">
+      <div className="surface-card">
         <h2>Provider</h2>
         <p>{provider.display_name}</p>
         <ProviderHealthBadge status={String(provider.configured_status)} />
       </div>
-      <div className="sf-card">
+      <div className="surface-card">
         <h2>Model Status</h2>
         <StatusBadge status={String(model.status)} tone={model.status === "approved" ? "success" : "warning"} />
-        <p className="sf-muted">Cost tier: {provider.cost_tier}</p>
+        <p className="text-muted">Cost tier: {provider.cost_tier}</p>
       </div>
-      <div className="sf-card">
+      <div className="surface-card">
         <h2>Data Policy</h2>
         <p>{provider.data_sensitivity_allowed}</p>
-        <p className="sf-muted">Sensitive/high-authority data requires explicit authority approval.</p>
+        <p className="text-muted">Sensitive/high-authority data requires explicit authority approval.</p>
       </div>
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Task Policy</h2>
       <DataTable
         columns={["Recommended for", "Forbidden for", "Weaknesses"]}
@@ -56,9 +56,9 @@ export default async function AiModelDetailPage({ params }: { params: Promise<{ 
       />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Record Evaluation</h2>
-      <form className="sf-form-grid" action="/api/studio/ai-employees/model-evals" method="post">
+      <form className="form-grid" action="/api/studio/ai-employees/model-evals" method="post">
         <input type="hidden" name="modelId" value={String(model.id)} />
         <label>Eval name<input name="evalName" defaultValue="Draft task guardrail eval" /></label>
         <label>Task type<input name="taskType" defaultValue="draft_task" /></label>
@@ -72,11 +72,11 @@ export default async function AiModelDetailPage({ params }: { params: Promise<{ 
             <option value="true">Yes</option>
           </select>
         </label>
-        <button className="sf-button sf-button-primary" type="submit">Record Evaluation</button>
+        <button className="btn btn-primary" type="submit">Record Evaluation</button>
       </form>
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Evaluations</h2>
       <DataTable
         columns={["Eval", "Task", "Passed", "Score", "Summary"]}
@@ -90,7 +90,7 @@ export default async function AiModelDetailPage({ params }: { params: Promise<{ 
       />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Usage</h2>
       <DataTable
         columns={["Task", "Risk", "Sensitivity", "Status", "Cost"]}

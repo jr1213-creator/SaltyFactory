@@ -20,14 +20,14 @@ export default async function LaunchCampaignWorkflowPage() {
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-3">
+    <div className="layout-grid layout-grid-3">
       <ProviderStatusCard title="Live publishing" status="disabled" tone="warning" description="No social posting, email sending, ad launch, product feed submit, or spend occurs." />
       <ProviderStatusCard title="Output type" status="manual/export-ready" tone="info" description="Creates proof pack, growth plan, drafts, asset specs, UTM, approvals, and tasks." />
       <ProviderStatusCard title="Owner approval" status="required" tone="warning" description="Generated records are ready for owner review, not public execution." />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Create Campaign Packet</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/marketing/launch-campaign" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/marketing/launch-campaign" method="post">
         <input type="hidden" name="next" value="/studio/marketing-campaigns/{id}" />
         <label>Vertical pack<select name="vertical_pack_id" defaultValue="vp_pod_boutique"><option value="vp_pod_boutique">POD Boutique</option><option value="vp_ai_readiness_consulting">AI Readiness Consulting</option></select></label>
         <label>Campaign name<input name="name" defaultValue="Salty Cowhide Product Drop Launch" required /></label>
@@ -37,10 +37,10 @@ export default async function LaunchCampaignWorkflowPage() {
         <label>Audience<input name="audience" defaultValue="Salty Cowhide buyers and high-intent leads" /></label>
         <label>Offer<input name="offer" defaultValue="Owner-reviewed product/drop offer" /></label>
         <label>Landing URL<input name="landing_url" defaultValue="https://saltycowhide.com/" /></label>
-        <button className="sf-button" type="submit">Generate Campaign Packet</button>
+        <button className="btn" type="submit">Generate Campaign Packet</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Workflow Outputs</h2>
       <DataTable columns={["Step", "Record created", "Status"]} rows={[
         ["Campaign", "campaigns", <StatusBadge key="campaign" status="ready for review" tone="info" />],

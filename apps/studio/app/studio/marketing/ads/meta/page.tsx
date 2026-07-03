@@ -12,9 +12,9 @@ export default async function MetaAdsDraftStudioPage() {
       <LinkButton href="/studio/marketing/ads" variant="secondary">Ads Hub</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <h2>Create Meta Ads Draft</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/shared/campaign-channels" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/shared/campaign-channels" method="post">
         <input type="hidden" name="next" value="/studio/marketing/ads/meta" />
         <input type="hidden" name="channel_type" value="meta_ads" />
         <label>Campaign ID<input name="campaign_id" /></label>
@@ -32,10 +32,10 @@ export default async function MetaAdsDraftStudioPage() {
           specialAdCategoryChecklist: "Review if applicable.",
           noLiveApiCall: true
         }, null, 2)} /></label>
-        <button className="sf-button" type="submit">Save Meta Ads Draft</button>
+        <button className="btn" type="submit">Save Meta Ads Draft</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved Meta Ads Drafts</h2>
       <DataTable columns={["Campaign", "Status", "Pixel", "Execution", "Open"]} rows={drafts.length ? drafts.map((draft: any) => [
         draft.campaign_id ?? draft.campaignId ?? "-",

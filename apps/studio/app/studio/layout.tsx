@@ -31,7 +31,7 @@ export default async function StudioLayout({ children }: { children: React.React
       <header className="studio-topbar">
         <WorkspaceSwitcher />
         <SearchCommand />
-        <div className="sf-page-actions"><NotificationBell /><UserMenu /></div>
+        <div className="page-actions"><NotificationBell /><UserMenu /></div>
       </header>
       <main className="studio-content">{children}</main>
     </div>

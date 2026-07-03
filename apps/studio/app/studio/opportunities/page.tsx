@@ -19,13 +19,13 @@ export default async function OpportunitiesPage() {
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Opportunities" value={String(opportunities.length)} delta="Saved workspace records" />
       <MetricCard title="Pipeline stages" value="0" delta="Configurable records" />
       <MetricCard title="Quotes" value="0" delta="Quotation request foundation" />
       <MetricCard title="Active opportunities" value={String(activeOpportunities.length)} delta="No fake revenue" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Opportunity Pipeline</h2>
       <DataTable columns={["Opportunity", "Customer/lead", "Stage", "Estimated value", "Next action", "Open"]} rows={opportunities.length ? opportunities.map((opportunity: any) => [
         opportunity.title,

@@ -34,16 +34,16 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       <LinkButton href="/studio/customer-command-center">Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    {customer && <div className="sf-grid sf-grid-4">
+    {customer && <div className="layout-grid layout-grid-4">
       <MetricCard title="Lifetime value" value={money(customer.lifetime_value ?? customer.lifetimeValue)} delta="Provider/imported or manual" />
       <MetricCard title="Average order value" value={money(customer.average_order_value ?? customer.averageOrderValue)} delta="Requires real order data" />
       <MetricCard title="Order count" value={String(customer.order_count ?? customer.orderCount ?? 0)} delta="No fake orders" />
       <MetricCard title="Consent" value={String(customer.marketing_consent_status ?? customer.marketingConsentStatus ?? "unknown").replace(/_/g, " ")} delta="Campaign gate" tone={String(customer.marketing_consent_status ?? customer.marketingConsentStatus) === "granted" ? "success" : "warning"} />
     </div>}
 
-    <div className="sf-layout-rail" style={{ marginTop: 18 }}>
-      <div className="sf-grid">
-        <section className="sf-card">
+    <div className="layout-rail" style={{ marginTop: 18 }}>
+      <div className="layout-grid">
+        <section className="surface-card">
           <h2>Profile</h2>
           <DataTable columns={["Field", "Value"]} rows={[
             ["Name", customer?.name ?? "-"],
@@ -58,9 +58,9 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
           ]} />
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>AI Customer Summary</h2>
-          <p className="sf-muted">Rule-based AI suggestion. No external model call is required, and no customer data leaves the server in this fallback.</p>
+          <p className="text-muted">Rule-based AI suggestion. No external model call is required, and no customer data leaves the server in this fallback.</p>
           <DataTable columns={["Recommendation", "Reason", "Priority"]} rows={nextActions.length ? nextActions.map((action: any) => [
             action.title,
             action.reason,
@@ -68,39 +68,39 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
           ]) : [["No recommendations yet", "Add contact details, orders, notes, tasks, or product interests.", "normal"]]} />
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Timeline</h2>
           {timeline.length ? <AuditTimeline events={timeline.map((event: any) => ({
             title: event.title ?? event.event_type ?? event.eventType,
             detail: `${event.body ?? ""} Source: ${data.sourceLabelFor(event.source_label ?? event.sourceLabel)}${event.ai_suggested || event.aiSuggested ? " (AI-suggested)" : ""}`,
             time: String(event.event_at ?? event.eventAt ?? "")
-          }))} /> : <p className="sf-muted">No timeline events exist yet. Real events appear after manual notes/tasks, provider imports, forms, support, scheduling, or tracking are configured.</p>}
+          }))} /> : <p className="text-muted">No timeline events exist yet. Real events appear after manual notes/tasks, provider imports, forms, support, scheduling, or tracking are configured.</p>}
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Notes & Follow-up Tasks</h2>
           <DataTable columns={["Type", "Title", "Status", "Source", "Action"]} rows={[
             ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel), "-"]),
-            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="sf-button sf-button-secondary" type="submit">Complete</button></form>])
+            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="btn btn-secondary" type="submit">Complete</button></form>])
           ].length ? [
             ...notes.map((note: any) => ["Note", note.title, note.status ?? "active", data.sourceLabelFor(note.source_label ?? note.sourceLabel), "-"]),
-            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="sf-button sf-button-secondary" type="submit">Complete</button></form>])
+            ...tasks.map((task: any) => ["Task", task.title, task.status ?? "open", data.sourceLabelFor(task.source_label ?? task.sourceLabel), String(task.status ?? "open") === "completed" ? "Completed" : <form key={`${task.id}-complete`} action={`/api/studio/crm/tasks/${task.id}`} method="post"><input type="hidden" name="next" value={`/studio/customers/${customerId}`} /><input type="hidden" name="status" value="completed" /><button className="btn btn-secondary" type="submit">Complete</button></form>])
           ] : [["None yet", "Create a note or follow-up task from the API/UI foundation.", "-", "System-generated", "-"]]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Create Note</h2>
-          <form className="sf-grid" action="/api/studio/crm/notes" method="post">
+          <form className="layout-grid" action="/api/studio/crm/notes" method="post">
             <input type="hidden" name="next" value={`/studio/customers/${customerId}`} />
             <input type="hidden" name="customer_id" value={customerId} />
             <input type="hidden" name="source_label" value="admin_created_note" />
             <label>Title<input name="title" defaultValue="Customer note" required /></label>
             <label>Note<textarea name="body" required /></label>
-            <button className="sf-button" type="submit">Save Note</button>
+            <button className="btn" type="submit">Save Note</button>
           </form>
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Create Follow-up Task</h2>
-          <form className="sf-grid sf-grid-2" action="/api/studio/crm/tasks" method="post">
+          <form className="layout-grid layout-grid-2" action="/api/studio/crm/tasks" method="post">
             <input type="hidden" name="next" value={`/studio/customers/${customerId}`} />
             <input type="hidden" name="customer_id" value={customerId} />
             <input type="hidden" name="source_label" value="manual_entry" />
@@ -109,17 +109,17 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
             <label>Status<select name="status" defaultValue="open"><option value="open">Open</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></label>
             <label>Due at<input name="due_at" type="datetime-local" /></label>
             <label>Description<textarea name="description" /></label>
-            <button className="sf-button" type="submit">Create Task</button>
+            <button className="btn" type="submit">Create Task</button>
           </form>
         </section>
       </div>
 
-      <div className="sf-grid">
+      <div className="layout-grid">
         <ProviderStatusCard title="Order history" status={data.providerStatuses.shopify === "connected" ? "sync available" : "setup needed"} tone={data.providerStatuses.shopify === "connected" ? "info" : "warning"} description="Order history appears after Shopify customer/order sync is configured." />
         <ProviderStatusCard title="Abandoned carts" status="future integration" tone="warning" description="Abandoned cart candidates require Shopify/cart event integration." />
         <ProviderStatusCard title="Support conversations" status={data.conversations.length ? "detected" : "not configured"} tone={data.conversations.length ? "success" : "warning"} description="Support conversations appear after inbox channels are configured." />
         <ProviderStatusCard title="Website behavior" status={data.events.length ? "detected" : "not configured"} tone={data.events.length ? "success" : "warning"} description="Website behavior appears after tracking is configured." />
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Product Interests</h2>
           <DataTable columns={["Product type", "Score", "Status", "Source"]} rows={interests.length ? interests.map((interest: any) => [
             interest.product_type ?? interest.productType,
@@ -128,7 +128,7 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
             data.sourceLabelFor(interest.source_label ?? interest.sourceLabel)
           ]) : [["No product interests", "0", "none", "System-generated"]]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Marketing Consent</h2>
           <DataTable columns={["Type", "Status", "Source"]} rows={consents.length ? consents.map((consent: any) => [
             consent.consent_type ?? consent.consentType ?? "marketing",

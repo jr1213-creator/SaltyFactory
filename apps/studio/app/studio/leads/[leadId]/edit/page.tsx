@@ -15,8 +15,8 @@ export default async function EditLeadPage({ params }: { params: Promise<{ leadI
       <LinkButton href={`/studio/leads/${leadId}`} variant="secondary">View Lead</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/crm/leads/${leadId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/crm/leads/${leadId}`} method="post">
         <input type="hidden" name="next" value={`/studio/leads/${leadId}`} />
         <label>Name<input name="name" defaultValue={lead?.name ?? ""} required /></label>
         <label>Email<input name="email" type="email" defaultValue={lead?.email ?? ""} /></label>
@@ -28,7 +28,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ leadI
         <label>Next follow-up<input name="next_follow_up_at" type="datetime-local" defaultValue={lead?.next_follow_up_at ?? lead?.nextFollowUpAt ?? ""} /></label>
         <label>Consent<select name="consent_status" defaultValue={lead?.consent_status ?? lead?.consentStatus ?? "unknown"}><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="denied">Denied</option></select></label>
         <label>Notes<textarea name="notes" defaultValue={lead?.notes ?? ""} /></label>
-        <button className="sf-button" type="submit">Save Lead</button>
+        <button className="btn" type="submit">Save Lead</button>
       </form>
     </section>
   </>;

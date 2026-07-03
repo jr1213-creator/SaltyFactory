@@ -15,12 +15,12 @@ export default async function CustomerCommandCenterSetupPage() {
       <LinkButton href="/studio/customer-command-center" variant="secondary">Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-3">
+    <div className="layout-grid layout-grid-3">
       <ProviderStatusCard title="Default segments" status={data.segments.length ? "ready" : "not started"} tone={data.segments.length ? "success" : "warning"} description="Saved/default segment definitions coexist with zero fake memberships." />
       <ProviderStatusCard title="Capture forms" status={data.forms.length ? "ready" : "not started"} tone={data.forms.length ? "success" : "warning"} description="Forms are persisted definitions. Public embeds remain future integration." />
       <ProviderStatusCard title="Messaging provider" status="not configured" tone="warning" description="Message templates are drafts only; no email/SMS sending is implemented." />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Setup Steps</h2>
       <DataTable columns={["Step", "State", "What it does"]} rows={[
         ["Create default customer segments", data.segments.length ? <StatusBadge key="segments" status="ready" tone="success" /> : <StatusBadge key="segments-pending" status="not started" tone="warning" />, "Creates saved segment definitions without fake members."],
@@ -32,7 +32,7 @@ export default async function CustomerCommandCenterSetupPage() {
       ]} />
       <form action="/api/studio/customer-command-center/setup" method="post" style={{ marginTop: 16 }}>
         <input type="hidden" name="next" value="/studio/customer-command-center/setup" />
-        <button className="sf-button" type="submit">Seed Customer Defaults</button>
+        <button className="btn" type="submit">Seed Customer Defaults</button>
       </form>
     </section>
   </>;

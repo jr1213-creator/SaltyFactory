@@ -29,10 +29,10 @@ export default async function LaunchPacketPage({ searchParams }: { searchParams?
       title="Launch Packet"
       description="Current internal launch state for a POD product. This page summarizes evidence and blockers; it does not publish, sync, send, or spend."
     >
-      <a className="sf-button sf-button-secondary" href="/studio/publish-review">Publish review</a>
+      <a className="btn btn-secondary" href="/studio/publish-review">Publish review</a>
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-3">
+    <div className="layout-grid layout-grid-3">
       <ProviderReadinessCard title="Selected product" status={draft ? "loaded" : "missing"} tone={draft ? "success" : "warning"} description={draft?.title ?? "Select a product draft from Publish Review."} />
       <ProviderReadinessCard title="Printify" status={printifyRefs.length ? "draft ref saved" : "not created"} tone={printifyRefs.length ? "success" : "warning"} description="Printify product refs map to the internal product draft." />
       <ProviderReadinessCard title="Shopify" status={shopifyRefs.length ? "draft ref saved" : "not created"} tone={shopifyRefs.length ? "success" : "warning"} description="Shopify draft refs map to the internal product draft." />
@@ -46,7 +46,7 @@ export default async function LaunchPacketPage({ searchParams }: { searchParams?
         { label: "Storefront publish", status: config.LIVE_PUBLISHING_ENABLED ? "owner confirmation still required" : "blocked by default", complete: false }
       ]} />
     </LaunchPacketSection>
-    <div className="sf-grid sf-grid-2" style={{ marginTop: 18 }}>
+    <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
       <LaunchPacketSection title="Product Summary">
         <DataTable columns={["Field", "Value"]} rows={[
           ["Draft ID", draftId || "-"],

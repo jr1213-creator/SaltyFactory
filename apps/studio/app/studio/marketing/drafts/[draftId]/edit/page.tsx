@@ -16,14 +16,14 @@ export default async function EditMarketingDraftPage({ params }: { params: Promi
       <LinkButton href={`/studio/marketing/drafts/${draftId}`} variant="secondary">View Draft</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action={`/api/studio/shared/campaign-channels/${draftId}`} method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action={`/api/studio/shared/campaign-channels/${draftId}`} method="post">
         <input type="hidden" name="next" value={`/studio/marketing/drafts/${draftId}`} />
         <label>Campaign ID<input name="campaign_id" defaultValue={draft?.campaign_id ?? draft?.campaignId ?? ""} /></label>
         <label>Channel type<input name="channel_type" defaultValue={channelType} required /></label>
         <label>Status<select name="status" defaultValue={draft?.status ?? "draft"}><option value="draft">Draft</option><option value="needs_asset">Needs asset</option><option value="ready_for_review">Ready for review</option><option value="approved">Approved</option><option value="export_ready">Export ready</option><option value="exported">Exported</option><option value="manually_published">Manually published</option><option value="blocked">Blocked</option><option value="archived">Archived</option></select></label>
         <label>Draft content JSON<textarea name="draft_content" defaultValue={JSON.stringify(draft?.draft_content ?? draft?.draftContent ?? {}, null, 2)} /></label>
-        <button className="sf-button" type="submit">Save Draft</button>
+        <button className="btn" type="submit">Save Draft</button>
       </form>
     </section>
   </>;

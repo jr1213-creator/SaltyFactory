@@ -8,15 +8,15 @@ const statusTone = (status: string) =>
         "info";
 
 function FeatureCard({ feature }: { feature: FeatureReadiness }) {
-  return <section className="sf-card sf-feature-readiness-card">
-    <div className="sf-card-header-row">
+  return <section className="surface-card feature-readiness-card">
+    <div className="card-header-row">
       <div>
         <h2>{feature.label}</h2>
-        <p className="sf-muted">{feature.notes.join(" ")}</p>
+        <p className="text-muted">{feature.notes.join(" ")}</p>
       </div>
       <StatusBadge status={feature.status.replace(/_/g, " ")} tone={statusTone(feature.status) as any} />
     </div>
-    <div className="sf-kv-list">
+    <div className="kv-list">
       <span>Missing env</span>
       <strong>{feature.missingEnv.length ? feature.missingEnv.join(", ") : "None"}</strong>
       <span>Can test locally</span>
@@ -24,10 +24,10 @@ function FeatureCard({ feature }: { feature: FeatureReadiness }) {
       <span>Disabled flags</span>
       <strong>{feature.disabledFlags.length ? feature.disabledFlags.join(", ") : "None"}</strong>
     </div>
-    {feature.setupRequired.length ? <div className="sf-blocker-inline"><strong>Setup required</strong><ul>{feature.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
-    <div className="sf-action-bar">
-      {feature.safeLocalRoute ? <a className="sf-button sf-button-secondary" href={feature.safeLocalRoute}>Open Feature</a> : null}
-      <a className="sf-button sf-button-ghost" href={`#setup-${feature.featureKey}`}>View Setup Instructions</a>
+    {feature.setupRequired.length ? <div className="blocker-inline"><strong>Setup required</strong><ul>{feature.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+    <div className="action-bar">
+      {feature.safeLocalRoute ? <a className="btn btn-secondary" href={feature.safeLocalRoute}>Open Feature</a> : null}
+      <a className="btn btn-ghost" href={`#setup-${feature.featureKey}`}>View Setup Instructions</a>
     </div>
   </section>;
 }
@@ -52,9 +52,9 @@ export default function StudioSetupPage() {
       description="A redacted owner setup view showing what works now, what is config-blocked, and which dangerous actions are intentionally disabled."
     />
 
-    <section className="sf-card" id="quick-start">
+    <section className="surface-card" id="quick-start">
       <h2>Quick Start</h2>
-      <div className="sf-grid sf-grid-3">
+      <div className="layout-grid layout-grid-3">
         <div>
           <h3>What can I test right now?</h3>
           <ul>{report.safeLocalTesting.slice(0, 10).map((item) => <li key={item.featureKey}>{item.route ? <a href={item.route}>{item.label}</a> : item.label}</li>)}</ul>
@@ -76,37 +76,37 @@ export default function StudioSetupPage() {
     </section>
 
     <section style={{ marginTop: 18 }}>
-      <div className="sf-section-header">
+      <div className="section-header">
         <div>
           <h2>Feature Readiness Cards</h2>
-          <p className="sf-muted">Missing values are shown by env var name only. Secrets are never displayed.</p>
+          <p className="text-muted">Missing values are shown by env var name only. Secrets are never displayed.</p>
         </div>
       </div>
-      <div className="sf-grid sf-grid-3">
+      <div className="layout-grid layout-grid-3">
         {providerCards.map((feature) => <FeatureCard key={feature.featureKey} feature={feature} />)}
       </div>
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Safe Local Testing</h2>
       <DataTable columns={["Feature", "Route", "Expected behavior"]} rows={report.safeLocalTesting.map((item) => [item.label, item.route ?? "Internal API only", "Uses internal records or honest blocker UI; no live provider success is faked."])} />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Provider Setup Blocks</h2>
       <DataTable columns={["Feature", "Status", "Exact blocker"]} rows={providerBlocks} />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Safety Panel</h2>
-      <p className="sf-muted">Live publish, money movement, external ordering, and AI permission escalation remain disabled or owner-gated by default.</p>
+      <p className="text-muted">Live publish, money movement, external ordering, and AI permission escalation remain disabled or owner-gated by default.</p>
       <DataTable columns={["Area", "Dangerous actions blocked", "Disabled flags / guardrail"]} rows={safetyRows} />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Setup Instructions</h2>
-      <div className="sf-grid sf-grid-2">
-        {report.features.map((feature) => <article key={feature.featureKey} id={`setup-${feature.featureKey}`} className="sf-subcard">
+      <div className="layout-grid layout-grid-2">
+        {report.features.map((feature) => <article key={feature.featureKey} id={`setup-${feature.featureKey}`} className="subcard">
           <h3>{feature.label}</h3>
           <p><strong>Required env:</strong> {feature.requiredEnv.length ? feature.requiredEnv.join(", ") : "None"}</p>
           <p><strong>Expected blocker:</strong> {feature.setupRequired.length ? feature.setupRequired.join(", ") : "No blocker recorded."}</p>

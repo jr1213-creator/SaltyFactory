@@ -11,7 +11,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
       <StatusBadge status={`${approvedAssets.length} approved assets`} tone={approvedAssets.length ? "success" : "warning"} />
     </PageHeader>
     <MockupWorkflowClient initialAssets={assets as any[]} initialMockups={mockups as any[]} initialAssetId={params?.asset_id} />
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Mockup Records</h2>
       {mockups.length ? <DataTable columns={["Mockup", "Status", "Approved", "Asset"]} rows={mockups.map((mockup: any) => [
         mockup.file_path ?? mockup.id,

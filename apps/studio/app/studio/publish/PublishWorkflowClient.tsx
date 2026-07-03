@@ -38,13 +38,13 @@ export function PublishWorkflowClient({ initialReviews }: { initialReviews: Revi
   return <section className="card" style={{ display: "grid", gap: 14 }}>
     <h2>Saved Review Actions</h2>
     <label>Review<select value={selectedReviewId} onChange={(event) => setSelectedReviewId(event.target.value)}>{reviews.map((review) => <option key={review.id} value={review.id}>{review.product_draft_id ?? review.productDraftId ?? review.id}</option>)}</select></label>
-    {selected ? <p className="sf-muted">{selected.status ?? "pending"} · gates {(selected.all_gates_passed || selected.allGatesPassed) ? "passed" : "blocked"} · provider sync remains separate and disabled until connected.</p> : <p className="sf-muted">Create a publish review from a validated draft first.</p>}
-    <div className="sf-action-bar">
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => run("evaluate")}>Evaluate Readiness</button>
-      <button className="sf-button sf-button-primary" disabled={!selected || busy} onClick={() => run("approve")}>Approve Internally</button>
-      <button className="sf-button sf-button-secondary" disabled={!selected || busy} onClick={() => run("changes")}>Request Changes</button>
-      <button className="sf-button sf-button-danger" disabled={!selected || busy} onClick={() => run("reject")}>Reject</button>
+    {selected ? <p className="text-muted">{selected.status ?? "pending"} · gates {(selected.all_gates_passed || selected.allGatesPassed) ? "passed" : "blocked"} · provider sync remains separate and disabled until connected.</p> : <p className="text-muted">Create a publish review from a validated draft first.</p>}
+    <div className="action-bar">
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("evaluate")}>Evaluate Readiness</button>
+      <button className="btn btn-primary" disabled={!selected || busy} onClick={() => run("approve")}>Approve Internally</button>
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("changes")}>Request Changes</button>
+      <button className="btn btn-danger" disabled={!selected || busy} onClick={() => run("reject")}>Reject</button>
     </div>
-    {result && <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
+    {result && <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre>}
   </section>;
 }

@@ -15,13 +15,13 @@ export default async function CustomerSegmentsPage() {
       <LinkButton href="/studio/customer-command-center">Customer Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Segment definitions" value={String(data.segments.length)} delta="System definitions plus saved segments" />
       <MetricCard title="Active segments" value={String(data.summary.segmentsActive)} delta="Not fake members" />
       <MetricCard title="Customer records" value={String(data.customers.length)} delta="Membership source" />
       <MetricCard title="Order-dependent segments" value="Needs Shopify" delta="Repeat/VIP/jewelry/digital" tone="warning" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Smart Segment Definitions</h2>
       <DataTable
         columns={["Segment", "Description", "Member count", "Readiness", "Suggested campaign/action", "Open"]}

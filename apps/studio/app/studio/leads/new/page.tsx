@@ -7,8 +7,8 @@ export default function NewLeadPage() {
     <PageHeader eyebrow="CRM depth" title="Create Lead" description="Create a source-labeled lead for wholesale, custom work, consultation, or product interest follow-up.">
       <LinkButton href="/studio/leads" variant="secondary">All Leads</LinkButton>
     </PageHeader>
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action="/api/studio/crm/leads" method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action="/api/studio/crm/leads" method="post">
         <input type="hidden" name="next" value="/studio/leads/{id}" />
         <label>Name<input name="name" required /></label>
         <label>Email<input name="email" type="email" /></label>
@@ -21,7 +21,7 @@ export default function NewLeadPage() {
         <label>Next follow-up<input name="next_follow_up_at" type="datetime-local" /></label>
         <label>Consent<select name="consent_status" defaultValue="unknown"><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="denied">Denied</option></select></label>
         <label>Notes<textarea name="notes" /></label>
-        <button className="sf-button" type="submit">Save Lead</button>
+        <button className="btn" type="submit">Save Lead</button>
       </form>
     </section>
   </>;

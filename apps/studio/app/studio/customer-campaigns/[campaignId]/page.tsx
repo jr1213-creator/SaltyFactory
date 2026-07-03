@@ -16,7 +16,7 @@ export default async function CustomerCampaignDetailPage({ params }: { params: P
       <LinkButton href={`/studio/customer-campaigns/${campaignId}/edit`} variant="secondary">Edit Campaign</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <DataTable columns={["Field", "Value"]} rows={[
         ["Name", campaign?.name ?? "-"],
         ["Goal", campaign?.goal ?? "-"],

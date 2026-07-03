@@ -14,13 +14,13 @@ export default async function ServiceCasesPage() {
       <LinkButton href="/studio/customer-inbox">Customer Inbox</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Cases" value={String(serviceCases.length)} delta="No fake support data; saved support records" />
       <MetricCard title="Conversations" value={String(data.conversations.length)} delta="Inbox foundation" />
       <MetricCard title="Open cases/tasks" value={String(openCases.length + data.tasks.length)} delta="Follow-up records" />
       <MetricCard title="Support channels" value="Not configured" delta="Website/email/social future" tone="warning" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Service Case Queue</h2>
       <DataTable columns={["Subject", "Customer", "Priority", "Status", "Channel", "Open"]} rows={serviceCases.length ? serviceCases.map((item: any) => [
         item.subject,

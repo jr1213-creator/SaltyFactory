@@ -14,8 +14,8 @@ export default async function AiHiringRequestDetailPage({ params }: { params: Pr
   const forbidden = spec?.forbidden_actions ?? spec?.forbiddenActions ?? [];
   return <>
     <PageHeader title={String(request.requested_role_title ?? request.requestedRoleTitle)} eyebrow="AI Hiring Desk" description={String(request.reason_needed ?? request.reasonNeeded)}><ApprovalBadge status={String(request.status)} /></PageHeader>
-    <div className="sf-layout-rail">
-      <div className="sf-grid">
+    <div className="layout-rail">
+      <div className="layout-grid">
         <AiEmployeeResumePanel>
           <DataTable columns={["Field", "Value"]} rows={[
             ["Department", String(request.department)],
@@ -25,7 +25,7 @@ export default async function AiHiringRequestDetailPage({ params }: { params: Pr
             ["Prompt profile", String(spec?.prompt_profile ?? spec?.promptProfile ?? "")]
           ]} />
         </AiEmployeeResumePanel>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Role Specification</h2>
           <DataTable columns={["Section", "Items"]} rows={[
             ["Responsibilities", (spec?.responsibilities ?? []).join(", ")],
@@ -37,7 +37,7 @@ export default async function AiHiringRequestDetailPage({ params }: { params: Pr
           ]} />
         </section>
       </div>
-      <aside className="sf-grid">
+      <aside className="layout-grid">
         <GuardrailEditor>
           <ul>{forbidden.map((action: string) => <li key={action}>{action}</li>)}</ul>
         </GuardrailEditor>
@@ -47,10 +47,10 @@ export default async function AiHiringRequestDetailPage({ params }: { params: Pr
           { scope: "provider_actions", level: "provider_action_blocked", approval: "required" }
         ]} />
         <OwnerDecisionPanel title="Owner Decision" description="Approval does not create provider authority. Create Employee is blocked until approved.">
-          <form action={`/api/studio/ai-employees/hiring/${id}/approve`} method="post"><button className="sf-button sf-button-primary" type="submit">Approve</button></form>
-          <form action={`/api/studio/ai-employees/hiring/${id}/needs-edits`} method="post"><button className="sf-button sf-button-secondary" type="submit">Needs Edits</button></form>
-          <form action={`/api/studio/ai-employees/hiring/${id}/reject`} method="post"><button className="sf-button sf-button-danger" type="submit">Reject</button></form>
-          <form action={`/api/studio/ai-employees/hiring/${id}/create-employee`} method="post"><button className="sf-button sf-button-primary" type="submit">Create Employee</button></form>
+          <form action={`/api/studio/ai-employees/hiring/${id}/approve`} method="post"><button className="btn btn-primary" type="submit">Approve</button></form>
+          <form action={`/api/studio/ai-employees/hiring/${id}/needs-edits`} method="post"><button className="btn btn-secondary" type="submit">Needs Edits</button></form>
+          <form action={`/api/studio/ai-employees/hiring/${id}/reject`} method="post"><button className="btn btn-danger" type="submit">Reject</button></form>
+          <form action={`/api/studio/ai-employees/hiring/${id}/create-employee`} method="post"><button className="btn btn-primary" type="submit">Create Employee</button></form>
         </OwnerDecisionPanel>
       </aside>
     </div>

@@ -25,13 +25,13 @@ export default async function CustomerCapturePage() {
       <LinkButton href="/studio/customer-command-center" variant="secondary">Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Saved forms" value={String(data.forms.length)} delta="Workspace records" />
       <MetricCard title="Default templates" value={String(data.defaultCaptureForms.length)} delta="System-generated" />
       <MetricCard title="Active widgets" value={String(data.summary.captureWidgetsActive)} delta="No public embed yet" tone={data.summary.captureWidgetsActive ? "success" : "warning"} />
       <MetricCard title="Form submissions" value="0" delta="No fake submissions" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Capture Readiness</h2>
       <DataTable columns={["Form", "Description", "Status", "Consent", "Embed readiness"]} rows={captureRows.map((form: any) => [
         formTitle(form),

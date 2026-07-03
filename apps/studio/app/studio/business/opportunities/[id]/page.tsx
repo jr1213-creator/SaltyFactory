@@ -9,8 +9,8 @@ export default async function BusinessOpportunityDetailPage({ params }: { params
   if (!opportunity) return <PageHeader title="Opportunity not found" description="This opportunity is not in the active workspace." />;
   return <>
     <PageHeader title={opportunity.title} eyebrow="Business opportunity" description={opportunity.summary}><ApprovalBadge status={String(opportunity.owner_decision ?? opportunity.ownerDecision)} /></PageHeader>
-    <div className="sf-layout-rail">
-      <section className="sf-card">
+    <div className="layout-rail">
+      <section className="surface-card">
         <h2>Evidence and Recommendation</h2>
         <DataTable columns={["Field", "Value"]} rows={[
           ["Type", opportunity.opportunity_type ?? opportunity.opportunityType],
@@ -21,11 +21,11 @@ export default async function BusinessOpportunityDetailPage({ params }: { params
         ]} />
       </section>
       <OwnerDecisionPanel title="Owner Decision" description="Conversions create internal records only. No spend, send, sync, or publish happens.">
-        <form action={`/api/studio/business/opportunities/${id}/approve`} method="post"><button className="sf-button sf-button-primary">Approve</button></form>
-        <form action={`/api/studio/business/opportunities/${id}/reject`} method="post"><button className="sf-button sf-button-danger">Reject</button></form>
-        <form action={`/api/studio/business/opportunities/${id}/convert-to-task`} method="post"><button className="sf-button sf-button-secondary">Convert to Task</button></form>
-        <form action={`/api/studio/business/opportunities/${id}/convert-to-campaign`} method="post"><button className="sf-button sf-button-secondary">Convert to Campaign</button></form>
-        <form action={`/api/studio/business/opportunities/${id}/convert-to-product-batch`} method="post"><button className="sf-button sf-button-secondary">Convert to Product Batch</button></form>
+        <form action={`/api/studio/business/opportunities/${id}/approve`} method="post"><button className="btn btn-primary">Approve</button></form>
+        <form action={`/api/studio/business/opportunities/${id}/reject`} method="post"><button className="btn btn-danger">Reject</button></form>
+        <form action={`/api/studio/business/opportunities/${id}/convert-to-task`} method="post"><button className="btn btn-secondary">Convert to Task</button></form>
+        <form action={`/api/studio/business/opportunities/${id}/convert-to-campaign`} method="post"><button className="btn btn-secondary">Convert to Campaign</button></form>
+        <form action={`/api/studio/business/opportunities/${id}/convert-to-product-batch`} method="post"><button className="btn btn-secondary">Convert to Product Batch</button></form>
       </OwnerDecisionPanel>
     </div>
   </>;

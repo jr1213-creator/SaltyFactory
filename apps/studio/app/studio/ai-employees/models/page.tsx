@@ -21,10 +21,10 @@ export default async function AiModelRegistryPage() {
       description="Register local/open-source, hosted-open, or optional review models for AI employees without weakening owner gates or exposing credentials."
     />
 
-    <section className="sf-card">
+    <section className="surface-card">
       <h2>Register Local/Open Model Candidate</h2>
-      <p className="sf-muted">Open-source/open-weight models reduce vendor cost but still require compute. Local models use this machine or your server. Hosted open models may still charge inference fees.</p>
-      <form className="sf-form-grid" action="/api/studio/ai-employees/models" method="post">
+      <p className="text-muted">Open-source/open-weight models reduce vendor cost but still require compute. Local models use this machine or your server. Hosted open models may still charge inference fees.</p>
+      <form className="form-grid" action="/api/studio/ai-employees/models" method="post">
         <label>Provider key
           <select name="providerKey" defaultValue="ollama">
             <option value="ollama">ollama</option>
@@ -45,11 +45,11 @@ export default async function AiModelRegistryPage() {
         <label>Model key<input name="modelKey" placeholder="llama3.1:8b" /></label>
         <label>Model display name<input name="modelDisplayName" placeholder="Llama 3.1 8B Local" /></label>
         <input type="hidden" name="enabled" value="false" />
-        <button className="sf-button sf-button-primary" type="submit">Register Candidate</button>
+        <button className="btn btn-primary" type="submit">Register Candidate</button>
       </form>
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Provider Readiness</h2>
       <DataTable
         columns={["Provider", "Type", "Status", "Cost", "Data allowed", "Notes"]}
@@ -64,7 +64,7 @@ export default async function AiModelRegistryPage() {
       />
     </section>
 
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Models</h2>
       {models.length ? <DataTable
         columns={["Model", "Provider", "Status", "Recommended for", "Forbidden for", "Open"]}
@@ -74,7 +74,7 @@ export default async function AiModelRegistryPage() {
           <StatusBadge key={model.id} status={String(model.status)} tone={model.status === "approved" ? "success" : "warning"} />,
           (model.recommended_for as string[]).join(", ") || "Owner evaluation required",
           (model.forbidden_for as string[]).join(", "),
-          <a key={model.id} className="sf-button sf-button-secondary" href={`/studio/ai-employees/models/${model.id}`}>Review</a>
+          <a key={model.id} className="btn btn-secondary" href={`/studio/ai-employees/models/${model.id}`}>Review</a>
         ])}
       /> : <EmptyState title="No models registered" description="Register a candidate model, evaluate it, then approve it before AI employees can use it." />}
     </section>

@@ -70,48 +70,48 @@ export function AiApprovalQueueClient({ initialItems }: { initialItems: Approval
     }
   }
 
-  return <section className="sf-card" style={{ marginTop: 18 }}>
-    <div className="sf-card-header">
+  return <section className="surface-card" style={{ marginTop: 18 }}>
+    <div className="card-header">
       <div>
         <h2>Approval Queue</h2>
-        <p className="sf-muted">Persisted AI outputs can be approved, rejected, sent back for edits, or converted to manual tasks. Provider actions stay disabled.</p>
+        <p className="text-muted">Persisted AI outputs can be approved, rejected, sent back for edits, or converted to manual tasks. Provider actions stay disabled.</p>
       </div>
       <StatusBadge status={`${actionableCount} actionable`} tone={actionableCount ? "warning" : "success"} />
     </div>
-    <div className="sf-stack">
+    <div className="stack-list">
       {items.length ? items.slice(0, 12).map((item) => {
         const reviewReady = canReview(item);
         const blocker = blockerText(item);
         const busy = busyId === item.id;
         const expanded = expandedId === item.id;
-        return <article key={`${item.type}-${item.id}`} className="sf-card" style={{ boxShadow: "none" }}>
-          <div className="sf-card-header">
+        return <article key={`${item.type}-${item.id}`} className="surface-card" style={{ boxShadow: "none" }}>
+          <div className="card-header">
             <div>
               <h3 style={{ margin: 0 }}>{item.title}</h3>
-              <p className="sf-muted" style={{ margin: "4px 0 0" }}>{clean(item.type)} · {item.sourceLabel} · {item.createdBy}</p>
+              <p className="text-muted" style={{ margin: "4px 0 0" }}>{clean(item.type)} · {item.sourceLabel} · {item.createdBy}</p>
             </div>
             <StatusBadge status={clean(item.status)} tone={reviewReady ? "warning" : blockedStatuses.has(item.status) ? "danger" : "info"} />
           </div>
           <p>{item.preview}</p>
-          <p className="sf-muted">Next action: {item.nextAction}</p>
-          {blocker ? <p className="sf-alert">Blocked: {blocker}</p> : null}
-          <div className="sf-form-grid">
+          <p className="text-muted">Next action: {item.nextAction}</p>
+          {blocker ? <p className="alert-panel">Blocked: {blocker}</p> : null}
+          <div className="form-grid">
             <label>Review note<input value={notesById[item.id] ?? ""} onChange={(event) => setNotesById((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Optional owner note" /></label>
           </div>
-          <div className="sf-action-bar">
-            <button className="sf-button sf-button-secondary" type="button" onClick={() => setExpandedId(expanded ? "" : item.id)}>View details</button>
-            <button className="sf-button sf-button-primary" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "approve")}>Approve</button>
-            <button className="sf-button sf-button-danger" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "reject")}>Reject</button>
-            <button className="sf-button sf-button-secondary" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "needs_edits")}>Needs edits</button>
-            <button className="sf-button sf-button-secondary" type="button" disabled={!isAiOutput(item) || busy} onClick={() => decide(item, "convert_to_task")}>Convert to task</button>
+          <div className="action-bar">
+            <button className="btn btn-secondary" type="button" onClick={() => setExpandedId(expanded ? "" : item.id)}>View details</button>
+            <button className="btn btn-primary" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "approve")}>Approve</button>
+            <button className="btn btn-danger" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "reject")}>Reject</button>
+            <button className="btn btn-secondary" type="button" disabled={!reviewReady || busy} onClick={() => decide(item, "needs_edits")}>Needs edits</button>
+            <button className="btn btn-secondary" type="button" disabled={!isAiOutput(item) || busy} onClick={() => decide(item, "convert_to_task")}>Convert to task</button>
             {item.type === "listing_draft"
-              ? <a className="sf-button sf-button-secondary" href="/studio/listing-drafts">Edit draft</a>
-              : <button className="sf-button sf-button-secondary" type="button" disabled>Edit draft</button>}
+              ? <a className="btn btn-secondary" href="/studio/listing-drafts">Edit draft</a>
+              : <button className="btn btn-secondary" type="button" disabled>Edit draft</button>}
           </div>
-          {expanded ? <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(item, null, 2)}</pre> : null}
+          {expanded ? <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(item, null, 2)}</pre> : null}
         </article>;
-      }) : <div className="sf-empty"><h3>No approval items</h3><p>Run AI employees or create workflow drafts to populate the owner approval queue.</p></div>}
+      }) : <div className="empty-state"><h3>No approval items</h3><p>Run AI employees or create workflow drafts to populate the owner approval queue.</p></div>}
     </div>
-    {result ? <pre className="sf-code" style={{ whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto", marginTop: 14 }}>{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto", marginTop: 14 }}>{JSON.stringify(result, null, 2)}</pre> : null}
   </section>;
 }

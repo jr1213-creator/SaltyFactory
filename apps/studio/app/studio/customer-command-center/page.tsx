@@ -36,7 +36,7 @@ export default async function CustomerCommandCenterPage() {
       action={<LinkButton href="/studio/account-center">Open Launch Command Center</LinkButton>}
     />}
 
-    <div className="sf-grid sf-grid-4" style={{ marginTop: 18 }}>
+    <div className="layout-grid layout-grid-4" style={{ marginTop: 18 }}>
       <MetricCard title="Customers" value={String(summary.customerCount)} delta="Saved workspace records" />
       <MetricCard title="Leads" value={String(summary.leadCount)} delta="Manual or imported" />
       <MetricCard title="Tasks due" value={String(summary.tasksDue)} delta="Owner follow-ups" tone={summary.tasksDue ? "warning" : "success"} />
@@ -51,9 +51,9 @@ export default async function CustomerCommandCenterPage() {
       <MetricCard title="Setup progress" value={`${summary.setupProgress}%`} delta="Customer infrastructure readiness" tone={summary.setupProgress >= 70 ? "success" : "warning"} />
     </div>
 
-    <div className="sf-layout-rail" style={{ marginTop: 18 }}>
-      <div className="sf-grid">
-        <section className="sf-card">
+    <div className="layout-rail" style={{ marginTop: 18 }}>
+      <div className="layout-grid">
+        <section className="surface-card">
           <h2>Today's Customer Actions</h2>
           <DataTable
             columns={["Customer", "Action", "Priority", "Source"]}
@@ -66,7 +66,7 @@ export default async function CustomerCommandCenterPage() {
           />
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Customer Capture Readiness</h2>
           <DataTable
             columns={["Form", "Status", "Embed", "Source"]}
@@ -77,10 +77,10 @@ export default async function CustomerCommandCenterPage() {
               form.sourceLabel ?? "System-generated"
             ])}
           />
-          <p className="sf-muted">Embed code generation is a future integration. Internal forms stay draft/ready until explicitly activated.</p>
+          <p className="text-muted">Embed code generation is a future integration. Internal forms stay draft/ready until explicitly activated.</p>
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Segments & Audiences</h2>
           <DataTable
             columns={["Segment", "Members", "Readiness", "Suggested action"]}
@@ -93,7 +93,7 @@ export default async function CustomerCommandCenterPage() {
           />
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Recent Customers / Leads</h2>
           <DataTable
             columns={["Name", "Email", "Stage", "Source", "Next action"]}
@@ -108,14 +108,14 @@ export default async function CustomerCommandCenterPage() {
         </section>
       </div>
 
-      <div className="sf-grid">
+      <div className="layout-grid">
         <ProviderStatusCard title="Shopify customer/order data" status={fmt(data.providerStatuses.shopify)} tone={data.providerStatuses.shopify === "connected" ? "success" : "warning"} description="Order history appears after Shopify customer/order sync is configured." />
         <ProviderStatusCard title="Support & Conversations" status={data.conversations.length ? "detected" : "not configured"} tone={data.conversations.length ? "success" : "warning"} description="Support conversations appear after inbox channels are configured." />
         <ProviderStatusCard title="Marketing Automation" status="draft foundation" tone="info" description="Campaigns are drafts only. No live email sending is implemented in this pass." />
         <ProviderStatusCard title="Customer Intelligence" status={fmt(summary.customerIntelligenceReadiness)} tone={tone(summary.customerIntelligenceReadiness)} description="Website/customer behavior tracking is not configured yet unless real events are imported." />
         <ProviderStatusCard title="Scheduling / Consultations" status={data.consultations.length ? "detected" : "manual setup required"} tone={data.consultations.length ? "success" : "warning"} description="Calendar sync is not configured. Appointment requests can be tracked manually." />
         <ProviderStatusCard title="Source-of-truth labels" status="visible" tone="success" description="Manual, provider-imported, system-generated, and rule-based suggestions are labeled in customer views." />
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Setup Wizard Progress</h2>
           <DataTable columns={["Step", "State"]} rows={[
             ["Connect Shopify", data.providerStatuses.shopify === "connected" ? "complete" : "needs_owner_action"],
@@ -127,7 +127,7 @@ export default async function CustomerCommandCenterPage() {
             ["Review AI-generated customer success plan", data.nextActions.length ? "ready" : "not_started"]
           ]} />
         </section>
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Blockers</h2>
           <DataTable
             columns={["Blocker", "Status", "Detail"]}

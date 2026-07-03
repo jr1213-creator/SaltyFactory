@@ -13,9 +13,9 @@ export default async function SearchVisibilityPage() {
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card">
+    <section className="surface-card">
       <h2>Create Search Visibility Audit</h2>
-      <form className="sf-grid sf-grid-2" action="/api/studio/marketing/search-visibility/audit" method="post">
+      <form className="layout-grid layout-grid-2" action="/api/studio/marketing/search-visibility/audit" method="post">
         <input type="hidden" name="next" value="/studio/marketing/search-visibility" />
         {[
           ["robots", "robots.txt / crawl access reviewed"],
@@ -26,10 +26,10 @@ export default async function SearchVisibilityPage() {
           ["metadata", "Metadata and canonical URLs complete"],
           ["proof", "Proof/source labels visible"]
         ].map(([key, label]) => <label key={key}><input type="checkbox" name={key} /> {label}</label>)}
-        <button className="sf-button" type="submit">Create Audit</button>
+        <button className="btn" type="submit">Create Audit</button>
       </form>
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Saved SEO/AEO/GEO Scores</h2>
       <DataTable columns={["Score", "Status", "Blockers"]} rows={scores.length ? scores.map((score: any) => [
         `${score.score_value ?? score.scoreValue ?? 0}/${score.max_score ?? score.maxScore ?? 100}`,
@@ -37,7 +37,7 @@ export default async function SearchVisibilityPage() {
         Array.isArray(score.blockers) ? score.blockers.join(", ") : JSON.stringify(score.blockers ?? [])
       ]) : [["No score yet", "Create audit above.", "No fake SEO score"]]} />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Reports</h2>
       <DataTable columns={["Report", "Status", "Guarantee"]} rows={reports.length ? reports.map((report: any) => [
         report.title,

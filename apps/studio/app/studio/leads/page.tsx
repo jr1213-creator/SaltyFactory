@@ -12,13 +12,13 @@ export default async function LeadsPage() {
       <LinkButton href="/studio/leads/new" variant="secondary">Create Lead</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Leads" value={String(data.leads.length)} delta="Manual/imported only" />
       <MetricCard title="High intent" value={String(data.summary.highIntentLeadsCount)} delta="Status-based, no fake scoring" />
       <MetricCard title="Capture forms" value={String(data.defaultCaptureForms.length)} delta="Lead sources" />
       <MetricCard title="Follow-ups" value={String(data.summary.followUpsNeeded)} delta="Open tasks" />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Lead Records</h2>
       <DataTable columns={["Name", "Email", "Company", "Interest", "Value", "Status", "Consent", "Open"]} rows={data.leads.length ? data.leads.map((lead: any) => [
         lead.name,

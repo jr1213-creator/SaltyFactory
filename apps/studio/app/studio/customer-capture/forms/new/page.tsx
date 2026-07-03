@@ -14,8 +14,8 @@ export default function NewCaptureFormPage() {
     <PageHeader eyebrow="Capture form" title="Create Capture Form" description="Create a persisted customer capture form definition. Public embeds remain future integration unless explicitly implemented later.">
       <LinkButton href="/studio/customer-capture/forms" variant="secondary">All Forms</LinkButton>
     </PageHeader>
-    <section className="sf-card">
-      <form className="sf-grid sf-grid-2" action="/api/studio/crm/forms" method="post">
+    <section className="surface-card">
+      <form className="layout-grid layout-grid-2" action="/api/studio/crm/forms" method="post">
         <input type="hidden" name="next" value="/studio/customer-capture/forms/{id}" />
         <label>Title<input name="title" required /></label>
         <label>Status<select name="status" defaultValue="draft"><option value="draft">Draft</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
@@ -25,7 +25,7 @@ export default function NewCaptureFormPage() {
         <label>Suggested follow-up task<input name="suggested_follow_up_task" defaultValue="Review new form submission" /></label>
         <label>Consent language<textarea name="consent_language" defaultValue="I agree to be contacted about this request. Marketing messages require confirmed consent." /></label>
         <label>Embed readiness<select name="embed_readiness_status" defaultValue="future_integration"><option value="future_integration">Future integration</option><option value="internal_preview_ready">Internal preview ready</option><option value="manual_action_required">Manual action required</option></select></label>
-        <button className="sf-button" type="submit">Save Form</button>
+        <button className="btn" type="submit">Save Form</button>
       </form>
     </section>
   </>;

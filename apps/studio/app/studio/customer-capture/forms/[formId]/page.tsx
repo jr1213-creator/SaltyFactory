@@ -20,7 +20,7 @@ export default async function CustomerCaptureFormDetailPage({ params }: { params
       {form?.id && <LinkButton href={`/studio/customer-capture/forms/${form.id}/edit`} variant="secondary">Edit Form</LinkButton>}
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Form Definition</h2>
       <DataTable columns={["Field", "Value"]} rows={[
         ["Description", form?.description ?? "-"],

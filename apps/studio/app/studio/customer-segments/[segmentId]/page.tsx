@@ -20,8 +20,8 @@ export default async function CustomerSegmentDetailPage({ params }: { params: Pr
       <LinkButton href="/studio/customer-campaigns">Campaign Drafts</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-layout-rail" style={{ marginTop: 18 }}>
-      <section className="sf-card">
+    <div className="layout-rail" style={{ marginTop: 18 }}>
+      <section className="surface-card">
         <h2>Rule & Readiness</h2>
         <DataTable columns={["Field", "Value"]} rows={[
           ["Description", segment?.description ?? "-"],
@@ -32,7 +32,7 @@ export default async function CustomerSegmentDetailPage({ params }: { params: Pr
           ["Suggested action", segment?.suggestedAction ?? "Create a reviewed campaign draft after consent is confirmed."]
         ]} />
       </section>
-      <section className="sf-card">
+      <section className="surface-card">
         <h2>Customers in Segment</h2>
         <DataTable columns={["Customer", "Email", "Lifecycle", "Source"]} rows={[["No matching customers yet", "Needs Shopify/customer event data or manual tags.", "-", "System-generated"]]} />
       </section>

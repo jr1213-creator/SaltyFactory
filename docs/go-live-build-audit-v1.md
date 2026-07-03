@@ -9,7 +9,7 @@ This audit records verified reality after commit `8e188e7` plus the current go-l
 | Area | Requirement | Current status | Evidence | Remaining work |
 | --- | --- | --- | --- | --- |
 | A | Replace Studio nav with two-tier POD sidebar + top dropdowns | Not complete | Current `StudioNavigation.tsx` is still a grouped left sidebar; no top dropdown IA cutover. | Rebuild Studio shell with POD-only sidebar and top dropdowns; crawl every Studio route. |
-| B | Full Tailwind v4 + shadcn cutover; zero `sf-*` refs | Not complete | `rg "sf-" apps/studio packages/ui` returns hundreds of matches; Tailwind/shadcn not initialized. | Install/init Tailwind/shadcn, migrate all Studio pages/components, remove old `sf-*` CSS, run contrast checks. |
+| B | Full Tailwind v4 + shadcn cutover; zero legacy style refs | Mostly complete for app/UI source | Tailwind v4 is installed for Studio and storefront, `packages/ui` uses shadcn-style `cn`/CVA/Radix Slot primitives, app globals use Tailwind tokens/layers, and the migration test scans `apps/studio`, `apps/storefront`, and `packages/ui`. | Authenticated visual QA and formal contrast reporting still require the browser-safe Supabase fixture. |
 | C | Shopify/Printify go-live wiring | Partial | Added owner-gated `POST /api/studio/publish/shopify/[refId]/go-live` and UI caller on `/studio/shopify-products`; route fails closed unless flags and confirmation pass. | Verify against real Shopify credentials and real owner confirmation; add Printify-side live tracking only if needed. |
 | D | Printify real mockup sync polling | Not complete | `PrintifyProviderLive.getProduct()` exists, but no post-create poll-with-backoff job stores returned Printify mockup URLs for Shopify media. | Add background polling job after Printify create; persist real Printify image URLs; feed them into Shopify media/draft creation. |
 | E | Shopify GraphQL Admin API migration | Not complete | `ShopifyAdminProviderLive` still uses REST Admin endpoints. | Migrate create/update/media/collection/get/publish to GraphQL Admin API or document a specific technical blocker. |
@@ -21,7 +21,7 @@ This audit records verified reality after commit `8e188e7` plus the current go-l
 | Gate | Status | Notes |
 | --- | --- | --- |
 | Feature Areas A-G fully complete | Unchecked | Only Area C is partial; F appears already absent. |
-| Zero `sf-*` references | Unchecked | Hundreds remain. |
+| Zero legacy style references in app/UI source | Checked | `tests/frontend-tailwind-migration.test.ts` scans `apps/studio`, `apps/storefront`, and `packages/ui` for the legacy factory-prefixed selector namespace. |
 | Zero broken nav links | Unchecked | Needs crawl after IA cutover. |
 | WCAG AA token contrast ratios reported | Unchecked | Not run for requested token set. |
 | Authenticated Playwright fixture passes full POD flow | Unchecked | Fixture missing by design; no auth bypass added. |

@@ -19,9 +19,9 @@ function formatStatus(status: string) {
 }
 
 function CardGrid({ title, cards }: { title: string; cards: AccountCenterCard[] }) {
-  return <section className="sf-card">
+  return <section className="surface-card">
     <h2>{title}</h2>
-    <div className="sf-stack">
+    <div className="stack-list">
       {cards.map((card) => <ProviderStatusCard
         key={`${card.section}-${card.title}`}
         title={card.title}
@@ -63,42 +63,42 @@ export default async function Page() {
       <LinkButton href="/studio/integrations" variant="secondary">Open Integrations</LinkButton>
     </PageHeader>
     <SchemaSetupState message={readiness.lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <ProviderStatusCard title="Product creation blockers" status={String(productBlockers.length)} tone={productBlockers.length ? "warning" : "success"} description={productBlockers.length ? productBlockers.map((card) => card.title).join(", ") : "Manual and AI-assisted POD product creation can proceed."} />
       <ProviderStatusCard title="Launch/publish blockers" status={String(launchBlockers.length)} tone={launchBlockers.length ? "warning" : "success"} description="Provider sync, public launch, feeds, DNS, and publishing still require owner approval gates." />
       <ProviderStatusCard title="Approval queue" status={String(readiness.approvalQueue.length)} tone={readiness.approvalQueue.length ? "warning" : "success"} description="AI employee outputs and provider actions waiting for owner review." />
       <ProviderStatusCard title="AI work mode" status={readiness.workflowPreview.sourceLabel.replace(/_/g, " ")} tone="info" description="Rules-based fallback is labeled honestly when no model provider is configured." />
     </div>
 
-    <div className="sf-layout-rail" style={{ marginTop: 18 }}>
-      <div className="sf-grid">
+    <div className="layout-rail" style={{ marginTop: 18 }}>
+      <div className="layout-grid">
         {["Business Foundation", "Commerce", "Product Workflow", "Google / Discovery"].map((section) => <CardGrid key={section} title={section} cards={cardsBySection[section] ?? []} />)}
 
-        <section className="sf-card" id="printify">
+        <section className="surface-card" id="printify">
           <h2>Printify Fulfillment</h2>
-          <p className="sf-muted">Create or open Printify outside SaltyFactory, then keep the API token server-side. SaltyFactory can discover real shops and catalog data after credentials are configured.</p>
-          <div className="sf-toolbar">
+          <p className="text-muted">Create or open Printify outside SaltyFactory, then keep the API token server-side. SaltyFactory can discover real shops and catalog data after credentials are configured.</p>
+          <div className="toolbar">
             <LinkButton href="https://printify.com/app/auth/login" variant="secondary">Create or open Printify account</LinkButton>
-            <form method="post" action="/api/studio/integrations/printify/setup"><button className="sf-button sf-button-primary" type="submit" name="action" value="discover_shops">Discover Printify shops</button></form>
-            <form method="post" action="/api/studio/integrations/printify/test"><button className="sf-button sf-button-secondary" type="submit">Test Printify connection</button></form>
+            <form method="post" action="/api/studio/integrations/printify/setup"><button className="btn btn-primary" type="submit" name="action" value="discover_shops">Discover Printify shops</button></form>
+            <form method="post" action="/api/studio/integrations/printify/test"><button className="btn btn-secondary" type="submit">Test Printify connection</button></form>
           </div>
           <ChecklistTable rows={readiness.printifySetup.checklist} />
-          <p className="sf-muted">Token exposed: {readiness.printifySetup.tokenExposed ? "blocked" : "no"}. Product creation stays blocked until approval gates pass.</p>
+          <p className="text-muted">Token exposed: {readiness.printifySetup.tokenExposed ? "blocked" : "no"}. Product creation stays blocked until approval gates pass.</p>
         </section>
 
-        <section className="sf-card" id="shopify">
+        <section className="surface-card" id="shopify">
           <h2>Shopify Store</h2>
-          <p className="sf-muted">Create or open Shopify outside SaltyFactory, connect SaltyCowhide.com, and configure a server-side Admin API token before testing draft product sync.</p>
-          <div className="sf-toolbar">
+          <p className="text-muted">Create or open Shopify outside SaltyFactory, connect SaltyCowhide.com, and configure a server-side Admin API token before testing draft product sync.</p>
+          <div className="toolbar">
             <LinkButton href="https://admin.shopify.com/" variant="secondary">Create or open Shopify store</LinkButton>
-            <form method="post" action="/api/studio/integrations/shopify/setup"><button className="sf-button sf-button-primary" type="submit" name="action" value="status">Review Shopify setup</button></form>
-            <form method="post" action="/api/studio/integrations/shopify/test"><button className="sf-button sf-button-secondary" type="submit">Test Shopify connection</button></form>
+            <form method="post" action="/api/studio/integrations/shopify/setup"><button className="btn btn-primary" type="submit" name="action" value="status">Review Shopify setup</button></form>
+            <form method="post" action="/api/studio/integrations/shopify/test"><button className="btn btn-secondary" type="submit">Test Shopify connection</button></form>
           </div>
           <ChecklistTable rows={readiness.shopifySetup.checklist} />
-          <p className="sf-muted">Token exposed: {readiness.shopifySetup.tokenExposed ? "blocked" : "no"}. Shopify products are created as drafts only after owner approval and publish gates.</p>
+          <p className="text-muted">Token exposed: {readiness.shopifySetup.tokenExposed ? "blocked" : "no"}. Shopify products are created as drafts only after owner approval and publish gates.</p>
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Approval Queue</h2>
           <DataTable
             columns={["Item", "Type", "Source", "Status", "Next action"]}
@@ -113,12 +113,12 @@ export default async function Page() {
         </section>
       </div>
 
-      <div className="sf-grid">
+      <div className="layout-grid">
         {["Launch Infrastructure", "AI Employees", "Operations", "Analytics"].map((section) => <CardGrid key={section} title={section} cards={cardsBySection[section] ?? []} />)}
 
-        <section className="sf-card" id="dns">
+        <section className="surface-card" id="dns">
           <h2>Domain & DNS</h2>
-          <p className="sf-muted">Manual DNS mode is active. Records are generated for owner copy/paste; SaltyFactory will not overwrite DNS records without an explicit provider adapter and owner approval.</p>
+          <p className="text-muted">Manual DNS mode is active. Records are generated for owner copy/paste; SaltyFactory will not overwrite DNS records without an explicit provider adapter and owner approval.</p>
           <DataTable
             columns={["Purpose", "Type", "Host", "Value", "Status", "Owner action"]}
             rows={readiness.dnsRecords.map((record) => [
@@ -132,7 +132,7 @@ export default async function Page() {
           />
         </section>
 
-        <section className="sf-card" id="email">
+        <section className="surface-card" id="email">
           <h2>Email Domain Readiness</h2>
           <DataTable
             columns={["Control", "Status"]}
@@ -146,7 +146,7 @@ export default async function Page() {
           />
         </section>
 
-        <section className="sf-card">
+        <section className="surface-card">
           <h2>Merchant Product Feed</h2>
           <DataTable
             columns={["Control", "Status"]}

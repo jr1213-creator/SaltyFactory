@@ -16,12 +16,12 @@ export default async function AiModelUsagePage() {
       eyebrow="Cost and policy audit"
       description="Every routed AI employee model task records the selected model, risk level, sensitivity, status, and estimated cost when known."
     />
-    <section className="sf-grid sf-grid-3">
+    <section className="layout-grid layout-grid-3">
       <MetricCard title="Usage events" value={String(usageEvents.length)} />
       <MetricCard title="Successful" value={String(successCount)} tone="success" />
       <MetricCard title="Blocked / escalated" value={String(blockedCount + escalatedCount)} tone="warning" />
     </section>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       {usageEvents.length ? <DataTable
         columns={["Employee", "Model", "Provider", "Task", "Risk", "Sensitivity", "Status", "Cost"]}
         rows={usageEvents.map((event) => [

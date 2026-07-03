@@ -12,13 +12,13 @@ export default async function MarketingCampaignsPage() {
       <LinkButton href="/studio/marketing-command-center" variant="secondary">Marketing Command Center</LinkButton>
     </PageHeader>
     <SchemaSetupState message={data.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Campaigns" value={String(data.summary.campaigns)} delta="Shared campaign records" />
       <MetricCard title="Proof packs" value={String(data.summary.proofPacks)} delta="Export packages" />
       <MetricCard title="Draft channels" value={String(data.channels.length)} delta="Manual export only" />
       <MetricCard title="Approvals" value={String(data.summary.approvalItems)} delta="Owner review items" tone={data.summary.approvalItems ? "warning" : "info"} />
     </div>
-    <section className="sf-card" style={{ marginTop: 18 }}>
+    <section className="surface-card" style={{ marginTop: 18 }}>
       <DataTable columns={["Campaign", "Type", "Goal", "Status", "Audience", "Open"]} rows={data.campaigns.length ? data.campaigns.map((campaign: any) => [
         campaign.name,
         String(campaign.campaign_type ?? campaign.campaignType ?? "manual").replace(/_/g, " "),

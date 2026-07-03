@@ -11,7 +11,7 @@ export default async function BaselinePage() {
       <StatusBadge status={latest?.status ?? "no_baseline"} tone={latest ? "success" : "warning"} />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
-    <div className="sf-grid sf-grid-4">
+    <div className="layout-grid layout-grid-4">
       <MetricCard title="Baseline & Impact" value={latest ? "Captured" : "Missing"} delta={latest?.captured_at ?? "Create one"} tone={latest ? "success" : "warning"} />
       <MetricCard title="Current metrics" value={String(Object.keys(current.metrics).length)} delta={current.status} />
       <MetricCard title="Insufficient data" value={String(current.insufficientData.length)} delta="Honest gaps" tone={current.insufficientData.length ? "warning" : "success"} />
@@ -20,7 +20,7 @@ export default async function BaselinePage() {
     <section className="card" style={{ marginTop: 18 }}>
       <form action="/api/studio/baseline" method="post">
         <label>Snapshot name<input name="snapshotName" defaultValue={`Baseline ${new Date().toISOString().slice(0, 10)}`} /></label>
-        <button className="sf-button" type="submit">Create Baseline & Impact Snapshot</button>
+        <button className="btn" type="submit">Create Baseline & Impact Snapshot</button>
       </form>
     </section>
     <DataTable columns={["Metric", "Value"]} rows={Object.entries(current.metrics).slice(0, 20).map(([key, value]) => [key, String(value)])} />

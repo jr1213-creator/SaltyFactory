@@ -9,8 +9,8 @@ export default async function AiImprovementDetailPage({ params }: { params: Prom
   if (!suggestion) return <PageHeader title="Improvement not found" description="This suggestion is not in the active workspace." />;
   return <>
     <PageHeader title={suggestion.title} eyebrow="Improvement Review" description={suggestion.summary}><ApprovalBadge status={String(suggestion.status)} /></PageHeader>
-    <div className="sf-layout-rail">
-      <section className="sf-card">
+    <div className="layout-rail">
+      <section className="surface-card">
         <h2>Suggestion Detail</h2>
         <DataTable columns={["Field", "Value"]} rows={[
           ["Type", suggestion.suggestion_type ?? suggestion.suggestionType],
@@ -22,12 +22,12 @@ export default async function AiImprovementDetailPage({ params }: { params: Prom
         ]} />
       </section>
       <OwnerDecisionPanel title="Owner Decision" description="Suggestions cannot self-implement. Convert creates owner-visible records.">
-        <form action={`/api/studio/ai-employees/improvements/${id}/approve`} method="post"><button className="sf-button sf-button-primary" type="submit">Approve</button></form>
-        <form action={`/api/studio/ai-employees/improvements/${id}/needs-edits`} method="post"><button className="sf-button sf-button-secondary" type="submit">Needs Edits</button></form>
-        <form action={`/api/studio/ai-employees/improvements/${id}/reject`} method="post"><button className="sf-button sf-button-danger" type="submit">Reject</button></form>
-        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-task`} method="post"><button className="sf-button sf-button-secondary" type="submit">Convert to Task</button></form>
-        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-hire-request`} method="post"><button className="sf-button sf-button-secondary" type="submit">Convert to Hire Request</button></form>
-        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-capability-request`} method="post"><button className="sf-button sf-button-secondary" type="submit">Convert to Capability Request</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/approve`} method="post"><button className="btn btn-primary" type="submit">Approve</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/needs-edits`} method="post"><button className="btn btn-secondary" type="submit">Needs Edits</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/reject`} method="post"><button className="btn btn-danger" type="submit">Reject</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-task`} method="post"><button className="btn btn-secondary" type="submit">Convert to Task</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-hire-request`} method="post"><button className="btn btn-secondary" type="submit">Convert to Hire Request</button></form>
+        <form action={`/api/studio/ai-employees/improvements/${id}/convert-to-capability-request`} method="post"><button className="btn btn-secondary" type="submit">Convert to Capability Request</button></form>
       </OwnerDecisionPanel>
     </div>
   </>;
