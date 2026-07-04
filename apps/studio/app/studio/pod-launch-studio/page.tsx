@@ -1,9 +1,6 @@
-import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
-import { parseEnv } from "@saltyfactory/config";
-import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { DataTable, PageHeader, StatusBadge } from "@saltyfactory/ui";
-import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
 import { getStudioLists } from "../data";
+import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel } from "../_provider-readiness";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
 
@@ -27,19 +24,6 @@ function isCreated(value: unknown) {
 
 function isApprovedAsset(asset: any) {
   return Boolean(asset.approved_for_mockup ?? asset.approvedForMockup ?? false) || asset.qa_status === "passed" || asset.qaStatus === "passed";
-}
-
-function canOpenRepositories() {
-  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
-}
-
-function openRepositoriesSafely(): RepositoryBundle | undefined {
-  if (!canOpenRepositories()) return undefined;
-  try {
-    return createRepositories();
-  } catch {
-    return undefined;
-  }
 }
 
 function PodStatCard({ label, value, badge, caption, tone = "primary" }: { label: string; value: number | string; badge: string; caption: string; tone?: Tone }) {
@@ -82,9 +66,14 @@ function PipelineStageNode({ index, label, status, detail, tone = "warning", hre
 }
 
 export default async function PodLaunchStudioPage() {
-  const config = parseEnv();
-  const printifyProvider = publicPrintifyProviderResolution(await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos: openRepositoriesSafely(), config }));
-  const printifyConnected = printifyProvider.status === "ready";
+  const readiness = await getWorkspaceProviderReadiness();
+  const imageProvider = readiness.providers.image_generation;
+  const printifyProvider = readiness.providers.printify;
+  const shopifyProvider = readiness.providers.shopify;
+  const livePublish = readiness.providers.live_publish;
+  const imageConnected = isProviderReady(imageProvider);
+  const printifyConnected = isProviderReady(printifyProvider);
+  const shopifyConnected = isProviderReady(shopifyProvider);
   const lists = await getStudioLists();
   const drafts = lists.drafts as any[];
   const batches = lists.productBatches as any[];
@@ -99,37 +88,37 @@ export default async function PodLaunchStudioPage() {
   const providerHealth: ProviderHealthItem[] = [
     {
       label: "Image Engine",
-      status: config.providers.aiImage.enabled ? "Active" : "Action required",
-      tone: config.providers.aiImage.enabled ? "success" : "warning",
-      detail: config.providers.aiImage.enabled ? "Approved prompts can queue generated artwork jobs." : "Connect the approved image provider before artwork generation can run.",
-      setup: "Image generation is blocked until an approved server-side image provider is configured.",
+      status: imageConnected ? "Connected" : "Action required",
+      tone: imageConnected ? "success" : "warning",
+      detail: imageConnected ? `Approved prompts can queue generated artwork jobs through ${providerCredentialSourceLabel(imageProvider.credentialSource)}.` : "Connect the approved image provider before artwork generation can run.",
+      setup: imageProvider.businessFacingSetupRequired.join(", ") || imageProvider.safeMessage,
       href: "/studio/setup",
-      ready: config.providers.aiImage.enabled
+      ready: imageConnected
     },
     {
       label: "Printify Sync",
       status: printifyConnected ? "Ready after gates" : "Action required",
       tone: printifyConnected ? "success" : "warning",
       detail: printifyConnected ? "Catalog, upload, and product creation routes can run after owner gates pass." : "Connect Printify before product drafts can be sent to fulfillment.",
-      setup: printifyProvider.safeMessage,
+      setup: printifyProvider.businessFacingSetupRequired.join(", ") || printifyProvider.safeMessage,
       href: "/studio/printify-catalog",
       ready: printifyConnected
     },
     {
       label: "Shopify Drafts",
-      status: config.providers.shopifyAdmin.enabled ? "Draft mode ready" : "Action required",
-      tone: config.providers.shopifyAdmin.enabled ? "success" : "warning",
-      detail: config.providers.shopifyAdmin.enabled ? "Draft products can be created with approved media, pricing, SEO, and variants." : "Connect Shopify Admin before draft product creation is available.",
-      setup: "Shopify draft creation requires a protected Admin connection and verified collection routing.",
+      status: shopifyConnected ? "Draft mode ready" : "Action required",
+      tone: shopifyConnected ? "success" : "warning",
+      detail: shopifyConnected ? "Draft products can be created with approved media, pricing, SEO, and variants." : "Connect Shopify Admin before draft product creation is available.",
+      setup: shopifyProvider.businessFacingSetupRequired.join(", ") || shopifyProvider.safeMessage,
       href: "/studio/shopify-products",
-      ready: config.providers.shopifyAdmin.enabled
+      ready: shopifyConnected
     },
     {
       label: "Storefront Publish",
-      status: config.LIVE_PUBLISHING_ENABLED ? "Owner gated" : "Locked by default",
-      tone: config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger",
-      detail: "Draft creation never publishes. Public visibility requires explicit owner confirmation and passed gates.",
-      setup: "Live storefront publishing is intentionally disabled for safe local operation.",
+      status: livePublish.status === "owner_gated" ? "Owner gated" : "Locked by default",
+      tone: livePublish.status === "owner_gated" ? "warning" : "danger",
+      detail: livePublish.safeMessage,
+      setup: livePublish.businessFacingSetupRequired.join(", "),
       href: "/studio/publish-review",
       ready: false
     }
@@ -158,9 +147,9 @@ export default async function PodLaunchStudioPage() {
     {
       index: "03",
       label: "Image",
-      status: config.providers.aiImage.enabled ? "provider ready" : "blocked",
-      detail: config.providers.aiImage.enabled ? "Queue artwork from approved prompts" : "Image provider setup required",
-      tone: config.providers.aiImage.enabled ? "success" as const : "danger" as const,
+      status: imageConnected ? "provider ready" : "blocked",
+      detail: imageConnected ? "Queue artwork from approved prompts" : "Image provider setup required",
+      tone: imageConnected ? "success" as const : "danger" as const,
       href: "/studio/image-generation"
     },
     {

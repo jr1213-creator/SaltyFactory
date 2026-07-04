@@ -28,6 +28,7 @@ Required behavior:
 - Protected env vars are advanced server fallback only when no connected provider record exists.
 - Owners should not edit `.env.local` after guided setup succeeds.
 - Live Printify publishing remains owner-gated.
+- `/studio/integrations`, `/studio/pod-launch-studio`, `/studio/printify-catalog`, and `/studio/publish-review` must use the same Printify resolver result and must not show env-missing setup blockers when the provider record is connected.
 
 Runtime behavior:
 - First choice: connected workspace provider credential record for `printify`.
@@ -64,6 +65,17 @@ Required behavior:
 - Client Secret, legacy Admin token, and generated Admin access token are never returned to the browser.
 - Token exchange never runs in browser code.
 - Collection IDs are workspace-scoped.
+- A connected Shopify provider record with selected collection is the normal runtime source for readiness and draft creation.
+- Protected env vars are advanced server fallback only when no connected provider record exists.
+- `/studio/integrations`, `/studio/pod-launch-studio`, `/studio/shopify-products`, `/studio/setup`, and `/studio/publish-review` must show Shopify as connected from guided credentials instead of asking owners for env config.
+
+Runtime behavior:
+- First choice: connected workspace provider credential record for `shopify`.
+- Second choice: advanced server env fallback using protected Shopify Admin config.
+- Final state: `setup_required` with a link back to `/studio/onboarding/providers/shopify`.
+- Server-side code decrypts the credential bundle only inside the Shopify call path. Client Secret, legacy Admin token, and generated access token are never returned to the browser or logs.
+- Draft creation still requires product gates, approved media, variants, pricing, collection assignment, publish review gates, and owner permission.
+- Live publish remains separate from draft creation and disabled by default.
 
 ## Image Generation
 
@@ -125,6 +137,14 @@ Private media storage requires administrator setup because service-role credenti
 - who can complete it
 - request-help action
 - advanced deployment details only inside disclosure controls
+
+Storage readiness is separate from image provider readiness. A Hugging Face provider can be connected while generated asset storage still needs administrator setup. `/studio/integrations`, `/studio/setup`, `/studio/image-generation`, and `/studio/publish-review` should show that as a storage blocker, not as a failed image-provider connection.
+
+## Unified Provider Readiness
+
+Studio owner-facing readiness pages use a single resolver layer for Printify, Shopify, image generation, storage, live publish, banking, and external orders. The resolver exposes only safe statuses, credential source labels, setup actions, selected non-secret metadata, and dangerous actions still blocked. Raw tokens and service-role keys are never returned.
+
+Env variable names are allowed in developer docs, diagnostics, tests, and `/studio/setup` Advanced Server Configuration. They are not primary owner-facing setup blockers after a guided provider connection is ready.
 
 ## Banking / Novo / Plaid
 

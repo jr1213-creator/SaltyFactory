@@ -77,6 +77,19 @@ export type PrintifyRuntimeReadiness = {
   blockingReasons: string[];
 };
 
+export type ShopifyRuntimeReadiness = {
+  status: "ready" | "connected" | "needs_setup" | "invalid" | "owner_gated" | "admin_setup_required";
+  provider: "shopify" | "disabled";
+  storeDomain?: string;
+  credentialMode?: "dev_dashboard_client_credentials" | "legacy_admin_token" | string;
+  selectedCollectionId?: string;
+  credentialSource: "credential_store" | "env" | "none";
+  safeMessage: string;
+  setupAction: string;
+  setupRequired: string[];
+  blockingReasons: string[];
+};
+
 export const featureReadinessEnvVars = [
   "NODE_ENV",
   "APP_ENV",
@@ -701,6 +714,77 @@ export function applyPrintifyRuntimeReadiness(
       };
     }
     if (runtime.status === "invalid") {
+      return {
+        ...feature,
+        status: "config_blocked" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [],
+        disabledFlags: [],
+        setupRequired: runtime.setupRequired.length ? runtime.setupRequired : runtime.blockingReasons,
+        notes: [runtime.safeMessage]
+      };
+    }
+    return feature;
+  });
+
+  return {
+    ...report,
+    features,
+    summary: summarize(features),
+    safeLocalTesting: features
+      .filter((item) => item.canTestWithoutProvider)
+      .map((item) => ({
+        featureKey: item.featureKey,
+        label: item.label,
+        ...(item.safeLocalRoute ? { route: item.safeLocalRoute } : {})
+      }))
+  };
+}
+
+export function applyShopifyRuntimeReadiness(
+  report: FeatureReadinessReport,
+  runtime: ShopifyRuntimeReadiness
+): FeatureReadinessReport {
+  const features = report.features.map((feature) => {
+    if (feature.featureKey !== "shopify") return feature;
+    if (runtime.status === "ready" || runtime.status === "connected") {
+      const sourceLabel = runtime.credentialSource === "credential_store" ? "secure workspace credential" : "advanced server fallback";
+      const hasCollection = Boolean(runtime.selectedCollectionId);
+      return {
+        ...feature,
+        status: hasCollection ? "ready" as const : "owner_gated" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [`shopify_provider:${runtime.provider}`, `credential_source:${runtime.credentialSource}`],
+        disabledFlags: [],
+        setupRequired: hasCollection ? [] : ["Select default Shopify collection"],
+        canTestWithoutProvider: false,
+        notes: [
+          runtime.credentialSource === "credential_store"
+            ? "Shopify Admin connected through Launch Setup Concierge."
+            : "Shopify Admin is configured through advanced server environment fallback.",
+          runtime.storeDomain ? `Store domain: ${runtime.storeDomain}.` : "",
+          runtime.credentialMode ? `Credential mode: ${runtime.credentialMode}.` : "",
+          hasCollection ? "Default Shopify collection selected." : "Default Shopify collection still needs owner selection.",
+          `Credential source: ${sourceLabel}.`,
+          "Draft creation does not publish. Live publish remains separately owner-gated."
+        ].filter(Boolean)
+      };
+    }
+    if (runtime.status === "owner_gated") {
+      return {
+        ...feature,
+        status: "owner_gated" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [],
+        disabledFlags: [],
+        setupRequired: runtime.setupRequired.length ? runtime.setupRequired : runtime.blockingReasons,
+        notes: [runtime.safeMessage]
+      };
+    }
+    if (runtime.status === "invalid" || runtime.status === "admin_setup_required") {
       return {
         ...feature,
         status: "config_blocked" as const,

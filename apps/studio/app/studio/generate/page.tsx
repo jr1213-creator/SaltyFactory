@@ -1,41 +1,22 @@
-import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
-import { parseEnv } from "@saltyfactory/config";
-import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
-import { AdvancedConfigDetails, DataTable, EmptyState, ImageGenerationJobCard, MetricCard, PageHeader, ProviderStatusCard, StatusBadge, WorkflowStepHeader } from "@saltyfactory/ui";
+import { DataTable, EmptyState, ImageGenerationJobCard, MetricCard, PageHeader, ProviderStatusCard, StatusBadge, WorkflowStepHeader } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
-import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
+import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel } from "../_provider-readiness";
 
-function canOpenRepositories() {
-  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
-}
-
-function openRepositoriesSafely(): RepositoryBundle | undefined {
-  if (!canOpenRepositories()) return undefined;
-  try {
-    return createRepositories();
-  } catch {
-    return undefined;
-  }
-}
-
-function credentialSourceLabel(source: string) {
-  if (source === "credential_store") return "secure workspace credential";
-  if (source === "env") return "advanced server fallback";
-  if (source === "local_demo") return "local demo mode";
-  return "not connected";
-}
+type RecommendedModel = { model: string; label: string };
 
 export default async function Page() {
   const { jobs } = await getStudioLists();
-  const cfg = parseEnv();
-  const repos = openRepositoriesSafely();
-  const resolvedProvider = publicImageGenerationProviderResolution(await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config: cfg }));
-  const connected = resolvedProvider.status === "ready";
-  const localDemo = resolvedProvider.status === "local_demo";
+  const readiness = await getWorkspaceProviderReadiness();
+  const resolvedProvider = readiness.providers.image_generation;
+  const storage = readiness.providers.storage;
+  const connected = isProviderReady(resolvedProvider);
+  const localDemo = resolvedProvider.credentialSource === "local_demo";
+  const recommendedModels = (resolvedProvider.providerMetadata?.recommendedModels ?? []) as RecommendedModel[];
+  const model = String(resolvedProvider.providerMetadata?.model ?? "not selected");
   const providerStatus = connected ? "Connected" : localDemo ? "Local demo" : "Setup required";
   const providerTone = connected ? "success" : localDemo ? "info" : "warning";
   const providerDescription = connected
-    ? `Provider: Hugging Face. Model: ${resolvedProvider.model ?? "not selected"}. Credential source: ${credentialSourceLabel(resolvedProvider.credentialSource)}.`
+    ? `Provider: Hugging Face. Model: ${model}. Credential source: ${providerCredentialSourceLabel(resolvedProvider.credentialSource)}.`
     : localDemo
       ? resolvedProvider.safeMessage
       : resolvedProvider.safeMessage;
@@ -63,9 +44,19 @@ export default async function Page() {
           status={providerStatus}
           tone={providerTone}
           description={providerDescription}
-          actionHref={resolvedProvider.setupAction}
+          actionHref={resolvedProvider.setupRoute}
           actionLabel="Configure image generation"
         />
+        <div style={{ marginTop: 14 }}>
+          <ProviderStatusCard
+            title="Generated asset storage"
+            status={isProviderReady(storage) ? "Ready" : "Storage setup needed"}
+            tone={isProviderReady(storage) ? "success" : "warning"}
+            description={storage.safeMessage}
+            actionHref={storage.setupRoute}
+            actionLabel="Open storage setup"
+          />
+        </div>
         {connected ? <div className="action-bar" style={{ marginTop: 14 }}>
           <a className="btn btn-primary" href="/studio/briefs">Send approved brief</a>
           <a className="btn btn-secondary" href="/studio/onboarding/providers/image-generation">Review provider setup</a>
@@ -73,17 +64,14 @@ export default async function Page() {
         {!connected ? <div style={{ marginTop: 14 }}>
           <h2>Recommended models</h2>
           <ul>
-            {resolvedProvider.recommendedModels.map((item) => <li key={item.model}><strong>{item.label}</strong> <code>{item.model}</code></li>)}
+            {recommendedModels.map((item) => <li key={item.model}><strong>{item.label}</strong> <code>{item.model}</code></li>)}
           </ul>
         </div> : null}
-        <AdvancedConfigDetails
-          envVars={["AI_IMAGE_ENABLED", "HF_API_TOKEN", "HF_IMAGE_MODEL", "IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_DEV_IMAGE_GENERATION"]}
-          notes={[
-            "Guided Setup credentials take precedence over advanced server fallback variables.",
-            "Use local demo mode only in development/test.",
-            "No OpenAI or Anthropic image provider is used."
-          ]}
-        />
+        <details className="setup-advanced-details">
+          <summary>Advanced server fallback details</summary>
+          <p>Guided Setup credentials take precedence. Developer-only fallback names and deployment notes live in Setup advanced details.</p>
+          <a className="btn btn-secondary" href="/studio/setup">Open Setup advanced details</a>
+        </details>
       </section>
     </div>
     {jobs.length ? <div className="layout-grid layout-grid-3" style={{ marginTop: 18 }}>

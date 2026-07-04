@@ -72,7 +72,25 @@ Provider validation runs server-side only:
 
 Validation responses return only safe status, setup requirements, next step, masked display, and sanitized metadata.
 
-Validated provider records are the runtime source of truth. When image generation or Printify is connected through Launch Setup Concierge, feature readiness and runtime actions use the secure workspace credential record. Owners should not need to edit `.env.local` after guided setup succeeds.
+Validated provider records are the runtime source of truth. When image generation, Shopify, or Printify is connected through Launch Setup Concierge, feature readiness and runtime actions use the secure workspace credential record. Owners should not need to edit `.env.local` after guided setup succeeds.
+
+## Unified Runtime Readiness
+
+All owner-facing provider readiness views use the same runtime resolver layer:
+
+- `/studio/integrations`
+- `/studio/setup`
+- `/studio/pod-launch-studio`
+- `/studio/printify-catalog`
+- `/studio/shopify-products`
+- `/studio/image-generation`
+- `/studio/publish-review`
+
+The resolver answers the owner questions directly: whether the provider is connected, what actually blocks the next step, and what action the owner should take now. It prefers secure workspace provider connection records, then documented development/test or advanced server fallbacks where allowed.
+
+Owner-facing default views must not show stale env requirements such as `PRINTIFY_API_TOKEN`, `SHOPIFY_ADMIN_TOKEN`, or `HF_API_TOKEN` when a guided provider connection is ready. Env variable names belong in `/studio/setup` Advanced Server Configuration, developer docs, diagnostics, logs, and tests only.
+
+Storage readiness is shown separately from image provider readiness. A connected Hugging Face provider can still be blocked from completing real generated assets until private/public generated asset storage passes its diagnostic.
 
 ## Printify Setup
 

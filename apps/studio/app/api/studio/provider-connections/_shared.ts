@@ -6,6 +6,7 @@ import {
   HUGGING_FACE_IMAGE_PROVIDER,
   applyImageGenerationRuntimeReadiness,
   applyPrintifyRuntimeReadiness,
+  applyShopifyRuntimeReadiness,
   applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   buildOwnerSetupCards,
@@ -28,6 +29,7 @@ import {
   isShopifyStoreDomain,
   sanitizeShopifyStoreDomain
 } from "../_shopify-admin";
+import { getWorkspaceProviderReadiness, shopifyRuntimeReadinessFromProviderItem } from "../../../studio/_provider-readiness";
 
 export const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
@@ -288,12 +290,16 @@ export async function handleProviderConnectionsList(req: Request) {
     const imageRuntime = await resolveImageGenerationProvider({ workspaceId, repos, config });
     const printifyRuntime = await resolvePrintifyProvider({ workspaceId, repos, config });
     const storageRuntime = await checkStorageReadiness(config);
-    const report = applyPrintifyRuntimeReadiness(
-      applyImageGenerationRuntimeReadiness(
-        applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storageRuntime),
-        publicImageGenerationProviderResolution(imageRuntime)
+    const providerReadiness = await getWorkspaceProviderReadiness(workspaceId, { repos, config });
+    const report = applyShopifyRuntimeReadiness(
+      applyPrintifyRuntimeReadiness(
+        applyImageGenerationRuntimeReadiness(
+          applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storageRuntime),
+          publicImageGenerationProviderResolution(imageRuntime)
+        ),
+        publicPrintifyProviderResolution(printifyRuntime)
       ),
-      publicPrintifyProviderResolution(printifyRuntime)
+      shopifyRuntimeReadinessFromProviderItem(providerReadiness.providers.shopify)
     );
     const cards = buildOwnerSetupCards(report).map((card) => ({
       ...card,

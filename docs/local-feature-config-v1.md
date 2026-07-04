@@ -10,7 +10,9 @@ Business owners should not edit env files. Customer-facing setup happens through
 - `/studio/onboarding/providers/*`
 - `/studio/setup` owner-friendly mode
 
-Env variables are for local development, CI, and server deployment only. They may appear in Studio only inside Advanced / Developer details.
+Env variables are for local development, CI, and server deployment only. They may appear in Studio only inside `/studio/setup` Advanced / Developer details, protected diagnostics, logs, tests, and developer docs.
+
+Owner-facing readiness pages use a unified provider readiness resolver. Once Printify, Shopify, Hugging Face image generation, or storage is connected through guided setup, `/studio/integrations`, `/studio/pod-launch-studio`, `/studio/printify-catalog`, `/studio/shopify-products`, `/studio/image-generation`, and `/studio/publish-review` must read that resolver instead of direct env-style provider flags.
 
 Dangerous actions stay disabled by default:
 
@@ -55,7 +57,7 @@ If the user cannot safely configure something from the browser, the blocker must
 | Shopify media upload | Saved Shopify onboarding credentials, or protected server config with Client ID/Secret or legacy Admin token | No | `/studio/shopify-products` | Uploads approved media to an existing Shopify draft product. | Missing Shopify config or signed/public media URL. | No Client Secret, Admin token, or generated access token is returned. |
 | Shopify collection assignment | Saved Shopify onboarding credentials, or protected server config with Client ID/Secret or legacy Admin token, plus `SHOPIFY_DEFAULT_COLLECTION_ID` or owner-entered ID | No | `/studio/publish-review` | Assigns draft product to a real Shopify collection ID. | `SHOPIFY_DEFAULT_COLLECTION_ID or owner-entered Shopify collection ID`. | Listing display labels are not enough. |
 | Shopify live publish | `LIVE_PUBLISHING_ENABLED`, `SHOPIFY_ALLOW_PRODUCT_PUBLISH`, saved/enabled Shopify connection or protected server Shopify credentials | No | `/studio/shopify-products` | Owner-gated route can publish an existing Shopify draft only after publish gates pass, both live flags are enabled, provider config is present, and the owner types `PUBLISH LIVE`. | `live_shopify_publish_flags_disabled`, `explicit_owner_confirmation_required`, or Shopify Admin config blockers. | Should not be enabled locally except in a deliberate live-provider smoke test. |
-| POD Launch Studio | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/pod-launch-studio` | Internal blockers, pipeline state, and provider readiness can be viewed. | DB config blocker. | Provider success remains config-blocked. |
+| POD Launch Studio | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/pod-launch-studio` | Internal blockers, pipeline state, and unified provider readiness can be viewed. | DB config blocker or precise provider setup action. | Provider readiness comes from guided provider records first, then allowed advanced fallbacks. |
 | POD Batches | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory` | Yes | `/studio/pod-batches` | Batch records/status can be created and reviewed internally. | DB config blocker. | No bulk publish by default. |
 | Launch Packet | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; provider refs when available | Yes | `/studio/launch-packet` | Shows launch blockers, refs, approval status, and manual/export readiness. | Missing persisted draft/provider evidence. | No sync/publish is implied. |
 | AI Employees | `DATABASE_URL` or dev-only `REPOSITORY_ADAPTER=memory`; optional `AI_TEXT_ENABLED`, `HF_API_TOKEN`, `HF_TEXT_MODEL` | Yes | `/studio/ai-employees` | Internal planning/output/approval workflows can run without live providers. | External model calls disabled until HF config. | AI approval never grants publish/spend/send/sync. |

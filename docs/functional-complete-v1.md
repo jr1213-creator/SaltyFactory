@@ -14,6 +14,14 @@ Customers do not edit `.env` files, text files, or developer config to use Salty
 
 Developer/server env configuration remains only for local development, CI, and deployment administration. Env names may appear in Advanced / Developer details and docs, not as the primary owner UX.
 
+## Unified Provider Readiness Rule
+
+Guided provider connection records are the normal runtime path. The owner-facing provider capability UI and product workflow pages must use one resolver layer for Printify, Shopify, image generation, generated asset storage, live publish, banking, and external orders.
+
+The affected Studio pages include `/studio/integrations`, `/studio/setup`, `/studio/pod-launch-studio`, `/studio/printify-catalog`, `/studio/shopify-products`, `/studio/image-generation`, and `/studio/publish-review`. These pages should show the actual next blocker, such as approved artwork, variants, pricing, default collection, storage setup, or owner gates. They should not ask owners for env variables after a guided provider record is connected.
+
+Advanced server env fallback is still documented for deployment administrators and is used only when no connected provider record exists. It must not override a connected secure workspace credential. Storage readiness is shown separately from image provider readiness. Live publish remains owner-gated and disabled for safety unless explicit flags and confirmations pass.
+
 ## No Dead Config States
 
 Every setup blocker must include a plain-English explanation, next action, setup guide, validation route when applicable, request-help path, and no secret values. If a setting requires administrator/server setup, Studio must say so and provide a help request path.
@@ -123,8 +131,8 @@ Recommended or optional setup, such as Google Business Profile for online-only P
 2. Complete `/studio/settings/business-profile`.
 2. Add priority sales, social, reputation, and content channels at `/studio/channels`.
 3. Connect Google in `/studio/integrations`, auto-detect or create setup for SaltyCowhide.com, configure GA4/Search Console/Merchant Center where available, then sync/test.
-4. Create or open Shopify and Printify accounts externally, keep credentials server-side, then test providers from Account Center or Integrations.
-5. Verify Supabase Storage from `/studio/integrations`.
+4. Create or open Shopify and Printify accounts externally, then connect them through `/studio/onboarding/providers/shopify` and `/studio/onboarding/providers/printify`.
+5. Verify generated asset storage from `/studio/setup` or `/studio/integrations`; service-role credentials remain server-side only.
 6. Run AI Employees from `/studio/ai-employees` to create safe internal trend, product, design, image prompt, listing, pricing, social, and launch-readiness drafts.
 7. Create or approve Product Ideas at `/studio/product-builder`.
 8. Upload/approve artwork assets at `/studio/assets`.

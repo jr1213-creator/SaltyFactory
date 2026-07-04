@@ -1,35 +1,21 @@
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
-import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
-import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
-import { parseEnv } from "@saltyfactory/config";
-import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, ProviderReadinessCard, RecommendationCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { PublishWorkflowClient } from "./PublishWorkflowClient";
 import { ProviderPublishActionsClient } from "./ProviderPublishActionsClient";
-import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
-
-function canOpenRepositories() {
-  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
-}
-
-function openRepositoriesSafely(): RepositoryBundle | undefined {
-  if (!canOpenRepositories()) return undefined;
-  try {
-    return createRepositories();
-  } catch {
-    return undefined;
-  }
-}
+import { getWorkspaceProviderReadiness, isProviderReady } from "../_provider-readiness";
 
 export default async function Page() {
   const { publishReviews, drafts, listingDraftsV1, marginChecks, setupMessage } = await getStudioLists();
-  const config = parseEnv();
-  const repos = openRepositoriesSafely();
-  const imageProvider = publicImageGenerationProviderResolution(await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config }));
-  const printifyProvider = publicPrintifyProviderResolution(await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos, config }));
-  const imageReady = imageProvider.status === "ready" || imageProvider.status === "local_demo";
-  const printifyReady = printifyProvider.status === "ready";
+  const readiness = await getWorkspaceProviderReadiness();
+  const imageProvider = readiness.providers.image_generation;
+  const printifyProvider = readiness.providers.printify;
+  const shopifyProvider = readiness.providers.shopify;
+  const livePublish = readiness.providers.live_publish;
+  const imageReady = isProviderReady(imageProvider);
+  const imageLocalDemo = imageProvider.credentialSource === "local_demo";
+  const printifyReady = isProviderReady(printifyProvider);
+  const shopifyReady = isProviderReady(shopifyProvider);
   const review = publishReviews[0] as any ?? { id: "empty", product_draft_id: "", gates: {}, all_gates_passed: false, shopify_publish_allowed: false, printify_sync_allowed: false, notes: ["No saved publish review exists yet."] };
   const gateResult = evaluatePublishReviewGates(review);
   const gates = Object.entries(review.gates ?? {}).map(([label, passed]) => ({ label: label.replaceAll("_", " "), passed: Boolean(passed), detail: passed ? "Passed" : "Blocks provider sync and public projection" }));
@@ -55,10 +41,10 @@ export default async function Page() {
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Provider Readiness</h2>
       <div className="provider-health-bar">
-        <ProviderReadinessCard title="Image Generation" status={imageReady ? (imageProvider.status === "local_demo" ? "local demo" : "connected") : "setup needed"} tone={imageReady ? "success" : "warning"} description={imageReady ? "Generated artwork can be created from owner-approved prompts." : "Connect image generation in Launch Setup Concierge."} />
+        <ProviderReadinessCard title="Image Generation" status={imageReady ? (imageLocalDemo ? "local demo" : "connected") : "setup needed"} tone={imageReady ? "success" : "warning"} description={imageReady ? imageProvider.safeMessage : imageProvider.businessFacingSetupRequired.join(", ") || imageProvider.safeMessage} />
         <ProviderReadinessCard title="Printify" status={printifyReady ? "connected" : "setup needed"} tone={printifyReady ? "success" : "warning"} description={printifyReady ? "Printify connected through Launch Setup Concierge. Draft creation still requires approved artwork, variants, pricing, and owner gates." : "Connect Printify in Launch Setup Concierge before draft product creation."} />
-        <ProviderReadinessCard title="Shopify" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description={config.providers.shopifyAdmin.enabled ? "Shopify draft creation can run after gates pass." : "Connect Shopify in onboarding with Client ID/Secret, or use protected legacy Admin token config."} />
-        <ProviderReadinessCard title="Live Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked by default"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Draft creation never publishes live. Public storefront projection still requires explicit owner approval." />
+        <ProviderReadinessCard title="Shopify" status={shopifyReady ? "connected" : "setup needed"} tone={shopifyReady ? "success" : "warning"} description={shopifyReady ? shopifyProvider.safeMessage : shopifyProvider.businessFacingSetupRequired.join(", ") || shopifyProvider.safeMessage} />
+        <ProviderReadinessCard title="Live Publish" status={livePublish.status === "owner_gated" ? "owner gated" : "blocked by default"} tone={livePublish.status === "owner_gated" ? "warning" : "danger"} description={livePublish.safeMessage} />
       </div>
     </section>
     <section className="surface-card" style={{ marginTop: 18 }}>

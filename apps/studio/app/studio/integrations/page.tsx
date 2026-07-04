@@ -3,6 +3,7 @@ import { parseEnv } from "@saltyfactory/config";
 import { getIntegrationStates } from "@saltyfactory/integrations";
 import { getStudioLists } from "../data";
 import { IntegrationActionsClient } from "./IntegrationActionsClient";
+import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel, providerReadinessItems, type WorkspaceProviderReadinessItem } from "../_provider-readiness";
 
 function rowProvider(row: any) {
   return String(row.provider_type ?? row.providerType ?? row.provider_key ?? row.providerKey ?? "");
@@ -14,8 +15,40 @@ function latestSync(rows: any[], provider: string) {
     .sort((a, b) => String(b.completed_at ?? b.completedAt ?? b.created_at ?? "").localeCompare(String(a.completed_at ?? a.completedAt ?? a.created_at ?? "")))[0] ?? null;
 }
 
+function ownerSafeSetupRequired(item: { key: string; setupRequired?: string[] }) {
+  const setupRequired = item.setupRequired ?? [];
+  if (!setupRequired.length) return [];
+  if (item.key === "google_oauth") return ["Connect Google OAuth"];
+  if (item.key === "ga4") return ["Connect Google OAuth", "Select GA4 property"];
+  if (item.key === "google_search_console") return ["Connect Google OAuth", "Select Search Console site"];
+  if (item.key === "google_business_profile") return ["Connect Google OAuth", "Select Business Profile account/location if applicable"];
+  return setupRequired.map((value) => /[A-Z0-9_]{3,}/.test(value) ? "Use guided setup or advanced server fallback." : value);
+}
+
+function readinessStatusTone(item: WorkspaceProviderReadinessItem) {
+  if (isProviderReady(item)) return "success" as const;
+  if (item.status === "invalid" || item.status === "admin_setup_required") return "danger" as const;
+  return "warning" as const;
+}
+
+function readinessStatusLabel(item: WorkspaceProviderReadinessItem) {
+  if (item.status === "disabled_for_safety") return "blocked for safety";
+  return item.status.replace(/_/g, " ");
+}
+
+function nextAction(item: WorkspaceProviderReadinessItem) {
+  if (item.businessFacingSetupRequired.length) return item.businessFacingSetupRequired.join(", ");
+  if (item.providerKey === "printify") return "Catalog browsing ready. Product creation still requires approved artwork, variants, pricing, and owner gates.";
+  if (item.providerKey === "shopify") return "Draft creation ready after product gates pass. Live publish remains owner-gated.";
+  if (item.providerKey === "image_generation") return "Model selected. Approved briefs can be sent to generation when storage is ready.";
+  if (item.providerKey === "storage") return "Private generated asset storage and public approved asset buckets are ready.";
+  return item.safeMessage;
+}
+
 export default async function Page() {
   const { providerConnections, integrationSyncRuns } = await getStudioLists();
+  const providerReadiness = await getWorkspaceProviderReadiness();
+  const providerItems = providerReadinessItems(providerReadiness);
   const persistedByProvider = Object.fromEntries(providerConnections.map((connection: any) => [rowProvider(connection), connection]));
   const integrations = getIntegrationStates(parseEnv()).map((item) => {
     const persisted = persistedByProvider[item.key] as any;
@@ -32,11 +65,12 @@ export default async function Page() {
       selectedAccountId: configuration.businessProfileAccountId ?? configuration.selectedAccountId ?? item.selectedAccountId ?? null,
       selectedLocationId: configuration.businessProfileLocationId ?? configuration.selectedLocationId ?? item.selectedLocationId ?? null,
       lastSuccessfulSync: lastSync?.status === "completed" ? String(lastSync.completed_at ?? lastSync.completedAt ?? lastSync.created_at ?? "") : null,
-      lastErrorMessage: lastSync?.sanitized_error_message ?? lastSync?.sanitizedErrorMessage ?? item.lastErrorMessage ?? null
+      lastErrorMessage: lastSync?.sanitized_error_message ?? lastSync?.sanitizedErrorMessage ?? item.lastErrorMessage ?? null,
+      setupRequired: ownerSafeSetupRequired(item)
     };
-  });
-  const configuredCount = integrations.filter((item) => item.status === "connected").length;
-  const readiness = Math.round((configuredCount / integrations.length) * 100);
+  }).filter((item) => !["shopify", "printify", "supabase_storage", "hugging_face"].includes(item.key));
+  const configuredCount = integrations.filter((item) => item.status === "connected").length + providerItems.filter((item) => isProviderReady(item)).length;
+  const readiness = Math.round((configuredCount / (integrations.length + providerItems.length)) * 100);
   const googleOAuth = integrations.find((item) => item.key === "google_oauth");
   const ga4 = integrations.find((item) => item.key === "ga4");
   const gsc = integrations.find((item) => item.key === "google_search_console");
@@ -51,6 +85,21 @@ export default async function Page() {
       <AiReadinessScoreCard title="AEO Score" score={0} />
       <AiReadinessScoreCard title="GEO Score" score={0} />
     </div>
+    <section className="surface-card" style={{ marginTop: 18 }}>
+      <h2>Provider Runtime Readiness</h2>
+      <p className="text-muted">These cards use the same credential-store-aware resolver layer as runtime routes. Advanced server fallback is optional and not the primary owner setup path.</p>
+      <div className="layout-grid layout-grid-4">
+        {providerItems.map((item) => <IntegrationCard
+          key={item.providerKey}
+          title={item.label}
+          status={readinessStatusLabel(item)}
+          tone={readinessStatusTone(item)}
+          description={`${item.safeMessage} Credential source: ${providerCredentialSourceLabel(item.credentialSource)}.`}
+          actionHref={item.setupRoute}
+          actionLabel={isProviderReady(item) ? "Review setup" : "Open setup"}
+        />)}
+      </div>
+    </section>
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Connected Integrations</h2>
       <div className="layout-grid layout-grid-4">{integrations.map((item) => <IntegrationCard key={item.key} title={item.label} status={item.status.replace(/_/g, " ")} tone={item.status === "connected" ? "success" : item.status === "disabled" ? "warning" : "danger"} />)}</div>
@@ -67,7 +116,11 @@ export default async function Page() {
     </section>
     <IntegrationActionsClient integrations={integrations} />
     <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
-      <section className="surface-card"><h2>Provider Capabilities</h2><DataTable columns={["Provider", "Status", "Setup required"]} rows={integrations.map((item) => [item.label, <StatusBadge key={item.key} status={item.status.replace(/_/g, " ")} tone={item.status === "configured" ? "success" : "warning"} />, item.setupRequired.length ? item.setupRequired.join(", ") : "None"])} /></section>
+      <section className="surface-card"><h2>Provider Capabilities</h2><DataTable columns={["Provider", "Status", "Next owner action"]} rows={providerItems.map((item) => [
+        item.label,
+        <StatusBadge key={item.providerKey} status={readinessStatusLabel(item)} tone={readinessStatusTone(item)} />,
+        nextAction(item)
+      ])} /></section>
       <section className="surface-card"><h2>Google Data Readiness</h2><DataTable columns={["Data source", "Status", "Last sync or blocker"]} rows={[
         ["GA4", <StatusBadge key="ga4" status={String(integrations.find((item) => item.key === "ga4")?.status ?? "not configured").replace(/_/g, " ")} tone={integrations.find((item) => item.key === "ga4")?.status === "connected" ? "success" : "warning"} />, integrations.find((item) => item.key === "ga4")?.lastSuccessfulSync ?? integrations.find((item) => item.key === "ga4")?.setupRequired.join(", ") ?? "Configure Google OAuth"],
         ["Search Console", <StatusBadge key="gsc" status={String(integrations.find((item) => item.key === "google_search_console")?.status ?? "not configured").replace(/_/g, " ")} tone={integrations.find((item) => item.key === "google_search_console")?.status === "connected" ? "success" : "warning"} />, integrations.find((item) => item.key === "google_search_console")?.lastSuccessfulSync ?? integrations.find((item) => item.key === "google_search_console")?.setupRequired.join(", ") ?? "Configure Google OAuth"],

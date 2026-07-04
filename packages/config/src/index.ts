@@ -196,6 +196,7 @@ export type {
 export {
   applyImageGenerationRuntimeReadiness,
   applyPrintifyRuntimeReadiness,
+  applyShopifyRuntimeReadiness,
   applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   featureReadinessEnvVars
@@ -206,6 +207,7 @@ export type {
   FeatureReadinessStatus,
   ImageGenerationRuntimeReadiness,
   PrintifyRuntimeReadiness,
+  ShopifyRuntimeReadiness,
   StorageRuntimeReadiness
 } from "./feature-readiness";
 export {

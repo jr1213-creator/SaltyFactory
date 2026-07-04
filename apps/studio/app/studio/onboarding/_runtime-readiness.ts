@@ -1,9 +1,10 @@
 import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
 import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
-import { applyImageGenerationRuntimeReadiness, applyPrintifyRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
+import { applyImageGenerationRuntimeReadiness, applyPrintifyRuntimeReadiness, applyShopifyRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { checkStorageReadiness } from "@saltyfactory/storage";
 import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
+import { getWorkspaceProviderReadiness, shopifyRuntimeReadinessFromProviderItem } from "../_provider-readiness";
 
 function canOpenRepositories() {
   return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
@@ -24,12 +25,16 @@ export async function runtimeOwnerSetupCards() {
   const image = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config });
   const printify = await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos, config });
   const storage = await checkStorageReadiness(config);
-  const report = applyPrintifyRuntimeReadiness(
-    applyImageGenerationRuntimeReadiness(
-      applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, studioWorkspaceId), storage),
-      publicImageGenerationProviderResolution(image)
+  const providerReadiness = await getWorkspaceProviderReadiness(studioWorkspaceId, { repos, config });
+  const report = applyShopifyRuntimeReadiness(
+    applyPrintifyRuntimeReadiness(
+      applyImageGenerationRuntimeReadiness(
+        applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, studioWorkspaceId), storage),
+        publicImageGenerationProviderResolution(image)
+      ),
+      publicPrintifyProviderResolution(printify)
     ),
-    publicPrintifyProviderResolution(printify)
+    shopifyRuntimeReadinessFromProviderItem(providerReadiness.providers.shopify)
   );
   return buildOwnerSetupCards(report);
 }

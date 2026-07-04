@@ -1,19 +1,30 @@
 import { DataTable, EmptyState, PageHeader, ProviderReadinessCard, StatusBadge } from "@saltyfactory/ui";
-import { parseEnv } from "@saltyfactory/config";
 import { getStudioLists } from "../data";
 import { ShopifyProductsClient } from "./ShopifyProductsClient";
+import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel } from "../_provider-readiness";
 
 export default async function Page() {
   const { products } = await getStudioLists();
-  const config = parseEnv();
+  const readiness = await getWorkspaceProviderReadiness();
+  const shopify = readiness.providers.shopify;
+  const livePublish = readiness.providers.live_publish;
+  const shopifyReady = isProviderReady(shopify);
+  const selectedCollection = String(shopify.providerMetadata?.selectedCollectionId ?? "");
   return <>
     <PageHeader title="Shopify Draft Products" description="Draft products created through the guarded Shopify Admin route. Storefront URLs appear only after explicit publish confirmation.">
       <a className="btn btn-primary" href="/studio/publish-review">Create Shopify Draft</a>
     </PageHeader>
     <div className="layout-grid layout-grid-3">
-      <ProviderReadinessCard title="Shopify Admin" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description="Draft creation uses saved onboarding credentials or protected server-side Shopify Admin config." />
+      <ProviderReadinessCard
+        title="Shopify Admin"
+        status={shopifyReady ? "connected" : "setup needed"}
+        tone={shopifyReady ? "success" : "warning"}
+        description={shopifyReady ? `Credential source: ${providerCredentialSourceLabel(shopify.credentialSource)}. ${selectedCollection ? "Default collection selected." : "Select a default collection before draft products are marked ready."}` : shopify.businessFacingSetupRequired.join(", ") || shopify.safeMessage}
+        actionHref={shopify.setupRoute}
+        actionLabel={shopifyReady ? "Review Shopify setup" : "Connect Shopify"}
+      />
       <ProviderReadinessCard title="Draft Mode" status="required" tone="success" description="Products are created as drafts/unpublished by default." />
-      <ProviderReadinessCard title="Live Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked by default"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Public storefront publish requires owner confirmation and passed gates." />
+      <ProviderReadinessCard title="Live Publish" status={livePublish.status === "owner_gated" ? "owner gated" : "blocked by default"} tone={livePublish.status === "owner_gated" ? "warning" : "danger"} description={livePublish.safeMessage} />
     </div>
     <section className="surface-card shopify-products-panel">
       {products.length ? <DataTable columns={["Draft", "Status", "Admin", "Storefront", "Sync"]} rows={products.map((product: any) => [
