@@ -1,13 +1,31 @@
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
+import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
 import { parseEnv } from "@saltyfactory/config";
+import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, ProviderReadinessCard, RecommendationCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { PublishWorkflowClient } from "./PublishWorkflowClient";
 import { ProviderPublishActionsClient } from "./ProviderPublishActionsClient";
+import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
+
+function canOpenRepositories() {
+  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
+}
+
+function openRepositoriesSafely(): RepositoryBundle | undefined {
+  if (!canOpenRepositories()) return undefined;
+  try {
+    return createRepositories();
+  } catch {
+    return undefined;
+  }
+}
 
 export default async function Page() {
   const { publishReviews, drafts, listingDraftsV1, marginChecks, setupMessage } = await getStudioLists();
   const config = parseEnv();
+  const imageProvider = publicImageGenerationProviderResolution(await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos: openRepositoriesSafely(), config }));
+  const imageReady = imageProvider.status === "ready" || imageProvider.status === "local_demo";
   const review = publishReviews[0] as any ?? { id: "empty", product_draft_id: "", gates: {}, all_gates_passed: false, shopify_publish_allowed: false, printify_sync_allowed: false, notes: ["No saved publish review exists yet."] };
   const gateResult = evaluatePublishReviewGates(review);
   const gates = Object.entries(review.gates ?? {}).map(([label, passed]) => ({ label: label.replaceAll("_", " "), passed: Boolean(passed), detail: passed ? "Passed" : "Blocks provider sync and public projection" }));
@@ -33,7 +51,7 @@ export default async function Page() {
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Provider Readiness</h2>
       <div className="provider-health-bar">
-        <ProviderReadinessCard title="Image Generation" status={config.providers.aiImage.enabled ? "configured" : "setup needed"} tone={config.providers.aiImage.enabled ? "success" : "warning"} description={config.providers.aiImage.enabled ? "Generated artwork can be created by the allowed image provider." : "Requires AI_IMAGE_ENABLED=true, HF_API_TOKEN, and HF_IMAGE_MODEL."} />
+        <ProviderReadinessCard title="Image Generation" status={imageReady ? (imageProvider.status === "local_demo" ? "local demo" : "connected") : "setup needed"} tone={imageReady ? "success" : "warning"} description={imageReady ? "Generated artwork can be created from owner-approved prompts." : "Connect image generation in Launch Setup Concierge."} />
         <ProviderReadinessCard title="Printify" status={config.providers.printify.enabled ? "configured" : "setup needed"} tone={config.providers.printify.enabled ? "success" : "warning"} description={config.providers.printify.enabled ? "Printify draft creation can run after gates pass." : "Requires PRINTIFY_ENABLED=true, PRINTIFY_API_TOKEN, and PRINTIFY_SHOP_ID."} />
         <ProviderReadinessCard title="Shopify" status={config.providers.shopifyAdmin.enabled ? "configured" : "setup needed"} tone={config.providers.shopifyAdmin.enabled ? "success" : "warning"} description={config.providers.shopifyAdmin.enabled ? "Shopify draft creation can run after gates pass." : "Connect Shopify in onboarding with Client ID/Secret, or use protected legacy Admin token config."} />
         <ProviderReadinessCard title="Live Publish" status={config.LIVE_PUBLISHING_ENABLED ? "enabled" : "blocked by default"} tone={config.LIVE_PUBLISHING_ENABLED ? "warning" : "danger"} description="Draft creation never publishes live. Public storefront projection still requires explicit owner approval." />
@@ -44,7 +62,7 @@ export default async function Page() {
       <WorkflowProgress steps={[
         { label: "Idea", status: drafts.length ? "draft exists" : "needed", complete: drafts.length > 0 },
         { label: "Prompt", status: "owner approved only", complete: true },
-        { label: "Image", status: config.providers.aiImage.enabled ? "provider configured" : "setup needed", complete: config.providers.aiImage.enabled },
+        { label: "Image", status: imageReady ? "provider connected" : "setup needed", complete: imageReady },
         { label: "QA", status: "asset QA required", complete: false },
         { label: "Mockup", status: "approved composite required", complete: false },
         { label: "Printify", status: "draft action available", complete: false },

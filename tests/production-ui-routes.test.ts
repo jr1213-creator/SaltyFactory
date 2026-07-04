@@ -284,8 +284,8 @@ describe("production UI routes", () => {
     expect(html).not.toContain("Search disabled");
   });
 
-  it("Setup page is sectioned, allows env names only there, and never displays secret values", () => {
-    const html = renderToStaticMarkup(StudioSetupPage());
+  it("Setup page is sectioned, allows env names only there, and never displays secret values", async () => {
+    const html = renderToStaticMarkup(await StudioSetupPage());
     expect(html).toContain("Launch Setup Concierge");
     expect(html).toContain("No Dead Config States");
     expect(html).toContain("Owner Setup");

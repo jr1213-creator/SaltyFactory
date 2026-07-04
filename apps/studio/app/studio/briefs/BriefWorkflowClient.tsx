@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 type Brief = Record<string, any>;
+type ResultRecord = Record<string, any>;
 
 async function postJson(url: string, body?: Record<string, unknown>) {
   const init: RequestInit = { method: "POST" };
@@ -12,6 +13,70 @@ async function postJson(url: string, body?: Record<string, unknown>) {
   }
   const response = await fetch(url, init);
   return response.json();
+}
+
+function asRecord(value: unknown): ResultRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as ResultRecord : null;
+}
+
+function resultTone(status: string) {
+  if (["succeeded", "approved", "brief_created", "created"].includes(status)) return "success";
+  if (["setup_required", "blocked", "invalid", "failed", "request_failed"].includes(status)) return "warning";
+  return "info";
+}
+
+function sanitizeDeveloperDetails(value: unknown) {
+  return JSON.parse(JSON.stringify(value, (key, nestedValue) => {
+    if (/token|secret|authorization|credential/i.test(key)) return "[redacted]";
+    return nestedValue;
+  }));
+}
+
+function ResultPanel({ result }: { result: unknown }) {
+  const record = asRecord(result);
+  if (!record) return null;
+  const status = String(record.status ?? (record.ok ? "succeeded" : "blocked"));
+  const message = String(record.safeMessage ?? record.message ?? (record.ok ? "Action completed." : "Action could not be completed."));
+  const provider = asRecord(record.provider);
+  const job = asRecord(record.job);
+  const asset = asRecord(record.asset);
+  const blockers = Array.isArray(record.blockingReasons)
+    ? record.blockingReasons.map(String)
+    : Array.isArray(record.setupRequired)
+      ? record.setupRequired.map(String)
+      : [];
+  const setupAction = String(record.setupAction ?? provider?.setupAction ?? "/studio/onboarding/providers/image-generation");
+  const showSetupAction = !record.ok || status === "setup_required" || blockers.length > 0;
+  return <section className={`provider-result-panel provider-result-panel-${resultTone(status)}`} aria-live="polite">
+    <div className="provider-result-header">
+      <div>
+        <p className="eyebrow-label">Workflow result</p>
+        <h3>{status.replace(/_/g, " ")}</h3>
+        <p className="text-muted">{message}</p>
+      </div>
+    </div>
+    {job ? <dl className="result-detail-grid">
+      <div><dt>Job</dt><dd>{job.id ?? "pending"}</dd></div>
+      <div><dt>Status</dt><dd>{job.status ?? status}</dd></div>
+      <div><dt>Provider</dt><dd>{provider?.provider === "huggingface" ? "Hugging Face" : provider?.provider ?? job.provider ?? "not connected"}</dd></div>
+      <div><dt>Model</dt><dd>{provider?.model ?? job.model ?? "not selected"}</dd></div>
+    </dl> : null}
+    {asset ? <p className="text-muted">Private asset created: <strong>{asset.id}</strong></p> : null}
+    {blockers.length ? <div>
+      <strong>Blocker reasons</strong>
+      <ul>{blockers.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div> : null}
+    <div className="action-bar">
+      {record.ok ? <a className="btn btn-primary" href="/studio/image-generation">Open image generation</a> : null}
+      {showSetupAction ? <a className="btn btn-primary" href={setupAction}>Open image generation setup</a> : null}
+      {showSetupAction ? <a className="btn btn-secondary" href="/studio/onboarding/help?provider=image_generation">Request setup help</a> : null}
+      {!record.ok && setupAction.includes("image-generation") ? <a className="btn btn-secondary" href="/studio/onboarding/providers/image-generation#field-guides">Try a recommended model</a> : null}
+    </div>
+    <details className="setup-advanced-details">
+      <summary>Developer details</summary>
+      <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>{JSON.stringify(sanitizeDeveloperDetails(record), null, 2)}</pre>
+    </details>
+  </section>;
 }
 
 export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] }) {
@@ -82,6 +147,6 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
       <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("reject")}>Reject Brief</button>
       <button className="btn btn-primary" disabled={!selected || busy || !selected?.approved_for_generation} onClick={() => run("generation")}>Send to Generation</button>
     </div>
-    {result ? <pre className="code-block" style={{ whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{JSON.stringify(result, null, 2)}</pre> : null}
+    {result ? <ResultPanel result={result} /> : null}
   </section>;
 }

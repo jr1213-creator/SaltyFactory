@@ -258,7 +258,9 @@ Merchant product feed readiness tracks Merchant Center verification, approved li
 
 Rules-based fallback is available when no model provider is configured and is labeled `rules_based`.
 
-Hugging Face text/image calls require:
+Owner-facing image generation setup uses secure provider connection records from Launch Setup Concierge. A validated Hugging Face image provider record is enough for feature readiness, `/studio/image-generation`, approved-brief generation, and the worker to use that provider server-side.
+
+Advanced server fallback for technical deployments can still use:
 
 ```txt
 AI_TEXT_ENABLED=true
@@ -268,7 +270,11 @@ HF_TEXT_MODEL=
 HF_IMAGE_MODEL=
 ```
 
+The server-side image resolver checks connected provider credentials first, development/test local demo second, advanced env fallback third, and otherwise returns `setup_required` with the image onboarding link. Env fallback must not override a connected provider record.
+
 Model outputs are labeled `model_generated`. Prompts are screened for secrets, prompt-injection patterns, and trademark-risk phrases.
+
+The `/studio/briefs` Send to Generation workflow shows structured job/setup results instead of a normal owner-facing raw JSON dump. Developer JSON is allowed only inside collapsed developer details and must not include tokens.
 
 ## Approval Gates
 
@@ -288,7 +294,7 @@ No live publish/sync can proceed unless the existing publish review gates pass:
 
 1. Run AI Employees or manually create Product Ideas in `/studio/product-builder`.
 2. Create design concepts and print artwork prompts.
-3. Generate artwork only when an allowed image provider is configured and the owner has approved the prompt. If not configured, the workflow blocks with `AI_IMAGE_ENABLED=true`, `HF_API_TOKEN`, and `HF_IMAGE_MODEL`.
+3. Generate artwork only when an allowed image provider is connected through guided setup, development/test local demo is explicitly enabled, or advanced server fallback is configured, and the owner has approved the prompt. If not configured, the workflow blocks with `setup_required` and links to image provider onboarding.
 4. Persist generated image bytes as private assets, run asset QA, and approve artwork before product use.
 5. Select real Printify blueprint/provider/variants, upload approved generated artwork to Printify media, and create/retrieve Printify draft products when Printify is configured.
 6. Approve mockups from the mockup workflow.

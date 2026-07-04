@@ -7,10 +7,10 @@ describe("worker flows", () => {
     await expect(runWorkerOnce(new DatabaseBackedQueue())).resolves.toMatchObject({ ok: true, processed: 0 });
   });
 
-  it("disabled AI provider blocks generation job", async () => {
+  it("missing image provider returns setup_required for generation job", async () => {
     const queue = new DatabaseBackedQueue();
     await queue.enqueue({ id: "genjob_disabled", type: "generation", max_retries: 3, payload: { prompt: "x" } });
-    await expect(runWorkerOnce(queue)).resolves.toMatchObject({ ok: false, processed: 1, error: "provider_disabled" });
+    await expect(runWorkerOnce(queue)).resolves.toMatchObject({ ok: false, processed: 1, error: "setup_required" });
   });
 
   it("retryable failure increments retry count", async () => {

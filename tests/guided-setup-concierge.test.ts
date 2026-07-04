@@ -62,7 +62,7 @@ describe("guided setup concierge UI", () => {
     expect(setupFieldGuides.every((guide) => guide.stepsToFindIt.length > 0 && guide.securityNote.length > 0)).toBe(true);
   });
 
-  it("renders onboarding routes with owner-facing setup actions and helper copy", () => {
+  it("renders onboarding routes with owner-facing setup actions and helper copy", async () => {
     const pages = [
       renderToStaticMarkup(OnboardingPage()),
       renderToStaticMarkup(QuickStartPage()),
@@ -70,11 +70,11 @@ describe("guided setup concierge UI", () => {
       renderToStaticMarkup(ProvidersPage()),
       renderToStaticMarkup(PrintifySetupPage()),
       renderToStaticMarkup(ShopifySetupPage()),
-      renderToStaticMarkup(ImageGenerationSetupPage()),
+      renderToStaticMarkup(await ImageGenerationSetupPage()),
       renderToStaticMarkup(BusinessProfileOnboardingPage()),
       renderToStaticMarkup(FirstLaunchOnboardingPage()),
       renderToStaticMarkup(SetupHelpPage()),
-      renderToStaticMarkup(StudioSetupPage())
+      renderToStaticMarkup(await StudioSetupPage())
     ];
     const html = pages.join("\n");
 

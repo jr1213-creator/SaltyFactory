@@ -72,6 +72,8 @@ Provider validation runs server-side only:
 
 Validation responses return only safe status, setup requirements, next step, masked display, and sanitized metadata.
 
+Validated provider records are the runtime source of truth. When image generation is connected through Launch Setup Concierge, feature readiness, `/studio/image-generation`, approved-brief generation, and the worker use the secure workspace credential record. Owners should not need to edit `.env.local` after guided setup succeeds.
+
 ## Image Generation Setup
 
 The image generation onboarding page must show two separate paths:
@@ -100,3 +102,20 @@ Image provider validation never returns raw transport strings such as `fetch fai
 - `unknown_provider_error`
 
 No token is returned to the browser or written into owner-facing error messages. No OpenAI or Anthropic provider is used.
+
+## Runtime And Owner Workflow
+
+Image generation readiness resolves in this order:
+
+1. Connected workspace provider credential record.
+2. Local demo mode in development/test only.
+3. Advanced server env fallback.
+4. `setup_required` with a link to `/studio/onboarding/providers/image-generation`.
+
+The `.env` names remain documented only for local development, CI, and server deployment. They must not override a connected provider credential record.
+
+The `/studio/briefs` Send to Generation action shows a structured result panel:
+
+- job id, status, provider, and model when a job starts or succeeds
+- safe setup-required message, blocker reasons, and setup/help actions when blocked
+- no normal owner-facing raw JSON dump

@@ -1,13 +1,15 @@
 import {
   HUGGING_FACE_IMAGE_PROVIDER,
+  primaryHuggingFaceImageModel,
   publicHuggingFaceImageModelRecommendations,
   unsupportedHuggingFaceImageModelReason,
   type HuggingFaceImageProviderId,
   type HuggingFaceImageValidationStatus,
   type RuntimeConfig
 } from "@saltyfactory/config";
+import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
 import { detectRiskyPhrases, type SourceLabel } from "@saltyfactory/domain";
-import { sanitizeProviderError } from "@saltyfactory/security";
+import { decryptCredential, sanitizeProviderError } from "@saltyfactory/security";
 
 export type ProviderResult<T> =
   | { ok: true; data: T; modelUsed?: string; latencyMs?: number; sourceLabel: SourceLabel; tokenEstimate?: number }
@@ -417,6 +419,382 @@ export class HuggingFaceImageProvider extends FreeImageProviderDisabled {
 }
 
 export const createFreeImageProvider = (config: RuntimeConfig, fetcher?: typeof fetch) => config.providers.aiImage.enabled ? new HuggingFaceImageProvider(config.HF_API_TOKEN, config.HF_IMAGE_MODEL, fetcher) : new FreeImageProviderDisabled();
+
+export type ImageGenerationRuntimeStatus = "ready" | "local_demo" | "config_required" | "invalid" | "owner_gated";
+export type ImageGenerationRuntimeProvider = "huggingface" | "local_dev_mock" | "disabled";
+export type ImageGenerationCredentialSource = "credential_store" | "env" | "local_demo" | "none";
+
+export type PublicImageGenerationProviderResolution = {
+  status: ImageGenerationRuntimeStatus;
+  provider: ImageGenerationRuntimeProvider;
+  model?: string;
+  credentialSource: ImageGenerationCredentialSource;
+  setupAction: string;
+  safeMessage: string;
+  setupRequired: string[];
+  blockingReasons: string[];
+  recommendedModels: ReturnType<typeof publicHuggingFaceImageModelRecommendations>;
+  connectionId?: string;
+};
+
+export type ImageGenerationProviderResolution = PublicImageGenerationProviderResolution & {
+  serverCredential?: {
+    token: string;
+    source: Extract<ImageGenerationCredentialSource, "credential_store" | "env">;
+  };
+};
+
+const IMAGE_GENERATION_SETUP_ACTION = "/studio/onboarding/providers/image-generation";
+const imageProviderConnectionKeys = ["image_generation", "huggingface", "hugging_face"] as const;
+
+function isProductionRuntime(config: RuntimeConfig) {
+  return config.APP_ENV === "production" || config.NODE_ENV === "production";
+}
+
+function credentialStorageReady(config: RuntimeConfig) {
+  return Boolean(config.CREDENTIAL_STORAGE_ENABLED && config.CREDENTIAL_ENCRYPTION_KEY && config.CREDENTIAL_ENCRYPTION_KEY.trim().length >= 32);
+}
+
+function field(row: WorkspaceRow | null | undefined, ...keys: string[]) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "boolean") return String(value);
+  }
+  return "";
+}
+
+function record(row: WorkspaceRow | null | undefined, ...keys: string[]): Record<string, unknown> {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+async function findImageGenerationConnection(repos: RepositoryBundle, workspaceId: string) {
+  for (const key of imageProviderConnectionKeys) {
+    const row = await repos.integration.getProviderConnectionForWorkspace(workspaceId, key);
+    if (row) return row;
+  }
+  return (await repos.integration.listProviderConnectionsForWorkspace(workspaceId)).find((row) => {
+    const providerKey = field(row, "provider_key", "providerKey", "provider_type", "providerType", "provider");
+    return imageProviderConnectionKeys.includes(providerKey as typeof imageProviderConnectionKeys[number]);
+  }) ?? null;
+}
+
+function withServerCredential(
+  resolution: PublicImageGenerationProviderResolution,
+  credential?: ImageGenerationProviderResolution["serverCredential"]
+): ImageGenerationProviderResolution {
+  const result = { ...resolution } as ImageGenerationProviderResolution;
+  if (credential) {
+    Object.defineProperty(result, "serverCredential", {
+      value: credential,
+      enumerable: false,
+      configurable: false,
+      writable: false
+    });
+  }
+  return result;
+}
+
+function publicResolution(input: PublicImageGenerationProviderResolution): ImageGenerationProviderResolution {
+  return withServerCredential(input);
+}
+
+function recommendedModelSetupRequired() {
+  return [`Try a recommended model such as ${primaryHuggingFaceImageModel()}.`];
+}
+
+function invalidResolution(input: {
+  safeMessage: string;
+  setupRequired: string[];
+  blockingReasons?: string[];
+  credentialSource?: ImageGenerationCredentialSource;
+  model?: string;
+  connectionId?: string;
+}) {
+  return publicResolution({
+    status: "invalid",
+    provider: "huggingface",
+    ...(input.model ? { model: input.model } : {}),
+    credentialSource: input.credentialSource ?? "credential_store",
+    setupAction: IMAGE_GENERATION_SETUP_ACTION,
+    safeMessage: input.safeMessage,
+    setupRequired: input.setupRequired,
+    blockingReasons: input.blockingReasons ?? input.setupRequired,
+    recommendedModels: publicHuggingFaceImageModelRecommendations(),
+    ...(input.connectionId ? { connectionId: input.connectionId } : {})
+  });
+}
+
+async function resolveCredentialStoreImageProvider(input: {
+  repos?: RepositoryBundle | undefined;
+  config: RuntimeConfig;
+  workspaceId: string;
+}) {
+  if (!input.repos) return null;
+  const connection = await findImageGenerationConnection(input.repos, input.workspaceId);
+  if (!connection) return null;
+  const status = field(connection, "status");
+  const enabled = connection.enabled ?? connection["enabled"];
+  const connectionId = connection.id;
+  const configuration = record(connection, "configuration", "metadata");
+  const imageProvider = String(configuration.imageProvider ?? configuration.provider ?? "hugging_face").replace(/-/g, "_");
+  const model = String(configuration.imageModel ?? configuration.model ?? field(connection, "image_model", "imageModel", "model")).trim();
+  const credentialRef = field(connection, "secret_ref", "secretRef", "credential_ref", "credentialRef");
+
+  if (status !== "connected") return null;
+  if (enabled === false) {
+    return invalidResolution({
+      safeMessage: "The saved image provider record is connected but disabled. Reconnect it from Launch Setup Concierge.",
+      setupRequired: ["Reconnect image generation provider"],
+      blockingReasons: ["provider_connection_disabled"],
+      model,
+      connectionId
+    });
+  }
+  if (!["hugging_face", "huggingface"].includes(imageProvider)) {
+    return invalidResolution({
+      safeMessage: "The saved image provider is not supported by the current image generation runtime.",
+      setupRequired: ["Use the Hugging Face provider path"],
+      blockingReasons: ["provider_metadata_invalid"],
+      model,
+      connectionId
+    });
+  }
+  if (!model) {
+    return invalidResolution({
+      safeMessage: "The connected image provider is missing a selected model. Revalidate it from Launch Setup Concierge.",
+      setupRequired: ["Select and validate an image model"],
+      blockingReasons: ["image_model_missing"],
+      connectionId
+    });
+  }
+  const unsupportedReason = unsupportedHuggingFaceImageModelReason(model);
+  if (unsupportedReason) {
+    return invalidResolution({
+      safeMessage: unsupportedReason,
+      setupRequired: recommendedModelSetupRequired(),
+      blockingReasons: ["model_not_supported"],
+      model,
+      connectionId
+    });
+  }
+  if (!credentialRef) {
+    return invalidResolution({
+      safeMessage: "The connected image provider is missing its secure credential reference. Reconnect it from Launch Setup Concierge.",
+      setupRequired: ["Reconnect Hugging Face token"],
+      blockingReasons: ["credential_reference_missing"],
+      model,
+      connectionId
+    });
+  }
+  if (!credentialStorageReady(input.config)) {
+    return invalidResolution({
+      safeMessage: "Secure credential storage is not available, so the saved image provider cannot be used at runtime.",
+      setupRequired: ["Enable encrypted credential storage", "Configure the server encryption key"],
+      blockingReasons: ["credential_storage_unavailable"],
+      model,
+      connectionId
+    });
+  }
+  try {
+    const credential = await input.repos.integration.getCredentialForServerUseOnly(input.workspaceId, credentialRef);
+    if (!credential || credential.status === "revoked") {
+      return invalidResolution({
+        safeMessage: "The saved image provider credential is not active. Reconnect it from Launch Setup Concierge.",
+        setupRequired: ["Reconnect Hugging Face token"],
+        blockingReasons: ["credential_inactive"],
+        model,
+        connectionId
+      });
+    }
+    const token = decryptCredential(credential.encrypted_payload as any, input.config.CREDENTIAL_ENCRYPTION_KEY);
+    if (!token.trim()) {
+      return invalidResolution({
+        safeMessage: "The saved image provider credential is empty. Reconnect it from Launch Setup Concierge.",
+        setupRequired: ["Reconnect Hugging Face token"],
+        blockingReasons: ["credential_empty"],
+        model,
+        connectionId
+      });
+    }
+    return withServerCredential({
+      status: "ready",
+      provider: "huggingface",
+      model,
+      credentialSource: "credential_store",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Image generation connected through Launch Setup Concierge.",
+      setupRequired: [],
+      blockingReasons: [],
+      recommendedModels: publicHuggingFaceImageModelRecommendations(),
+      connectionId
+    }, { token, source: "credential_store" });
+  } catch {
+    return invalidResolution({
+      safeMessage: "The saved image provider credential could not be read. Reconnect it from Launch Setup Concierge.",
+      setupRequired: ["Reconnect Hugging Face token"],
+      blockingReasons: ["credential_read_failed"],
+      model,
+      connectionId
+    });
+  }
+}
+
+function resolveLocalDemoImageProvider(config: RuntimeConfig) {
+  const localRequested = config.IMAGE_GENERATION_ENABLED && config.IMAGE_GENERATION_PROVIDER === "local_dev_mock";
+  if (!localRequested) return null;
+  if (isProductionRuntime(config)) {
+    return publicResolution({
+      status: "invalid",
+      provider: "local_dev_mock",
+      model: "local-dev-fixture",
+      credentialSource: "local_demo",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Local demo image mode is development/test-only and cannot be used in production.",
+      setupRequired: ["Configure a real Hugging Face image provider"],
+      blockingReasons: ["local_demo_blocked_in_production"],
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    });
+  }
+  if (!config.LOCAL_DEV_IMAGE_GENERATION) {
+    return publicResolution({
+      status: "config_required",
+      provider: "disabled",
+      credentialSource: "none",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Local demo image mode requires the explicit local development flag.",
+      setupRequired: ["Enable local demo mode from the development/test setup path"],
+      blockingReasons: ["local_demo_flag_missing"],
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    });
+  }
+  return publicResolution({
+    status: "local_demo",
+    provider: "local_dev_mock",
+    model: "local-dev-fixture",
+    credentialSource: "local_demo",
+    setupAction: IMAGE_GENERATION_SETUP_ACTION,
+    safeMessage: "Local demo image mode is available for development/test previews only. It does not count as provider success.",
+    setupRequired: ["Use a real Hugging Face provider before production"],
+    blockingReasons: [],
+    recommendedModels: publicHuggingFaceImageModelRecommendations()
+  });
+}
+
+function resolveEnvImageProvider(config: RuntimeConfig) {
+  const token = config.HUGGING_FACE_API_TOKEN || config.HF_API_TOKEN;
+  const model = config.HUGGING_FACE_IMAGE_MODEL || config.HF_IMAGE_MODEL;
+  const enabled = (config.AI_IMAGE_ENABLED && Boolean(config.HF_API_TOKEN && config.HF_IMAGE_MODEL))
+    || (config.IMAGE_GENERATION_ENABLED && config.IMAGE_GENERATION_PROVIDER === "hugging_face" && Boolean(token && model));
+  if (!enabled) return null;
+  if (!token || !model) {
+    return publicResolution({
+      status: "config_required",
+      provider: "disabled",
+      credentialSource: "none",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Advanced server image provider configuration is incomplete.",
+      setupRequired: ["Configure server-side Hugging Face token and image model, or connect the provider in Launch Setup Concierge"],
+      blockingReasons: ["env_token_or_model_missing"],
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    });
+  }
+  const unsupportedReason = unsupportedHuggingFaceImageModelReason(model);
+  if (unsupportedReason) {
+    return invalidResolution({
+      safeMessage: unsupportedReason,
+      setupRequired: recommendedModelSetupRequired(),
+      blockingReasons: ["model_not_supported"],
+      credentialSource: "env",
+      model
+    });
+  }
+  return withServerCredential({
+    status: "ready",
+    provider: "huggingface",
+    model,
+    credentialSource: "env",
+    setupAction: IMAGE_GENERATION_SETUP_ACTION,
+    safeMessage: "Image generation is configured through advanced server environment fallback.",
+    setupRequired: [],
+    blockingReasons: [],
+    recommendedModels: publicHuggingFaceImageModelRecommendations()
+  }, { token, source: "env" });
+}
+
+export async function resolveImageGenerationProvider(input: {
+  workspaceId: string;
+  repos?: RepositoryBundle | undefined;
+  config: RuntimeConfig;
+}): Promise<ImageGenerationProviderResolution> {
+  const credentialStore = await resolveCredentialStoreImageProvider(input);
+  if (credentialStore) return credentialStore;
+  const localDemo = resolveLocalDemoImageProvider(input.config);
+  if (localDemo) return localDemo;
+  const envProvider = resolveEnvImageProvider(input.config);
+  if (envProvider) return envProvider;
+  return publicResolution({
+    status: "config_required",
+    provider: "disabled",
+    credentialSource: "none",
+    setupAction: IMAGE_GENERATION_SETUP_ACTION,
+    safeMessage: "Image generation is not connected. Connect Hugging Face in Launch Setup Concierge or use local demo mode in development/test.",
+    setupRequired: ["Connect Hugging Face image generation", "Check token permission: Inference Providers", "Try a recommended model"],
+    blockingReasons: ["image_generation_provider_not_connected"],
+    recommendedModels: publicHuggingFaceImageModelRecommendations()
+  });
+}
+
+export function publicImageGenerationProviderResolution(resolution: ImageGenerationProviderResolution): PublicImageGenerationProviderResolution {
+  return {
+    status: resolution.status,
+    provider: resolution.provider,
+    ...(resolution.model ? { model: resolution.model } : {}),
+    credentialSource: resolution.credentialSource,
+    setupAction: resolution.setupAction,
+    safeMessage: resolution.safeMessage,
+    setupRequired: [...resolution.setupRequired],
+    blockingReasons: [...resolution.blockingReasons],
+    recommendedModels: resolution.recommendedModels,
+    ...(resolution.connectionId ? { connectionId: resolution.connectionId } : {})
+  };
+}
+
+const localDemoPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAKklEQVR4nO3OQQ0AMAwDsY7+/8xwBVOB2QmQzLznWQIAAAAAAAAAfAEsXgIR4lqjhwAAAABJRU5ErkJggg==",
+  "base64"
+);
+
+export class LocalDemoImageProvider extends FreeImageProviderDisabled {
+  readonly providerId = "local_dev_mock";
+  readonly enabled = true;
+  async generateImage(prompt = "", _negative = "", _parameters: Record<string, unknown> = {}) {
+    const issues = detectPromptSafetyIssues(prompt);
+    if (issues.length) return { ok: false as const, error: `prompt_blocked:${issues.join(",")}`, retryable: false, sourceLabel: "rules_based" as const };
+    return {
+      ok: true as const,
+      data: { bytes: localDemoPng, contentType: "image/png" },
+      modelUsed: "local-dev-fixture",
+      sourceLabel: "rules_based" as const,
+      tokenEstimate: estimateTokens(prompt)
+    };
+  }
+  async getJobStatus(jobId: string) { return { ok: true as const, data: { jobId, status: "completed" }, sourceLabel: "rules_based" as const }; }
+  async isHealthy() { return true; }
+}
+
+export function createImageProviderFromResolvedImageGenerationProvider(resolution: ImageGenerationProviderResolution, fetcher?: typeof fetch) {
+  if (resolution.status === "local_demo") return new LocalDemoImageProvider();
+  const token = resolution.serverCredential?.token ?? "";
+  if (resolution.status === "ready" && resolution.provider === "huggingface" && token && resolution.model) {
+    return new HuggingFaceImageProvider(token, resolution.model, fetcher);
+  }
+  return new FreeImageProviderDisabled();
+}
 
 export class BackgroundRemovalProviderDisabled { readonly enabled = false; async removeBackground() { return blocked("background_removal_disabled"); } async isHealthy() { return false; } }
 export class UpscaleProviderDisabled { readonly enabled = false; async upscale() { return blocked("upscale_disabled"); } async isHealthy() { return false; } }

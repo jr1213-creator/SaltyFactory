@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createDeterministicDesignSuggestions } from "@saltyfactory/ai-free";
-import { buildPromptPackageFromBrief, resolveImageGenerationProvider } from "@saltyfactory/image-pipeline";
+import { createDeterministicDesignSuggestions, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
+import { parseEnv } from "@saltyfactory/config";
+import { buildPromptPackageFromBrief } from "@saltyfactory/image-pipeline";
 import { createMemoryRepositories } from "../packages/db/src/repositories/memory";
 import { validateProductDraft } from "../apps/studio/app/api/studio/drafts/_validation";
 import { AssetWorkflowClient } from "../apps/studio/app/studio/assets/AssetWorkflowClient";
@@ -98,58 +99,79 @@ describe("POD prompt package MVP", () => {
 });
 
 describe("image generation provider resolver", () => {
-  it("returns provider_disabled when image generation is not explicitly enabled", () => {
-    expect(resolveImageGenerationProvider({ IMAGE_GENERATION_ENABLED: "false" } as unknown as NodeJS.ProcessEnv)).toMatchObject({
-      key: "disabled",
-      status: "provider_disabled"
+  it("returns setup_required when image generation is not connected", async () => {
+    await expect(resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories(),
+      config: parseEnv({ NODE_ENV: "development", APP_ENV: "development" })
+    })).resolves.toMatchObject({
+      provider: "disabled",
+      status: "config_required",
+      credentialSource: "none"
     });
   });
 
-  it("blocks local dev mock in production", () => {
-    expect(resolveImageGenerationProvider({
+  it("blocks local dev mock in production", async () => {
+    await expect(resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories(),
+      config: parseEnv({
       IMAGE_GENERATION_ENABLED: "true",
       IMAGE_GENERATION_PROVIDER: "local_dev_mock",
       LOCAL_DEV_IMAGE_GENERATION: "true",
       APP_ENV: "production"
-    } as unknown as NodeJS.ProcessEnv)).toMatchObject({
-      status: "blocked",
-      blockingReasons: ["local_dev_image_generation_blocked_in_production"]
+      })
+    })).resolves.toMatchObject({
+      status: "invalid",
+      blockingReasons: ["local_demo_blocked_in_production"]
     });
   });
 
-  it("requires Hugging Face token and model before reporting ready", () => {
-    expect(resolveImageGenerationProvider({
+  it("requires Hugging Face token and model before env fallback reports ready", async () => {
+    await expect(resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories(),
+      config: parseEnv({
       IMAGE_GENERATION_ENABLED: "true",
       IMAGE_GENERATION_PROVIDER: "hugging_face",
       HUGGING_FACE_IMAGE_MODEL: "model"
-    } as unknown as NodeJS.ProcessEnv)).toMatchObject({
-      status: "not_configured",
-      blockingReasons: ["hugging_face_token_or_model_missing"]
+      })
+    })).resolves.toMatchObject({
+      status: "config_required",
+      blockingReasons: ["image_generation_provider_not_connected"]
     });
   });
 
-  it("does not treat the old SDXL base model as supported on the current Hugging Face path", () => {
-    expect(resolveImageGenerationProvider({
+  it("does not treat the old SDXL base model as supported on the current Hugging Face path", async () => {
+    await expect(resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories(),
+      config: parseEnv({
       IMAGE_GENERATION_ENABLED: "true",
       IMAGE_GENERATION_PROVIDER: "hugging_face",
       HUGGING_FACE_API_TOKEN: "server-only-token",
       HUGGING_FACE_IMAGE_MODEL: "stabilityai/stable-diffusion-xl-base-1.0"
-    } as unknown as NodeJS.ProcessEnv)).toMatchObject({
-      status: "blocked",
-      blockingReasons: expect.arrayContaining(["model_not_supported", "try_model:black-forest-labs/FLUX.1-schnell"])
+      })
+    })).resolves.toMatchObject({
+      status: "invalid",
+      blockingReasons: expect.arrayContaining(["model_not_supported"])
     });
   });
 
-  it("returns not_configured for Hugging Face in production without private storage", () => {
-    expect(resolveImageGenerationProvider({
-      IMAGE_GENERATION_ENABLED: "true",
-      IMAGE_GENERATION_PROVIDER: "hugging_face",
-      HUGGING_FACE_API_TOKEN: "server-only-token",
-      HUGGING_FACE_IMAGE_MODEL: "model",
-      APP_ENV: "production"
-    } as unknown as NodeJS.ProcessEnv)).toMatchObject({
-      status: "not_configured",
-      blockingReasons: ["private_storage_not_configured"]
+  it("falls back to advanced server env only when no credential-store provider exists", async () => {
+    await expect(resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories(),
+      config: parseEnv({
+        AI_IMAGE_ENABLED: "true",
+        HF_API_TOKEN: "server-only-token",
+        HF_IMAGE_MODEL: "black-forest-labs/FLUX.1-schnell"
+      })
+    })).resolves.toMatchObject({
+      status: "ready",
+      provider: "huggingface",
+      credentialSource: "env",
+      model: "black-forest-labs/FLUX.1-schnell"
     });
   });
 

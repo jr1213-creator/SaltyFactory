@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission, requireWorkspaceMember, type StudioUser } from "@saltyfactory/auth";
-import { validateHuggingFaceImageProvider } from "@saltyfactory/ai-free";
+import { publicImageGenerationProviderResolution, resolveImageGenerationProvider, validateHuggingFaceImageProvider } from "@saltyfactory/ai-free";
 import {
   HUGGING_FACE_IMAGE_PROVIDER,
+  applyImageGenerationRuntimeReadiness,
   buildFeatureReadiness,
   buildOwnerSetupCards,
   parseEnv,
@@ -278,8 +279,13 @@ export async function handleProviderConnectionsList(req: Request) {
   try {
     await requireWorkspaceMember(req, workspaceId);
     const repos = createRepositories();
+    const config = parseEnv();
     const connections = await repos.integration.listProviderConnectionsForWorkspace(workspaceId);
-    const report = buildFeatureReadiness(parseEnv(), process.env, workspaceId);
+    const imageRuntime = await resolveImageGenerationProvider({ workspaceId, repos, config });
+    const report = applyImageGenerationRuntimeReadiness(
+      buildFeatureReadiness(config, process.env, workspaceId),
+      publicImageGenerationProviderResolution(imageRuntime)
+    );
     const cards = buildOwnerSetupCards(report).map((card) => ({
       ...card,
       connection: safeConnection(connections.find((row) => String(row.provider_type ?? row.providerType) === card.providerKey || String(row.provider_type ?? row.providerType) === canonicalProviderKey(card.providerKey)) ?? null)

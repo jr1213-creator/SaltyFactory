@@ -2,14 +2,22 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { parseEnv } from "@saltyfactory/config";
-import { createFreeImageProvider, createFreeTextProvider, BackgroundRemovalProviderDisabled, UpscaleProviderDisabled } from "@saltyfactory/ai-free";
+import {
+  createFreeImageProvider,
+  createFreeTextProvider,
+  BackgroundRemovalProviderDisabled,
+  UpscaleProviderDisabled,
+  createImageProviderFromResolvedImageGenerationProvider,
+  resolveImageGenerationProvider,
+  type ImageGenerationProviderResolution
+} from "@saltyfactory/ai-free";
 import { createCommerceProviders } from "@saltyfactory/commerce";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { createStorageProvider, type StorageProvider } from "@saltyfactory/storage";
 import { DatabaseBackedQueue } from "@saltyfactory/queue";
 
 type WorkerQueue = Pick<DatabaseBackedQueue, "claimQueuedJob" | "markCompleted" | "markFailed">;
-type ImageProvider = ReturnType<typeof createFreeImageProvider>;
+type ImageProvider = Pick<ReturnType<typeof createFreeImageProvider>, "enabled" | "providerId" | "generateImage" | "getJobStatus" | "isHealthy">;
 
 type WorkerDeps = {
   repos?: RepositoryBundle;
@@ -129,7 +137,11 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
 
   const cfg = parseEnv();
   const text = createFreeTextProvider(cfg);
-  const image = deps.imageProvider ?? createFreeImageProvider(cfg);
+  let imageResolution: ImageGenerationProviderResolution | null = null;
+  if (!deps.imageProvider) {
+    imageResolution = await resolveImageGenerationProvider({ workspaceId, repos, config: cfg });
+  }
+  const image = deps.imageProvider ?? createImageProviderFromResolvedImageGenerationProvider(imageResolution!);
   const commerce = createCommerceProviders(cfg);
   const storage = deps.storage ?? createStorageProvider(cfg);
   const actorId = deps.actorId ?? String((job as any).created_by ?? (job as any).createdBy ?? "worker");
@@ -141,14 +153,18 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
     if (job.type === "background_removal") await new BackgroundRemovalProviderDisabled().removeBackground();
     if (job.type === "upscale") await new UpscaleProviderDisabled().upscale();
     if (job.type === "generation") {
-      if (!image.enabled) throw Object.assign(new Error("provider_disabled"), { retryable: false });
+      if (!image.enabled) {
+        const error = imageResolution?.status === "config_required" ? "setup_required" : imageResolution?.status ?? "provider_disabled";
+        throw Object.assign(new Error(error), { retryable: false });
+      }
       const result = await image.generateImage(
         String(job.payload.prompt || (job as any).prompt || ""),
         String(job.payload.negativePrompt || (job as any).negative_prompt || ""),
         (job.payload.parameters as Record<string, unknown> | undefined) ?? (job.payload as Record<string, unknown>)
       );
       if (!result.ok) {
-        throw Object.assign(new Error(result.error), { retryable: result.retryable || result.rateLimited === true });
+        const rateLimited = "rateLimited" in result && result.rateLimited === true;
+        throw Object.assign(new Error(result.error), { retryable: result.retryable || rateLimited });
       }
       const buffer = bufferFromGenerationResult(result);
       if (!buffer) throw Object.assign(new Error("image_provider_returned_no_bytes"), { retryable: false });
@@ -157,8 +173,8 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
         storage,
         buffer,
         job,
-        model: String(result.modelUsed ?? cfg.HF_IMAGE_MODEL ?? "unknown"),
-        generator: String(image.providerId ?? "image_provider"),
+        model: String(result.modelUsed ?? imageResolution?.model ?? "unknown"),
+        generator: String(imageResolution?.provider ?? image.providerId ?? "image_provider"),
         actorId
       });
       await markCompleted(queue, repos, job.id, asset.id);

@@ -42,11 +42,12 @@ for (const file of files) {
 }
 
 const generationSubmitRoute = text(join(root, "apps/studio/app/api/studio/design-briefs/[id]/send-to-generation/route.ts"));
-const imageProviderResolver = text(join(root, "packages/image-pipeline/src/providers/index.ts"));
-if (!generationSubmitRoute.includes("private_storage_not_configured") || !imageProviderResolver.includes("private_storage_not_configured")) failures.push("Hugging Face generation must fail closed when private storage is not configured");
+const imageProviderResolver = text(join(root, "packages/ai-free/src/index.ts"));
+if (!generationSubmitRoute.includes("private_storage_not_configured")) failures.push("Hugging Face generation must fail closed when private storage is not configured");
 if (/asset_hf[\s\S]{0,700}writeFile\(/.test(generationSubmitRoute)) failures.push("Hugging Face generation must not write provider output to local disk");
-if (/generator:\s*"hugging_face"[\s\S]{0,260}storageBucket:\s*"local-dev-private-assets"/.test(generationSubmitRoute)) failures.push("Hugging Face generation must not record local-dev-private-assets");
-if (!imageProviderResolver.includes("local_dev_image_generation_blocked_in_production")) failures.push("local_dev_mock image generation must be production-blocked");
+if (/generator:\s*"huggingface"[\s\S]{0,260}storageBucket:\s*"local-dev-private-assets"/.test(generationSubmitRoute)) failures.push("Hugging Face generation must not record local-dev-private-assets");
+if (!imageProviderResolver.includes("local_demo_blocked_in_production")) failures.push("local_dev_mock image generation must be production-blocked");
+if (!imageProviderResolver.includes("credential_store")) failures.push("Image generation resolver must prefer guided credential-store provider records");
 
 const env = text(join(root, ".env.example"));
 for (const bad of ["OPENAI", "ANTHROPIC"]) if (env.includes(bad)) failures.push(`${bad} env var documented`);

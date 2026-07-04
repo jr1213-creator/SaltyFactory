@@ -294,7 +294,7 @@ describe("production UI guardrails", () => {
           "productDraftId required."
         ])
       });
-      await expect(generate.json()).resolves.toMatchObject({ ok: false, status: "provider_disabled" });
+      await expect(generate.json()).resolves.toMatchObject({ ok: false, status: "setup_required" });
     }
   });
 

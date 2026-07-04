@@ -121,8 +121,8 @@ describe("feature readiness API", () => {
 });
 
 describe("setup UI and docs consistency", () => {
-  it("renders setup cards, blocker names, feature links, and safety panel", () => {
-    const html = renderToStaticMarkup(StudioSetupPage());
+  it("renders setup cards, blocker names, feature links, and safety panel", async () => {
+    const html = renderToStaticMarkup(await StudioSetupPage());
     expect(html).toContain("Setup / Feature Readiness");
     expect(html).toContain("Launch Setup Concierge");
     expect(html).toContain("Every blocker has a next action");

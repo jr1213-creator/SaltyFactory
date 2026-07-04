@@ -68,6 +68,7 @@ Owner path:
 3. For the real provider path, create a fine-grained Hugging Face token with `Make calls to Inference Providers`.
 4. Use a recommended text-to-image model for the selected HF Inference provider path.
 5. Save token/model through server-side validation when credential storage is enabled.
+6. After validation succeeds, runtime image generation uses the secure workspace provider credential record. Owners do not also edit `.env.local`.
 
 Current recommended HF Inference text-to-image models:
 - `black-forest-labs/FLUX.1-schnell`
@@ -81,6 +82,14 @@ Local demo mode:
 - clearly labeled
 - not treated as real provider success
 - blocked in production
+
+Runtime behavior:
+- First choice: connected workspace provider credential record for `image_generation` / Hugging Face.
+- Second choice: local demo mode, only in development/test, labeled as demo output.
+- Third choice: advanced server env fallback for technical deployments.
+- Final state: `setup_required` with a link back to `/studio/onboarding/providers/image-generation`.
+- Server-side code decrypts the token only inside the provider call. Tokens are never returned to the browser or logs.
+- `/studio/briefs` shows a structured result panel after Send to Generation. Raw JSON is limited to collapsed developer details and is sanitized.
 
 Image validation statuses:
 - `token_missing`: no token was pasted or saved.

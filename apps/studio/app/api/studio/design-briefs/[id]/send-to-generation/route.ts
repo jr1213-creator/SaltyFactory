@@ -4,9 +4,15 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireProviderMutationPermission } from "@saltyfactory/auth";
-import { generateHuggingFaceImage } from "@saltyfactory/ai-free";
+import {
+  generateHuggingFaceImage,
+  publicImageGenerationProviderResolution,
+  resolveImageGenerationProvider,
+  type ImageGenerationProviderResolution
+} from "@saltyfactory/ai-free";
+import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
-import { buildPromptPackageFromBrief, resolveImageGenerationProvider } from "@saltyfactory/image-pipeline";
+import { buildPromptPackageFromBrief } from "@saltyfactory/image-pipeline";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../../_auth";
 import { studioWorkspaceId } from "../../../design-suggestions/_shared";
 
@@ -48,7 +54,7 @@ async function writeLocalDevImage(workspaceId: string, assetId: string) {
   return { buffer, storageKey: `workspaces/${safeSegment(workspaceId)}/private/assets/${assetId}.png` };
 }
 
-async function storeGeneratedImage(input: { buffer: Buffer; storageKey: string; providerKey: "local_dev_mock" | "hugging_face" }) {
+async function storeGeneratedImage(input: { buffer: Buffer; storageKey: string; providerKey: "local_dev_mock" | "huggingface" }) {
   const storage = privateStorageConfig();
   if (storage.configured && input.providerKey !== "local_dev_mock") {
     const supabase = createClient(storage.url, storage.serviceRoleKey, { auth: { persistSession: false } });
@@ -73,9 +79,9 @@ async function storeGeneratedImage(input: { buffer: Buffer; storageKey: string; 
   return { ok: true as const, storageBucket: "local-dev-private-assets", storageKey: input.storageKey };
 }
 
-async function fetchHuggingFaceImage(prompt: string, negativePrompt: string) {
-  const token = process.env.HUGGING_FACE_API_TOKEN || process.env.HF_API_TOKEN || "";
-  const model = process.env.HUGGING_FACE_IMAGE_MODEL || process.env.HF_IMAGE_MODEL || "";
+async function fetchHuggingFaceImage(provider: ImageGenerationProviderResolution, prompt: string, negativePrompt: string) {
+  const token = provider.serverCredential?.token ?? "";
+  const model = provider.model ?? "";
   const timeoutMs = Math.max(1000, Math.min(Number(process.env.IMAGE_GENERATION_TIMEOUT_MS || 60000), 120000));
   const maxBytes = Math.max(1024, Math.min(Number(process.env.IMAGE_GENERATION_MAX_OUTPUT_BYTES || 15000000), 25000000));
   const result = await generateHuggingFaceImage({
@@ -98,6 +104,34 @@ async function fetchHuggingFaceImage(prompt: string, negativePrompt: string) {
   if (!result.bytes) return { ok: false as const, status: "failed", error: "unknown_provider_error", message: "Image provider returned no image bytes.", setupRequired: ["Validate image provider again"], retryable: true };
   if (result.bytes.byteLength > maxBytes) return { ok: false as const, status: "failed", error: "image_generation_output_too_large", message: "Image provider returned an output larger than SaltyFactory allows.", setupRequired: ["Use a smaller output size"], retryable: false };
   return { ok: true as const, buffer: Buffer.from(result.bytes), model };
+}
+
+function safeJob(job: any) {
+  return {
+    id: job.id,
+    status: job.status,
+    provider: job.provider,
+    model: job.model,
+    error: job.error ?? null,
+    retryable: job.retryable ?? null,
+    outputAssetId: job.output_asset_id ?? job.outputAssetId ?? null,
+    startedAt: job.started_at ?? job.startedAt ?? null,
+    completedAt: job.completed_at ?? job.completedAt ?? null
+  };
+}
+
+function safeAsset(asset: any) {
+  return {
+    id: asset.id,
+    status: asset.status ?? asset.qa_status ?? null,
+    storageBucket: asset.storage_bucket ?? asset.storageBucket ?? null,
+    filePath: asset.file_path ?? asset.filePath ?? null,
+    width: asset.width ?? null,
+    height: asset.height ?? null,
+    generator: asset.generator ?? null,
+    model: asset.model ?? null,
+    visibility: asset.visibility ?? "private"
+  };
 }
 
 async function createPrivateAssetFromBuffer(input: {
@@ -155,65 +189,93 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (promptPackage.blockers.length) {
       return NextResponse.json({ ok: false, status: "blocked", message: "Generation blocked by prompt package safety checks.", blockingReasons: promptPackage.blockers, public_prompt_summary: promptPackage.public_prompt_summary }, { status: 409 });
     }
-    const provider = resolveImageGenerationProvider();
+    const config = parseEnv();
+    const provider = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config });
     const job = await repos.job.create({
       id: `job_${Date.now()}`,
       workspace_id: studioWorkspaceId,
       brief_id: id,
-      provider: provider.key,
-      model: provider.model,
+      provider: provider.provider,
+      model: provider.model ?? "not_configured",
       prompt: promptPackage.positive_prompt,
       negative_prompt: promptPackage.negative_prompt,
       parameters: {
         ...promptPackage.generation_params,
         public_prompt_summary: promptPackage.public_prompt_summary,
-        safety_metadata: promptPackage.safety_metadata
+        safety_metadata: promptPackage.safety_metadata,
+        credentialSource: provider.credentialSource
       },
-      status: provider.status === "ready" ? "running" : "blocked",
-      error: provider.status === "ready" ? null : provider.status,
+      status: provider.status === "ready" || provider.status === "local_demo" ? "running" : "blocked",
+      error: provider.status === "ready" || provider.status === "local_demo" ? null : provider.status,
       notes: provider.blockingReasons.join(", "),
       created_by: user.id,
       updated_by: user.id,
-      started_at: provider.status === "ready" ? new Date().toISOString() : null
+      started_at: provider.status === "ready" || provider.status === "local_demo" ? new Date().toISOString() : null
     });
-    if (provider.status !== "ready") {
+    if (provider.status !== "ready" && provider.status !== "local_demo") {
       await repos.brief.update(id, { status: "generation_blocked", updated_by: user.id });
-      return NextResponse.json({ ok: false, status: provider.status, message: "Image generation is not configured. Continue with manual upload.", blockingReasons: provider.blockingReasons, job, public_prompt_summary: promptPackage.public_prompt_summary }, { status: 503 });
+      return NextResponse.json({
+        ok: false,
+        status: "setup_required",
+        errorStatus: provider.status,
+        safeMessage: provider.safeMessage,
+        message: provider.safeMessage,
+        blockingReasons: provider.blockingReasons.length ? provider.blockingReasons : provider.setupRequired,
+        setupRequired: provider.setupRequired,
+        setupAction: provider.setupAction,
+        provider: publicImageGenerationProviderResolution(provider),
+        job: safeJob(job),
+        public_prompt_summary: promptPackage.public_prompt_summary
+      }, { status: 503 });
     }
-    if (provider.key === "local_dev_mock") {
+    if (provider.status === "local_demo") {
       const assetId = `asset_local_dev_${Date.now()}`;
       const image = await writeLocalDevImage(studioWorkspaceId, assetId);
-      const asset = await createPrivateAssetFromBuffer({ buffer: image.buffer, storageKey: image.storageKey, storageBucket: "local-dev-private-assets", jobId: job.id, briefId: id, model: provider.model, generator: "local_dev_mock", actorId: user.id });
+      const asset = await createPrivateAssetFromBuffer({ buffer: image.buffer, storageKey: image.storageKey, storageBucket: "local-dev-private-assets", jobId: job.id, briefId: id, model: provider.model ?? "local-dev-fixture", generator: "local_dev_mock", actorId: user.id });
       const completed = await repos.job.markCompleted(job.id, asset.id);
       await repos.brief.update(id, { status: "generation_completed", updated_by: user.id });
-      return NextResponse.json({ ok: true, status: "succeeded", job: completed, asset, warning: "Local dev image generation is a non-production test fixture." });
+      return NextResponse.json({ ok: true, status: "succeeded", safeMessage: "Local demo image generated for development/test preview only.", job: safeJob(completed), asset: safeAsset(asset), provider: publicImageGenerationProviderResolution(provider), warning: "Local dev image generation is a non-production test fixture." });
     }
     if (!privateStorageConfig().configured) {
       const failed = await repos.job.markFailed(job.id, "private_storage_not_configured", false);
-      return NextResponse.json({ ok: false, status: "not_configured", message: "Private generated-asset storage is not configured for this provider.", blockingReasons: ["private_storage_not_configured"], job: failed }, { status: 503 });
+      return NextResponse.json({
+        ok: false,
+        status: "setup_required",
+        errorStatus: "private_storage_not_configured",
+        safeMessage: "Private generated-asset storage is required before real provider output can be stored.",
+        message: "Private generated-asset storage is required before real provider output can be stored.",
+        blockingReasons: ["private_storage_not_configured"],
+        setupRequired: ["Configure private generated-asset storage"],
+        setupAction: "/studio/onboarding/help?provider=storage",
+        provider: publicImageGenerationProviderResolution(provider),
+        job: safeJob(failed)
+      }, { status: 503 });
     }
-    const hf = await fetchHuggingFaceImage(promptPackage.positive_prompt, promptPackage.negative_prompt);
+    const hf = await fetchHuggingFaceImage(provider, promptPackage.positive_prompt, promptPackage.negative_prompt);
     if (!hf.ok) {
       const failed = await repos.job.markFailed(job.id, hf.error, hf.retryable);
       return NextResponse.json({
         ok: false,
         status: hf.error,
+        safeMessage: hf.message,
         message: hf.message,
         setupRequired: hf.setupRequired,
-        job: failed
+        setupAction: provider.setupAction,
+        provider: publicImageGenerationProviderResolution(provider),
+        job: safeJob(failed)
       }, { status: hf.retryable ? 503 : 400 });
     }
     const assetId = `asset_hf_${Date.now()}`;
     const storageKey = `workspaces/${safeSegment(studioWorkspaceId)}/private/assets/${assetId}.png`;
-    const stored = await storeGeneratedImage({ buffer: hf.buffer, storageKey, providerKey: "hugging_face" });
+    const stored = await storeGeneratedImage({ buffer: hf.buffer, storageKey, providerKey: "huggingface" });
     if (!stored.ok) {
       const failed = await repos.job.markFailed(job.id, stored.status, false);
-      return NextResponse.json({ ok: false, status: "not_configured", message: "Private generated-asset storage is not configured for this provider.", blockingReasons: stored.blockingReasons, job: failed }, { status: 503 });
+      return NextResponse.json({ ok: false, status: "setup_required", errorStatus: stored.status, safeMessage: "Private generated-asset storage is not configured for this provider.", message: "Private generated-asset storage is not configured for this provider.", blockingReasons: stored.blockingReasons, setupRequired: stored.blockingReasons, setupAction: "/studio/onboarding/help?provider=storage", provider: publicImageGenerationProviderResolution(provider), job: safeJob(failed) }, { status: 503 });
     }
-    const asset = await createPrivateAssetFromBuffer({ buffer: hf.buffer, storageKey: stored.storageKey, storageBucket: stored.storageBucket, jobId: job.id, briefId: id, model: hf.model, generator: "hugging_face", actorId: user.id });
+    const asset = await createPrivateAssetFromBuffer({ buffer: hf.buffer, storageKey: stored.storageKey, storageBucket: stored.storageBucket, jobId: job.id, briefId: id, model: hf.model, generator: "huggingface", actorId: user.id });
     const completed = await repos.job.markCompleted(job.id, asset.id);
     await repos.brief.update(id, { status: "generation_completed", updated_by: user.id });
-    return NextResponse.json({ ok: true, status: "succeeded", job: completed, asset });
+    return NextResponse.json({ ok: true, status: "succeeded", safeMessage: "Image generation job completed and a private source-art asset was created.", job: safeJob(completed), asset: safeAsset(asset), provider: publicImageGenerationProviderResolution(provider) });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

@@ -193,13 +193,15 @@ export type {
   HuggingFaceImageValidationStatus
 } from "./hugging-face-image";
 export {
+  applyImageGenerationRuntimeReadiness,
   buildFeatureReadiness,
   featureReadinessEnvVars
 } from "./feature-readiness";
 export type {
   FeatureReadiness,
   FeatureReadinessReport,
-  FeatureReadinessStatus
+  FeatureReadinessStatus,
+  ImageGenerationRuntimeReadiness
 } from "./feature-readiness";
 export {
   assertNoDeadConfigStates,

@@ -40,6 +40,17 @@ export type FeatureReadinessReport = {
   recommendedSetupOrder: string[];
 };
 
+export type ImageGenerationRuntimeReadiness = {
+  status: "ready" | "local_demo" | "config_required" | "invalid" | "owner_gated";
+  provider: "huggingface" | "local_dev_mock" | "disabled";
+  model?: string;
+  credentialSource: "credential_store" | "env" | "local_demo" | "none";
+  safeMessage: string;
+  setupAction: string;
+  setupRequired: string[];
+  blockingReasons: string[];
+};
+
 export const featureReadinessEnvVars = [
   "NODE_ENV",
   "APP_ENV",
@@ -470,5 +481,104 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       "Banking/Plaid later",
       "Live publish last, if ever enabled"
     ]
+  };
+}
+
+function summarize(features: FeatureReadiness[]) {
+  return {
+    ready: features.filter((item) => item.status === "ready").length,
+    configBlocked: features.filter((item) => item.status === "config_blocked").length,
+    ownerGated: features.filter((item) => item.status === "owner_gated").length,
+    disabled: features.filter((item) => item.status === "disabled").length,
+    partial: features.filter((item) => item.status === "partial").length,
+    future: features.filter((item) => item.status === "future").length
+  };
+}
+
+export function applyImageGenerationRuntimeReadiness(
+  report: FeatureReadinessReport,
+  runtime: ImageGenerationRuntimeReadiness
+): FeatureReadinessReport {
+  const features = report.features.map((feature) => {
+    if (feature.featureKey === "imageGeneration") {
+      if (runtime.status === "ready") {
+        const sourceLabel = runtime.credentialSource === "credential_store" ? "secure workspace credential" : "advanced server fallback";
+        return {
+          ...feature,
+          status: "ready" as const,
+          requiredEnv: [],
+          missingEnv: [],
+          enabledFlags: [`image_generation_provider:${runtime.provider}`, `credential_source:${runtime.credentialSource}`],
+          disabledFlags: [],
+          setupRequired: [],
+          canTestWithoutProvider: runtime.credentialSource !== "credential_store",
+          notes: [
+            runtime.credentialSource === "credential_store"
+              ? "Image generation connected through Launch Setup Concierge."
+              : "Image generation is configured through advanced server environment fallback.",
+            `Provider: ${runtime.provider}.`,
+            runtime.model ? `Model: ${runtime.model}.` : "",
+            `Credential source: ${sourceLabel}.`
+          ].filter(Boolean)
+        };
+      }
+      if (runtime.status === "local_demo") {
+        return {
+          ...feature,
+          status: "partial" as const,
+          requiredEnv: ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_DEV_IMAGE_GENERATION"],
+          missingEnv: [],
+          enabledFlags: ["LOCAL_DEV_IMAGE_GENERATION=true"],
+          disabledFlags: [],
+          setupRequired: runtime.setupRequired,
+          canTestWithoutProvider: true,
+          notes: [runtime.safeMessage]
+        };
+      }
+      if (runtime.status === "invalid") {
+        return {
+          ...feature,
+          status: "config_blocked" as const,
+          requiredEnv: [],
+          missingEnv: [],
+          enabledFlags: [],
+          disabledFlags: [],
+          setupRequired: runtime.setupRequired.length ? runtime.setupRequired : runtime.blockingReasons,
+          notes: [runtime.safeMessage]
+        };
+      }
+    }
+    if (feature.featureKey === "worker" && runtime.status === "ready") {
+      const storageReady = report.features.find((item) => item.featureKey === "storage")?.status === "ready";
+      return {
+        ...feature,
+        status: storageReady ? "ready" as const : "partial" as const,
+        requiredEnv: storageReady ? [] : ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"],
+        missingEnv: storageReady ? [] : feature.missingEnv.filter((key) => key.includes("SUPABASE")),
+        enabledFlags: [`image_generation_provider:${runtime.provider}`, `credential_source:${runtime.credentialSource}`],
+        disabledFlags: storageReady ? [] : ["private_storage_blocked"],
+        setupRequired: storageReady ? [] : ["Configure private generated-asset storage"],
+        notes: [
+          runtime.credentialSource === "credential_store"
+            ? "Worker can use the Launch Setup Concierge image provider credential server-side."
+            : "Worker can use the advanced server fallback image provider.",
+          storageReady ? "Private storage is ready." : "Private storage is still required before real provider bytes can be persisted."
+        ]
+      };
+    }
+    return feature;
+  });
+
+  return {
+    ...report,
+    features,
+    summary: summarize(features),
+    safeLocalTesting: features
+      .filter((item) => item.canTestWithoutProvider)
+      .map((item) => ({
+        featureKey: item.featureKey,
+        label: item.label,
+        ...(item.safeLocalRoute ? { route: item.safeLocalRoute } : {})
+      }))
   };
 }

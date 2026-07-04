@@ -1,8 +1,29 @@
-import { buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
+import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
+import { applyImageGenerationRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
+import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { AdvancedConfigDetails, PageHeader, SetupProviderCard } from "@saltyfactory/ui";
+import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
 
-export default function StudioSetupPage() {
-  const report = buildFeatureReadiness(parseEnv());
+function canOpenRepositories() {
+  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
+}
+
+function openRepositoriesSafely(): RepositoryBundle | undefined {
+  if (!canOpenRepositories()) return undefined;
+  try {
+    return createRepositories();
+  } catch {
+    return undefined;
+  }
+}
+
+export default async function StudioSetupPage() {
+  const config = parseEnv();
+  const provider = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos: openRepositoriesSafely(), config });
+  const report = applyImageGenerationRuntimeReadiness(
+    buildFeatureReadiness(config, process.env, studioWorkspaceId),
+    publicImageGenerationProviderResolution(provider)
+  );
   const cards = buildOwnerSetupCards(report);
   const internalReady = report.features.filter((feature) => feature.canTestWithoutProvider && !["printify", "shopify", "imageGeneration"].includes(feature.featureKey));
   const future = cards.filter((card) => card.status === "future");
