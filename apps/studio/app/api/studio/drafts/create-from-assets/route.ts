@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireDraftMutationPermission } from "@saltyfactory/auth";
 import { createRepositories } from "@saltyfactory/db";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../_auth";
-import { isHeroOrDefaultPrintifyMockup, isPrintifyMockupRow } from "../../integrations/printify/_mockup-workflow";
+import { evaluatePrintifyMockupProductionProof } from "../../integrations/printify/_mockup-workflow";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
@@ -24,19 +24,8 @@ export async function POST(req: Request) {
     const approvedMockups = [];
     for (const mockupId of mockupIds) {
       const mockup = await repos.mockup.getById(mockupId, workspaceId);
-      if (!mockup) {
-        return NextResponse.json({ ok: false, status: "blocked", message: "Product drafts can only use real Printify mockup images.", blockingReasons: ["mockup_not_approved"] }, { status: 409 });
-      }
-      const mockupAssetId = String(mockup.asset_id ?? mockup.assetId ?? mockup.source_asset_id ?? mockup.sourceAssetId ?? "");
-      if (mockupAssetId !== assetId) {
-        return NextResponse.json({ ok: false, status: "blocked", message: "Product draft mockups must belong to the selected approved asset.", blockingReasons: ["mockup_asset_mismatch"] }, { status: 409 });
-      }
-      if (!isPrintifyMockupRow(mockup)) {
-        return NextResponse.json({ ok: false, status: "blocked", message: "Product drafts now require a real Printify mockup image, not an internal preview.", blockingReasons: ["printify_mockup_required"] }, { status: 409 });
-      }
-      if (mockup.approved_for_product !== true && mockup.approvedForProduct !== true && !isHeroOrDefaultPrintifyMockup(mockup)) {
-        return NextResponse.json({ ok: false, status: "blocked", message: "Select a hero Printify mockup before creating a product draft.", blockingReasons: ["printify_hero_mockup_required"] }, { status: 409 });
-      }
+      const proof = evaluatePrintifyMockupProductionProof({ mockup, assetId });
+      if (!proof.ok) return NextResponse.json({ ok: false, status: "blocked", message: proof.message, blockingReasons: proof.blockingReasons }, { status: 409 });
       approvedMockups.push(mockupId);
     }
     const draftId = String(body.id || `draft_${Date.now()}`);

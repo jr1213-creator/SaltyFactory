@@ -8,6 +8,7 @@ import {
   printifySmokeProductTitlePrefix,
   requirePrintifyMockupSmokeOptIn
 } from "../scripts/smoke-printify-mockups-live";
+import { evaluatePrintifyMockupProductionProof } from "../apps/studio/app/api/studio/integrations/printify/_mockup-workflow";
 
 describe("Printify mockup live smoke harness", () => {
   afterEach(() => {
@@ -46,6 +47,8 @@ describe("Printify mockup live smoke harness", () => {
     expect(source).toContain("PRINTIFY_SMOKE_CONFIRMATION");
     expect(source).toContain("CREATE TEST PRINTIFY PRODUCT");
     expect(source).toContain("mockupIds");
+    expect(source).toContain("productDraftAcceptsPrintifyProof");
+    expect(source).toContain("internalMockupRejectedAsProductionProof");
     expect(source).not.toContain("PRINTIFY_API_TOKEN");
   });
 
@@ -102,5 +105,39 @@ describe("Printify mockup live smoke harness", () => {
     expect(source).not.toContain("publish.json");
     expect(source).not.toContain("liveSyncCalled: true");
     expect(source).not.toContain("shopifyPublishCalled: true");
+  });
+
+  it("accepts hero/default Printify proof and rejects internal mockups for product drafts", () => {
+    const assetId = "asset_printify_proof";
+    const printifyProof = evaluatePrintifyMockupProductionProof({
+      assetId,
+      mockup: {
+        id: "mockup_printify_proof",
+        asset_id: assetId,
+        approved_for_product: false,
+        metadata: {
+          provider_source: "printify",
+          provider_mockup_url: "https://images.printify.com/proof.png",
+          printify_product_id: "printify_product_proof",
+          is_hero: true
+        }
+      } as any
+    });
+    const internalProof = evaluatePrintifyMockupProductionProof({
+      assetId,
+      mockup: {
+        id: "mockup_internal_proof",
+        asset_id: assetId,
+        approved_for_product: true,
+        metadata: { provider_source: "internal", renderer_version: "internal-sharp-v1" }
+      } as any
+    });
+
+    expect(printifyProof).toMatchObject({ ok: true, status: "printify_mockup_proof_accepted" });
+    expect(internalProof).toMatchObject({
+      ok: false,
+      status: "printify_mockup_required",
+      blockingReasons: ["printify_mockup_required"]
+    });
   });
 });

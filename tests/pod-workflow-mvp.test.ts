@@ -203,17 +203,23 @@ describe("product draft mockup gate", () => {
 
   it("create-from-assets rejects mismatched mockup evidence before draft creation", () => {
     const route = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/drafts/create-from-assets/route.ts"), "utf8");
-    expect(route).toContain("mockup_asset_mismatch");
-    expect(route).toMatch(/mockupAssetId !== assetId/);
-    expect(route.indexOf("mockup_asset_mismatch")).toBeLessThan(route.indexOf("repos.draft.create"));
+    const helper = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/integrations/printify/_mockup-workflow.ts"), "utf8");
+    expect(route).toContain("evaluatePrintifyMockupProductionProof");
+    expect(helper).toContain("mockup_asset_mismatch");
+    expect(helper).toMatch(/mockupAssetId !== input\.assetId/);
+    expect(route.indexOf("evaluatePrintifyMockupProductionProof")).toBeLessThan(route.indexOf("repos.draft.create"));
   });
 
   it("create-from-assets keeps missing, unapproved, wrong-workspace, and matching evidence paths explicit", () => {
     const route = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/drafts/create-from-assets/route.ts"), "utf8");
+    const helper = readFileSync(join(process.cwd(), "apps/studio/app/api/studio/integrations/printify/_mockup-workflow.ts"), "utf8");
     expect(route).toContain("getById(mockupId, workspaceId)");
     expect(route).toContain("approved_mockup_required");
-    expect(route).toContain("mockup_not_approved");
-    expect(route).toContain("mockup_asset_mismatch");
+    expect(route).toContain("evaluatePrintifyMockupProductionProof");
+    expect(helper).toContain("mockup_not_approved");
+    expect(helper).toContain("mockup_asset_mismatch");
+    expect(helper).toContain("printify_mockup_required");
+    expect(helper).toContain("printify_hero_mockup_required");
     expect(route).toContain("approvedMockups.push(mockupId)");
   });
 

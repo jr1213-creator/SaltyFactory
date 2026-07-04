@@ -7,7 +7,7 @@ const failures: string[] = [];
 
 function walk(directory: string) {
   for (const entry of readdirSync(directory)) {
-    if (["node_modules", ".next", "dist"].includes(entry)) continue;
+    if (["node_modules", ".next", "dist", "playwright-report", "test-results"].includes(entry)) continue;
     const path = join(directory, entry);
     const stat = statSync(path);
     if (stat.isDirectory()) walk(path);
@@ -107,8 +107,10 @@ for (const forbidden of ["publish", "provider_sync", "ad_spend", "send_email", "
 }
 
 const createFromAssetsRoute = text(join(root, "apps/studio/app/api/studio/drafts/create-from-assets/route.ts"));
+const printifyMockupWorkflow = text(join(root, "apps/studio/app/api/studio/integrations/printify/_mockup-workflow.ts"));
 if (!createFromAssetsRoute.includes("approved_mockup_required")) failures.push("asset-only draft creation must remain blocked when mockups are required");
-if (!createFromAssetsRoute.includes("mockup_asset_mismatch")) failures.push("draft creation must reject mismatched asset/mockup evidence");
+if (!createFromAssetsRoute.includes("evaluatePrintifyMockupProductionProof") || !printifyMockupWorkflow.includes("mockup_asset_mismatch")) failures.push("draft creation must reject mismatched asset/mockup evidence");
+if (!printifyMockupWorkflow.includes("printify_mockup_required")) failures.push("draft creation must reject internal mockup proof");
 
 const publishPage = text(join(root, "apps/studio/app/studio/publish/page.tsx"));
 if (/<button(?![^>]*disabled)[^>]*>(Approve & Publish|Use Review Workflow Below|Request Changes|Reject)</.test(publishPage)) failures.push("publish summary panel must not expose active no-op or auto-publish-looking actions");

@@ -669,7 +669,11 @@ export async function runLivePrintifyMockupSmoke() {
   const repos = createRepositories();
   const actorId = smokeActorId();
   const currentWorkspaceId = workspaceId();
-  const [{ resolvePrintifyRuntime }, { findAssetDerivative }, { createPrintifyProductForMockups, importPrintifyMockupsForReference }] = await Promise.all([
+  const [{ resolvePrintifyRuntime }, { findAssetDerivative }, {
+    createPrintifyProductForMockups,
+    evaluatePrintifyMockupProductionProof,
+    importPrintifyMockupsForReference
+  }] = await Promise.all([
     import("../apps/studio/app/api/studio/integrations/printify/_runtime"),
     import("../apps/studio/app/api/studio/_image-production"),
     import("../apps/studio/app/api/studio/integrations/printify/_mockup-workflow")
@@ -776,6 +780,68 @@ export async function runLivePrintifyMockupSmoke() {
   }
 
   const importedOk = imported as Extract<ImportAttemptResult, { ok: true }>;
+  if (!importedOk.mockups.length) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "mockup_persistence_failed", {
+      message: "Printify returned images, but no provider mockup rows were persisted."
+    });
+  }
+  let heroMockup = importedOk.mockups.find((mockup) =>
+    evaluatePrintifyMockupProductionProof({ mockup, assetId: prepared.asset.id }).ok
+  ) ?? null;
+  if (!heroMockup) {
+    const selected = importedOk.mockups[0];
+    if (!selected) {
+      throw new PrintifyMockupSmokeError("mockup_import_failure", "mockup_persistence_failed", {
+        message: "Printify mockup import returned no persisted rows."
+      });
+    }
+    const siblings = (await repos.mockup.listByWorkspace(currentWorkspaceId)).filter((mockup) =>
+      text(mockup.asset_id ?? mockup.assetId) === prepared.asset.id
+    );
+    for (const mockup of siblings) {
+      const metadata = asMetadata(mockup);
+      await repos.mockup.update(mockup.id, {
+        metadata: { ...metadata, is_hero: mockup.id === selected.id },
+        approved_for_product: mockup.id === selected.id ? true : Boolean(mockup.approved_for_product ?? mockup.approvedForProduct),
+        updated_by: actorId
+      });
+    }
+    heroMockup = await repos.mockup.getById(selected.id, currentWorkspaceId);
+  }
+  const productDraftProof = evaluatePrintifyMockupProductionProof({ mockup: heroMockup, assetId: prepared.asset.id });
+  if (!productDraftProof.ok) {
+    const failure = productDraftProof as { message?: unknown; blockingReasons?: unknown };
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "product_draft_mockup_proof_failed", {
+      message: failure.message,
+      blockingReasons: failure.blockingReasons
+    });
+  }
+  const existingDraftMockupIds = prepared.draft.mockup_ids ?? prepared.draft.mockupIds;
+  const draftMockupIds = Array.isArray(existingDraftMockupIds)
+    ? existingDraftMockupIds.map(String)
+    : [];
+  await repos.draft.update(prepared.draft.id, {
+    mockup_ids: unique([...draftMockupIds, heroMockup!.id]),
+    updated_by: actorId
+  });
+  const internalMockupProof = evaluatePrintifyMockupProductionProof({
+    assetId: prepared.asset.id,
+    mockup: {
+      id: "internal_mockup_probe",
+      workspace_id: currentWorkspaceId,
+      asset_id: prepared.asset.id,
+      status: "approved",
+      approved_for_product: true,
+      metadata: { provider_source: "internal", renderer_version: "internal-sharp-v1" }
+    } as WorkspaceRow
+  });
+  if (internalMockupProof.ok) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "product_draft_mockup_proof_failed", {
+      message: "Internal mockup proof was incorrectly accepted as production proof.",
+      internalMockupRejected: false
+    });
+  }
+
   const proof = {
     ok: true,
     status: "printify_mockups_imported",
@@ -788,6 +854,9 @@ export async function runLivePrintifyMockupSmoke() {
     printifyProductId: safeId(created.reference.printify_product_id ?? created.reference.printifyProductId),
     mockupImageCount: importedOk.images.length,
     mockupIds: importedOk.mockups.map((mockup: WorkspaceRow) => safeId(mockup.id)),
+    heroMockupId: safeId(heroMockup!.id),
+    productDraftAcceptsPrintifyProof: true,
+    internalMockupRejectedAsProductionProof: true,
     importAttempts: retry.attempts,
     productTitlePrefix: printifySmokeProductTitlePrefix,
     shopifyPublishCalled: false,

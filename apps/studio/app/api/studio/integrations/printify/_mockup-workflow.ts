@@ -48,6 +48,44 @@ export function isHeroOrDefaultPrintifyMockup(row: WorkspaceRow | null | undefin
     && (metadata.is_hero === true || metadata.isHero === true || metadata.printify_is_default === true || metadata.printifyIsDefault === true);
 }
 
+export function evaluatePrintifyMockupProductionProof(input: { mockup: WorkspaceRow | null | undefined; assetId: string }) {
+  const mockup = input.mockup;
+  if (!mockup) {
+    return {
+      ok: false as const,
+      status: "mockup_not_found",
+      message: "Product drafts can only use real Printify mockup images.",
+      blockingReasons: ["mockup_not_approved"]
+    };
+  }
+  const mockupAssetId = text(mockup.asset_id ?? mockup.assetId ?? (mockup as any).source_asset_id ?? (mockup as any).sourceAssetId);
+  if (mockupAssetId !== input.assetId) {
+    return {
+      ok: false as const,
+      status: "mockup_asset_mismatch",
+      message: "Product draft mockups must belong to the selected approved asset.",
+      blockingReasons: ["mockup_asset_mismatch"]
+    };
+  }
+  if (!isPrintifyMockupRow(mockup)) {
+    return {
+      ok: false as const,
+      status: "printify_mockup_required",
+      message: "Product drafts now require a real Printify mockup image, not an internal preview.",
+      blockingReasons: ["printify_mockup_required"]
+    };
+  }
+  if (mockup.approved_for_product !== true && mockup.approvedForProduct !== true && !isHeroOrDefaultPrintifyMockup(mockup)) {
+    return {
+      ok: false as const,
+      status: "printify_hero_mockup_required",
+      message: "Select a hero Printify mockup before creating a product draft.",
+      blockingReasons: ["printify_hero_mockup_required"]
+    };
+  }
+  return { ok: true as const, status: "printify_mockup_proof_accepted", mockup };
+}
+
 export function providerMockupUrl(row: WorkspaceRow | null | undefined) {
   const metadata = metadataOf(row);
   return text(metadata.provider_mockup_url ?? metadata.providerMockupUrl ?? metadata.public_url ?? metadata.publicUrl ?? row?.file_path ?? row?.filePath);
