@@ -15,6 +15,7 @@ function screenshotName(name: string) {
 
 test.describe("image generation and mockup browser proof", () => {
   test.skip(!bypassReady, "Run with PLAYWRIGHT_AUTH_BYPASS=true through the image/mockup browser proof runner.");
+  test.setTimeout(120_000);
 
   test("browser can generate local proof art, QA it, render mockups, and set a hero", async ({ page, request }) => {
     mkdirSync(proofDir, { recursive: true });
@@ -81,15 +82,17 @@ test.describe("image generation and mockup browser proof", () => {
     await expect(page.getByText(/approved/i).first()).toBeVisible({ timeout: 60_000 });
 
     await page.goto(`/studio/mockups?asset_id=${encodeURIComponent(assetId!)}`);
+    await expect(page.getByRole("heading", { name: /Mockup Studio/i })).toBeVisible();
     await expect(page.getByText(/Internal Mockup Workflow/i)).toBeVisible();
     await expectLoadedImage(page.getByAltText(/Approved source artwork preview/i).first());
     await expect(page.getByLabel(/Internal template/i)).toBeVisible();
     await page.getByRole("button", { name: /Generate recommended mockups/i }).click();
     await expect(page.getByText(/recommended mockups created/i)).toBeVisible({ timeout: 90_000 });
     await expectLoadedImage(page.getByAltText(/Rendered mockup preview/i).first());
+    await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: screenshotName("mockup-gallery"), fullPage: true, animations: "disabled" });
 
-    await page.getByRole("button", { name: /Set hero mockup/i }).click();
+    await page.getByRole("button", { name: /Set as hero mockup|Set hero mockup/i }).click();
     await expect(page.getByText(/hero mockup selected/i)).toBeVisible({ timeout: 60_000 });
     await page.screenshot({ path: screenshotName("hero-selected"), fullPage: true, animations: "disabled" });
 

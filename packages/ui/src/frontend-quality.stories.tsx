@@ -108,6 +108,72 @@ export function PrintifyMockupsUnavailable() {
   return <SetupRequiredPanel items={["Create a Printify product before importing provider-generated mockups."]} />;
 }
 
+function StoryMockupPreview({ label = "Light Tee", tone = "ready" }: { label?: string; tone?: "ready" | "rendering" | "rejected" }) {
+  const background = tone === "rejected" ? "#ffecec" : tone === "rendering" ? "#fff7e6" : "#e6f6f7";
+  return <div style={{ aspectRatio: "4 / 5", borderRadius: 10, border: "1px solid #dbe7ea", background, display: "grid", placeItems: "center", overflow: "hidden" }}>
+    <div style={{ width: "62%", aspectRatio: "0.78", borderRadius: 18, background: "#ffffff", border: "3px solid #0b1f33", display: "grid", placeItems: "center", color: "#007c89", fontWeight: 900 }}>{label}</div>
+  </div>;
+}
+
+export function MockupStudioEmptyState() {
+  return <section className="mockup-studio" style={{ maxWidth: 1120 }}>
+    <div className="pod-empty-state"><strong>No generated artwork yet</strong><p className="text-muted">Generate artwork, run QA, and approve it before rendering internal mockups.</p><button className="btn btn-primary">Open image generation</button></div>
+  </section>;
+}
+
+export function MockupStudioAssetReadyNoMockups() {
+  return <section className="mockup-studio" style={{ maxWidth: 1180 }}>
+    <div className="mockup-studio-summary"><div><span>Selected asset</span><strong>asset_hf...e32d80</strong></div><div><span>Source</span><strong>Hugging Face</strong></div><div><span>QA status</span><strong>QA passed</strong></div><div><span>Derivative status</span><strong>print PNG ready</strong></div></div>
+    <div className="mockup-studio-main-grid"><article className="surface-card mockup-asset-panel"><div className="mockup-panel-heading"><h2>Source asset proof</h2><span className="mockup-status-chip tone-success">Ready for mockups</span></div><StoryMockupPreview label="Artwork" /></article><article className="surface-card mockup-hero-panel"><div className="mockup-empty-preview"><strong>No mockup rendered for this asset yet</strong><p className="text-muted">Use recommended mockups for a full preview set.</p><button className="btn btn-primary">Generate recommended mockups</button></div></article></div>
+  </section>;
+}
+
+export function MockupStudioRenderingState() {
+  return <section className="mockup-result-panel is-warning" style={{ maxWidth: 880 }}>
+    <p className="eyebrow-label">Mockup result</p><h3>Rendering mockups</h3><p className="text-muted">Internal Sharp is compositing the print-ready file into recommended product templates.</p>
+  </section>;
+}
+
+export function MockupStudioGalleryMultiple() {
+  return <section className="mockup-gallery-grid" style={{ maxWidth: 1180 }}>
+    {["Light Tee", "Dark Tee", "Sand Tee", "Tote"].map((label) => <article className="mockup-card" key={label}><StoryMockupPreview label={label} /><div className="mockup-card-copy"><strong>{label}</strong><p className="text-muted">Internal Sharp renderer</p><div className="mockup-chip-row"><span className="mockup-status-chip tone-info">Internal Sharp</span><span className="mockup-status-chip tone-warning">Needs approval</span></div></div><div className="mockup-card-actions"><button className="btn btn-secondary">Preview</button><button className="btn btn-secondary">Set hero</button></div></article>)}
+  </section>;
+}
+
+export function MockupStudioHeroSelected() {
+  return <section className="surface-card mockup-hero-panel" style={{ maxWidth: 760 }}>
+    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Hero mockup</p><h2>Apparel Front - Light Tee</h2><p className="text-muted">Internal Sharp renderer - source asset_hf...e32d80</p></div><div className="mockup-chip-row"><span className="mockup-status-chip tone-success">Hero selected</span><span className="mockup-status-chip tone-success">Approved</span></div></div>
+    <StoryMockupPreview label="Hero" /><button className="btn btn-primary" disabled>Hero selected</button>
+  </section>;
+}
+
+export function MockupStudioRejectedMockup() {
+  return <article className="mockup-card" style={{ maxWidth: 360 }}>
+    <StoryMockupPreview label="Rejected" tone="rejected" /><div className="mockup-card-copy"><strong>Dark Tee</strong><p className="text-muted">Rejected after owner review.</p><span className="mockup-status-chip tone-danger">Rejected</span></div><button className="btn btn-secondary">Re-render</button>
+  </article>;
+}
+
+export function MockupStudioMissingPrintPngBlocker() {
+  return <section className="mockup-action-panel" style={{ maxWidth: 720 }}>
+    <div><strong>Create Product Draft</strong><p className="text-muted">This asset needs a print-ready file.</p></div><button className="btn btn-primary" disabled>Create Product Draft</button>
+  </section>;
+}
+
+export function MockupStudioPlacementControlsOpen() {
+  return <section className="surface-card" style={{ maxWidth: 760 }}>
+    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Placement</p><h2>Light Tee controls</h2><p className="text-muted">Placement changes are rendered server-side with the internal compositor.</p></div></div>
+    <div className="mockup-placement-grid"><label>X<input value="450" readOnly /></label><label>Y<input value="520" readOnly /></label><label>Scale<input value="1" readOnly /></label><label>Rotation<input value="0" readOnly /></label><label>Fit<select><option>Contain</option></select></label><label>Opacity<input value="0.96" readOnly /></label></div>
+    <div className="action-bar"><button className="btn btn-secondary">Reset placement</button><button className="btn btn-primary">Render with placement</button></div>
+  </section>;
+}
+
+export function MockupStudioProofDetailsExpanded() {
+  return <details className="mockup-proof-details" open style={{ maxWidth: 880 }}>
+    <summary>Proof details</summary>
+    <dl className="mockup-proof-grid"><div><dt>Mockup ID</dt><dd>mockup_1783179063831</dd></div><div><dt>Source asset ID</dt><dd>asset_hf_1783179053612</dd></div><div><dt>Derivative kind</dt><dd>print_png</dd></div><div><dt>Template ID</dt><dd>tmpl_internal_apparel_light_tee</dd></div><div><dt>Renderer version</dt><dd>internal-sharp-v1</dd></div><div><dt>Checksum</dt><dd>73d3f8...</dd></div><div><dt>Preview route</dt><dd>/api/studio/mockups/mockup_1783179063831/preview</dd></div></dl>
+  </details>;
+}
+
 export function ShopifyDraftDefault() {
   return <ShopifyDraftCard title="Shopify draft" status="not_created"><p className="text-muted">Draft creation is blocked until provider config and publish gates pass.</p></ShopifyDraftCard>;
 }

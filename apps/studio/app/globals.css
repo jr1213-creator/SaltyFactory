@@ -1733,6 +1733,259 @@
     @apply mt-auto;
   }
 
+  .mockup-studio {
+    @apply grid max-w-full gap-5 overflow-x-hidden;
+  }
+
+  .mockup-studio *,
+  .mockup-studio *::before,
+  .mockup-studio *::after {
+    min-width: 0;
+  }
+
+  .mockup-studio-toolbar,
+  .mockup-panel-heading,
+  .mockup-action-panel {
+    @apply flex flex-wrap items-start justify-between gap-4;
+  }
+
+  .mockup-studio-toolbar {
+    @apply rounded-xl border border-border bg-card p-5 shadow-card;
+  }
+
+  .mockup-studio-toolbar h2,
+  .mockup-panel-heading h2 {
+    @apply m-0 text-xl font-black text-navy;
+  }
+
+  .mockup-studio-toolbar p,
+  .mockup-panel-heading p {
+    @apply m-0;
+  }
+
+  .mockup-studio-summary {
+    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .mockup-studio-summary > div {
+    @apply rounded-lg border border-border bg-card p-4 shadow-card;
+  }
+
+  .mockup-studio-summary span,
+  .mockup-proof-grid dt {
+    @apply block text-xs font-extrabold uppercase tracking-wide text-soft-foreground;
+  }
+
+  .mockup-studio-summary strong,
+  .mockup-proof-grid dd {
+    @apply m-0 font-black text-navy;
+  }
+
+  .mockup-studio-main-grid {
+    @apply grid max-w-full gap-5 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.35fr)];
+  }
+
+  .mockup-asset-panel,
+  .mockup-hero-panel {
+    @apply grid content-start gap-4;
+  }
+
+  .mockup-hero-panel {
+    @apply border-primary/20;
+  }
+
+  .mockup-field,
+  .mockup-inline-field,
+  .mockup-placement-grid label {
+    @apply grid gap-1.5 text-sm font-extrabold text-foreground;
+  }
+
+  .mockup-inline-field {
+    @apply min-w-[260px];
+  }
+
+  .mockup-field select,
+  .mockup-inline-field select,
+  .mockup-placement-grid input,
+  .mockup-placement-grid select {
+    @apply min-h-10 rounded-md border border-border bg-card px-3 py-2 font-semibold text-foreground;
+  }
+
+  .mockup-proof-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .mockup-proof-grid > div {
+    @apply rounded-md border border-border bg-muted/55 p-3;
+  }
+
+  .mockup-derivative-row,
+  .mockup-chip-row {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .mockup-status-chip {
+    @apply inline-flex w-fit items-center rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-extrabold text-muted-foreground;
+  }
+
+  .mockup-status-chip.tone-success {
+    @apply border-primary/20 bg-primary-soft text-primary-dark;
+  }
+
+  .mockup-status-chip.tone-warning {
+    @apply border-warning/25 bg-warning-soft text-warning;
+  }
+
+  .mockup-status-chip.tone-danger {
+    @apply border-destructive/20 bg-destructive-soft text-destructive;
+  }
+
+  .mockup-status-chip.tone-info {
+    @apply border-info/20 bg-info-soft text-info;
+  }
+
+  .mockup-empty-preview {
+    @apply grid min-h-[360px] place-items-center rounded-lg border border-dashed border-border-strong bg-muted/60 p-8 text-center;
+  }
+
+  .mockup-empty-preview strong {
+    @apply text-xl font-black text-navy;
+  }
+
+  .mockup-action-panel {
+    @apply rounded-lg border border-coral/20 bg-blush p-4;
+  }
+
+  .mockup-action-panel p {
+    @apply m-0;
+  }
+
+  .mockup-gallery-grid {
+    @apply grid max-w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .mockup-card {
+    @apply grid gap-3 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-card;
+  }
+
+  .mockup-card.is-selected {
+    @apply border-primary/35 bg-primary-soft/35 shadow-[inset_0_0_0_2px_rgba(0,124,137,0.16)];
+  }
+
+  .mockup-card-copy {
+    @apply grid gap-2;
+  }
+
+  .mockup-card-title-row {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .mockup-card-title-row strong {
+    @apply text-base font-black text-navy;
+  }
+
+  .mockup-card-copy p {
+    @apply m-0;
+  }
+
+  .mockup-proof-line {
+    @apply rounded-md border border-border bg-muted/70 px-2.5 py-2 text-xs font-bold text-muted-foreground;
+  }
+
+  .mockup-card-actions {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .mockup-template-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .mockup-template-card {
+    @apply grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-muted/45 p-3;
+  }
+
+  .mockup-template-card.is-selected {
+    @apply border-primary/35 bg-primary-soft/45;
+  }
+
+  .mockup-template-card p {
+    @apply m-0;
+  }
+
+  .mockup-template-glyph {
+    @apply grid size-12 place-items-center rounded-md border border-border bg-card;
+  }
+
+  .mockup-template-glyph > span {
+    @apply block h-8 w-6 rounded-sm border-2 border-primary/50 bg-primary-soft;
+  }
+
+  .mockup-template-glyph.tone-dark {
+    @apply bg-navy;
+  }
+
+  .mockup-template-glyph.tone-dark > span {
+    @apply border-card/80 bg-navy;
+  }
+
+  .mockup-template-glyph.tone-sand,
+  .mockup-template-glyph.tone-canvas,
+  .mockup-template-glyph.tone-cream {
+    @apply bg-sand;
+  }
+
+  .mockup-template-glyph.tone-canvas > span {
+    @apply h-7 w-8 rounded-md border-warning/40 bg-card;
+  }
+
+  .mockup-studio-secondary-grid {
+    @apply grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)];
+  }
+
+  .mockup-placement-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .mockup-proof-details {
+    @apply rounded-lg border border-border bg-muted/50 p-4;
+  }
+
+  .mockup-proof-details summary {
+    @apply cursor-pointer text-sm font-black text-primary-dark;
+  }
+
+  .mockup-proof-details[open] {
+    @apply bg-card;
+  }
+
+  .mockup-result-panel {
+    @apply grid gap-4 rounded-xl border p-5 shadow-card;
+  }
+
+  .mockup-result-panel.is-success {
+    @apply border-primary/25 bg-primary-soft/60;
+  }
+
+  .mockup-result-panel.is-warning {
+    @apply border-warning/25 bg-warning-soft/70;
+  }
+
+  .mockup-result-strip {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .mockup-result-mini {
+    @apply grid gap-2 rounded-lg border border-border bg-card p-3;
+  }
+
+  .mockup-blocker-list {
+    @apply rounded-md border border-warning/25 bg-card/70 p-3;
+  }
+
+  .mockup-blocker-list ul {
+    @apply m-0 mt-2 grid gap-1 pl-5;
+  }
+
   @media (max-width: 1100px) {
     .studio-shell {
       @apply grid-cols-1;

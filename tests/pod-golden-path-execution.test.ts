@@ -588,7 +588,86 @@ describe("POD golden path execution", () => {
     expect(sha256(mockupBytes)).not.toEqual(sha256(baseTemplateBytes));
     expect(containsSourceMarker).toBe(true);
     expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
-    expect(html).toContain("Use in product draft");
+    expect(html).toContain("Mockup Studio");
+    expect(html).toContain("Hero selected");
+    expect(html).toContain("Create Product Draft");
+    expect(html).toContain("Proof details");
+  });
+
+  it("presents the mockup studio as a responsive production gallery with safe proof details", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const assetId = await seedApprovedAsset(repos, `studio_gallery_${Date.now()}`);
+
+    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, mode: "recommended" }));
+    const body = await response.json();
+    const mockupId = String(body.mockups[0]?.id ?? body.mockup?.id ?? "");
+    await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
+      params: Promise.resolve({ id: mockupId })
+    });
+    await mockupHeroPost(authedPost(`/api/studio/mockups/${mockupId}/hero`), {
+      params: Promise.resolve({ id: mockupId })
+    });
+
+    const html = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
+    const proofDetailsTag = html.match(/<details[^>]+data-testid="mockup-proof-details"[^>]*>/)?.[0] ?? "";
+    const draftButtonTag = html.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Source asset proof");
+    expect(html).toContain("Rendered mockup variants");
+    expect(html).toContain("Light Tee");
+    expect(html).toContain("Dark Tee");
+    expect(html).toContain("Sand Tee");
+    expect(html).toContain("Tote");
+    expect(html).toContain("Sticker Sheet");
+    expect(html).toContain("Mug");
+    expect(html).toContain("Square Product Card");
+    expect(html).toContain("mockup-gallery-grid");
+    expect(html).toContain("mockup-card");
+    expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
+    expect(html).toContain("Renderer version");
+    expect(html).toContain("internal-sharp-v1");
+    expect(html).toContain("print_png");
+    expect(proofDetailsTag).not.toContain("open");
+    expect(draftButtonTag).not.toContain("disabled");
+    expect(html).not.toMatch(/<a[^>]+href="\/api\//);
+    expect(html).not.toMatch(/\{[\s\S]*"ok"[\s\S]*\}/);
+    expect(html).not.toMatch(/generated_composited_preview|mockup_approved_for_product|mockup_render_job_failed|asset_not_approved_for_mockup/);
+    expect(html).not.toMatch(/service_role|SUPABASE_SERVICE_ROLE_KEY|token|secret/i);
+  });
+
+  it("gates product draft creation until the selected asset has an approved or hero mockup", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const assetId = await seedApprovedAsset(repos, `studio_gate_${Date.now()}`);
+
+    const emptyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
+    const emptyDraftButton = emptyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
+    expect(emptyHtml).toContain("Generate mockups before creating product draft.");
+    expect(emptyDraftButton).toContain("disabled");
+
+    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
+    const body = await response.json();
+    const mockupId = String(body.mockup?.id ?? "");
+    await mockupHeroPost(authedPost(`/api/studio/mockups/${mockupId}/hero`), {
+      params: Promise.resolve({ id: mockupId })
+    });
+    const heroOnlyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
+    const heroOnlyDraftButton = heroOnlyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
+    expect(heroOnlyHtml).toContain("Approve the hero mockup before creating product draft.");
+    expect(heroOnlyDraftButton).toContain("disabled");
+
+    await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
+      params: Promise.resolve({ id: mockupId })
+    });
+    const readyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
+    const readyDraftButton = readyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
+    expect(response.status).toBe(200);
+    expect(readyHtml).toContain("Ready to create a guarded product draft from the approved hero mockup.");
+    expect(readyDraftButton).not.toContain("disabled");
   });
 
   it("blocks internal mockup rendering when the print-ready derivative is missing", async () => {
