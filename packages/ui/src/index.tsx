@@ -2,6 +2,7 @@ import React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { clsx, type ClassValue } from "clsx";
+import { Bell, Building2, CircleUserRound } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
@@ -9,6 +10,10 @@ type Props = React.PropsWithChildren<{ className?: string | undefined; title?: s
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function ownerFacingStatus(value: string) {
+  return value.replace(/_/g, " ");
 }
 
 const toneText: Record<Tone, string> = {
@@ -82,7 +87,7 @@ export function SparklineCard(props: { title: string; value: string; delta?: str
 }
 
 export function StatusBadge({ status, tone = "neutral" }: { status: string; tone?: Tone }) {
-  return <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold", badgeTone[tone])}>{status}</span>;
+  return <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold", badgeTone[tone])}>{ownerFacingStatus(status)}</span>;
 }
 
 export function ReadinessBadge({ ready, label }: { ready: boolean; label?: string }) {
@@ -196,13 +201,12 @@ export function SetupRequiredPanel({ title = "Setup required", items }: { title?
 }
 
 export function ConnectionStatusBadge({ status }: { status: string }) {
-  const normalized = status.replace(/_/g, " ");
   const tone: Tone =
     ["ready", "connected"].includes(status) ? "success" :
       ["invalid", "admin_setup_required"].includes(status) ? "danger" :
         ["future", "owner_gated", "disabled_for_safety"].includes(status) ? "warning" :
           "info";
-  return <StatusBadge status={normalized} tone={tone} />;
+  return <StatusBadge status={status} tone={tone} />;
 }
 
 export function MaskedCredentialStatus({ label = "Credential", value }: { label?: string; value?: string | null | undefined }) {
@@ -313,7 +317,7 @@ export function AiReadinessScoreCard({ title, score }: { title: string; score: n
 }
 
 export function AiEmployeeCard({ name, role, status = "Disabled", tasks = "0", description }: { name: string; role: string; status?: string; tasks?: string; description?: string }) {
-  return <article className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-border bg-card p-5 shadow-card"><div className="grid size-9 place-items-center rounded-full bg-sand font-extrabold text-navy" aria-hidden="true">{name.slice(0, 1)}</div><div><h3 className="mb-1 font-bold">{name}</h3><p className="m-0 text-muted-foreground">{role}</p>{description && <small>{description}</small>}</div><StatusBadge status={status} tone={status === "Active" ? "success" : "warning"} /><span className="col-span-2 col-start-2 text-xs text-muted-foreground">{tasks} tasks</span></article>;
+  return <article className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-border bg-card p-5 shadow-card"><div className="grid size-9 place-items-center rounded-md bg-sand font-extrabold text-navy" aria-hidden="true">AI</div><div><h3 className="mb-1 font-bold">{name}</h3><p className="m-0 text-muted-foreground">{role}</p>{description && <small>{description}</small>}</div><StatusBadge status={status} tone={status === "Active" ? "success" : "warning"} /><span className="col-span-2 col-start-2 text-xs text-muted-foreground">{tasks} tasks</span></article>;
 }
 
 export function AiEmployeeStatusList({ employees }: { employees: Array<{ name: string; role: string; status: string }> }) {
@@ -392,16 +396,108 @@ export function StructuredDataPreview({ title = "Product JSON-LD" }: { title?: s
   return <pre className="code-block">{`{\n  "@type": "Product",\n  "name": "${title}",\n  "availability": "review_required"\n}`}</pre>;
 }
 
-export const SearchCommand = () => <label className="search-field" title="Workspace search will become available after a search index is configured."><span>Workspace search</span><input placeholder="Workspace search" aria-label="Workspace search is not configured yet" disabled /></label>;
-export const NotificationBell = () => <button className="icon-button" aria-label="Notifications disabled" disabled title="Notifications are not configured yet.">o<span>0</span></button>;
-export const UserMenu = () => <button className="user-menu" aria-label="User menu disabled" disabled title="User menu actions are not configured yet."><span className="grid size-9 place-items-center rounded-full bg-sand font-extrabold text-navy">A</span><span>Studio Owner<small>Authenticated session</small></span></button>;
-export const WorkspaceSwitcher = () => <button className="workspace-switcher" disabled title="Single workspace is active in this local Studio session.">Salty Cowhide <span>v</span></button>;
+export const SearchCommand = () => <label className="search-field" title="Workspace search will become available after a search index is configured."><span>Workspace search</span><input placeholder="Find a Studio workflow" aria-label="Workspace search is not configured yet" disabled /></label>;
+export const NotificationBell = () => <button className="icon-button" aria-label="Notifications not configured" disabled title="Notifications are not configured yet."><Bell size={16} aria-hidden="true" /><span>0</span></button>;
+export const UserMenu = () => <button className="user-menu" aria-label="Studio owner menu not configured" disabled title="User menu actions are not configured yet."><CircleUserRound size={20} aria-hidden="true" /><span>Studio Owner<small>Authenticated session</small></span></button>;
+export const WorkspaceSwitcher = () => <button className="workspace-switcher" disabled title="Single workspace is active in this local Studio session."><Building2 size={16} aria-hidden="true" />Salty Cowhide <span aria-hidden="true">v</span></button>;
 
 export function ActionBar({ children }: Props) {
   return <div className="flex flex-wrap items-center gap-2.5">{children}</div>;
 }
 
 export const ActionButtonGroup = ActionBar;
+
+type BentoSpan = "sm" | "md" | "lg" | "wide" | "tall" | "hero";
+type BentoTone = Tone | "ink" | "sand" | "coral" | "seafoam";
+
+const bentoSpanClass: Record<BentoSpan, string> = {
+  sm: "bento-span-sm",
+  md: "bento-span-md",
+  lg: "bento-span-lg",
+  wide: "bento-span-wide",
+  tall: "bento-span-tall",
+  hero: "bento-span-hero"
+};
+
+const bentoToneClass: Record<BentoTone, string> = {
+  neutral: "tone-neutral",
+  success: "tone-success",
+  warning: "tone-warning",
+  danger: "tone-danger",
+  info: "tone-info",
+  primary: "tone-primary",
+  ink: "tone-ink",
+  sand: "tone-sand",
+  coral: "tone-coral",
+  seafoam: "tone-seafoam"
+};
+
+export function BentoGrid({ children, className }: Props) {
+  return <section className={cn("bento-grid", className)}>{children}</section>;
+}
+
+export function BentoCard({ title, eyebrow, description, children, className, span = "md", tone = "neutral", action }: Props & { span?: BentoSpan; tone?: BentoTone; action?: React.ReactNode }) {
+  return <article className={cn("bento-card", bentoSpanClass[span], bentoToneClass[tone], className)}>
+    {(eyebrow || title || action) ? <header className="bento-card-header">
+      <div>
+        {eyebrow ? <p className="bento-eyebrow">{eyebrow}</p> : null}
+        {title ? <h2>{title}</h2> : null}
+      </div>
+      {action ? <div className="bento-card-action">{action}</div> : null}
+    </header> : null}
+    {description ? <p className="bento-card-description">{description}</p> : null}
+    {children}
+  </article>;
+}
+
+export function BentoMetric({ label, value, detail, tone = "primary" }: { label: string; value: string; detail?: string; tone?: BentoTone }) {
+  return <BentoCard className="bento-metric" tone={tone} span="sm" eyebrow={label}>
+    <strong>{value}</strong>
+    {detail ? <p>{detail}</p> : null}
+  </BentoCard>;
+}
+
+export function BentoStatusPanel({ title, status, description, tone = "neutral", action }: { title: string; status: string; description: string; tone?: Tone; action?: React.ReactNode }) {
+  return <BentoCard title={title} description={description} tone={tone} action={<StatusBadge status={status} tone={tone} />}>
+    {action ? <div className="bento-card-footer">{action}</div> : null}
+  </BentoCard>;
+}
+
+export function BentoWorkflowStep({ step, title, status, description, href, complete = false }: { step: string; title: string; status: string; description: string; href: string; complete?: boolean }) {
+  return <a className={cn("bento-workflow-step", complete && "is-complete")} href={href}>
+    <span>{step}</span>
+    <strong>{title}</strong>
+    <small>{description}</small>
+    <StatusBadge status={status} tone={complete ? "success" : "warning"} />
+  </a>;
+}
+
+export function BentoArtifactCard({ title, description, status, preview, action }: { title: string; description: string; status: string; preview?: React.ReactNode; action?: React.ReactNode }) {
+  return <BentoCard className="bento-artifact-card" title={title} description={description} action={<StatusBadge status={status} tone={status.includes("ready") || status.includes("approved") ? "success" : "warning"} />}>
+    {preview ? <div className="bento-artifact-preview">{preview}</div> : null}
+    {action ? <div className="bento-card-footer">{action}</div> : null}
+  </BentoCard>;
+}
+
+export function BentoProviderCard({ title, status, description, source, action }: { title: string; status: string; description: string; source?: string; action?: React.ReactNode }) {
+  const ready = /(ready|connected|available)/i.test(status);
+  return <BentoCard className="bento-provider-card" title={title} description={description} tone={ready ? "seafoam" : "sand"} action={<StatusBadge status={status} tone={ready ? "success" : "warning"} />}>
+    {source ? <p className="bento-provider-source">{source}</p> : null}
+    {action ? <div className="bento-card-footer">{action}</div> : null}
+  </BentoCard>;
+}
+
+export function BentoActionPanel({ title, description, primaryAction, secondaryAction }: { title: string; description: string; primaryAction: React.ReactNode; secondaryAction?: React.ReactNode }) {
+  return <BentoCard className="bento-action-panel" span="wide" tone="coral" title={title} description={description}>
+    <div className="action-bar">{primaryAction}{secondaryAction}</div>
+  </BentoCard>;
+}
+
+export const ProviderCard = BentoProviderCard;
+export const ArtifactCard = BentoArtifactCard;
+export const ProductDraftCard = BentoArtifactCard;
+export const PublishGateCard = BentoStatusPanel;
+export const SetupConciergeCard = BentoStatusPanel;
 
 export function ApprovalActionBar({ children, label = "Approval actions" }: Props & { label?: string }) {
   return <div className="flex flex-wrap items-center gap-2.5" aria-label={label}>{children}</div>;

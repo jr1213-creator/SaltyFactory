@@ -46,7 +46,7 @@ export default async function Page() {
       <WorkflowStepHeader step="Connected" title="Printify connection" status="connected" description={`Credential source: ${credentialSource}. Shop: ${printify.shopName ?? printify.shopId ?? "selected"}.`} />
     </section>}
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <WorkflowStepHeader step="Catalog" title="Printify Product Inputs" status={drafts.length ? "drafts available" : "catalog browsing available"} description={drafts.length ? "Product draft, blueprint, print provider, variant IDs, pricing, and uploaded image ID are all required before product creation." : "Browse blueprints now. Saving variants requires a product draft from approved artwork and an approved mockup."} />
+      <WorkflowStepHeader step="Catalog" title="Choose the product shell" status={drafts.length ? "drafts available" : "catalog browsing available"} description={drafts.length ? "Product draft, blueprint, print provider, variant IDs, pricing, and uploaded image ID are all required before product creation." : "Browse blueprints now. Saving variants requires a product draft from approved artwork and an approved mockup."} />
     </section>
     {printifyReady ? <PrintifyCatalogClient drafts={drafts as any[]} initialShopId={printify.shopId ?? ""} initialShopName={printify.shopName ?? ""} connected /> : null}
   </>;

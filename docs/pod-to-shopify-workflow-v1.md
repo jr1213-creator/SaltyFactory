@@ -33,3 +33,17 @@ Use this local smoke path after Guided Setup or local demo configuration:
 7. Open `/studio/publish-review` and confirm the readiness table shows the real next blocker.
 
 Local demo image generation is development/test only and does not count as real provider success. No OpenAI or Anthropic provider is used.
+
+## Studio UI Presentation
+
+The golden path now sits inside the tactile coastal Studio shell:
+
+- `/studio` uses a bento owner launchpad instead of a generic dashboard grid.
+- Global navigation uses POD Factory, AI Workforce, Business, Storefront, Marketing, Customers, and Operations command areas.
+- `/studio/assets` is labeled `Generated art gallery` and must show protected previews, not alt text alone.
+- `/studio/mockups` is labeled `Mockup gallery` and must show composed previews.
+- `/studio/product-builder` is labeled `One-product build flow` and remains owner-gated.
+- `/studio/printify-catalog` uses `Choose the product shell` for blueprint/provider/variant selection.
+- `/studio/publish-review` is labeled `Launch gate control` and remains the single action point for provider draft actions.
+
+The redesign must not change provider resolution, workspace authorization, private storage, or publish gates.

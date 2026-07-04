@@ -52,7 +52,7 @@ export default async function Page() {
   ] as const;
 
   return <>
-    <PageHeader title="Publish Review" description="Human-gated approval before products can move toward Shopify or Printify.">
+    <PageHeader title="Launch gate control" description="Human-gated approval before products can move toward Shopify or Printify.">
       <StatusBadge status="Live publishing disabled by default" tone="warning" />
     </PageHeader>
     <SchemaSetupState message={setupMessage} />
@@ -71,7 +71,7 @@ export default async function Page() {
       <MetricCard title="Blocked by guardrails" value={gateResult.allowed ? "0" : "1"} tone="danger" />
     </div>
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Provider Readiness</h2>
+      <h2>Connected commerce stack</h2>
       <div className="provider-health-bar">
         <ProviderReadinessCard title="Image Generation" status={imageReady ? (imageLocalDemo ? "local demo" : "connected") : "setup needed"} tone={imageReady ? "success" : "warning"} description={imageReady ? imageProvider.safeMessage : imageProvider.businessFacingSetupRequired.join(", ") || imageProvider.safeMessage} />
         <ProviderReadinessCard title="Printify" status={printifyReady ? "connected" : "setup needed"} tone={printifyReady ? "success" : "warning"} description={printifyReady ? "Printify connected through Launch Setup Concierge. Draft creation still requires approved artwork, variants, pricing, and owner gates." : "Connect Printify in Launch Setup Concierge before draft product creation."} />
@@ -80,7 +80,7 @@ export default async function Page() {
       </div>
     </section>
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Product Pipeline</h2>
+      <h2>Launch path</h2>
       <WorkflowProgress steps={[
         { label: "Idea", status: drafts.length ? "draft exists" : "needed", complete: drafts.length > 0 },
         { label: "Prompt", status: "owner approved only", complete: true },

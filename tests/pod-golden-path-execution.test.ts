@@ -187,10 +187,10 @@ describe("POD golden path execution", () => {
     ]);
     const html = pages.map((page) => renderToStaticMarkup(page)).join("\n");
 
-    expect(html).toContain("POD Product Builder");
+    expect(html).toContain("One-product build flow");
     expect(html).toContain("Generation Queue");
-    expect(html).toContain("Generation Jobs &amp; Assets");
-    expect(html).toContain("Mockups");
+    expect(html).toContain("Generated art gallery");
+    expect(html).toContain("Mockup gallery");
     expect(html).not.toMatch(/Failed query|default_brand_name|workspaces\.id/);
   });
 

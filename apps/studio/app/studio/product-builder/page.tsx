@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
   const shopifyCollectionId = typeof shopify.providerMetadata?.selectedCollectionId === "string" ? shopify.providerMetadata.selectedCollectionId : "";
 
   return <>
-    <PageHeader title="POD Product Builder" description="Create one launch-ready product draft from approved generated artwork, a composed mockup, and guarded provider targets.">
+    <PageHeader title="One-product build flow" description="Create one launch-ready product draft from approved generated artwork, a composed mockup, and guarded provider targets.">
       <StatusBadge status="owner gated" tone="warning" />
     </PageHeader>
     <SchemaSetupState message={lists.setupMessage} />
@@ -47,7 +47,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
       />
     </div>
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Product Drafts</h2>
+      <h2>Product drafts</h2>
       {lists.drafts.length ? <DataTable columns={["Draft", "Asset", "Mockups", "Variants", "Provider target", "Next action"]} rows={lists.drafts.map((draft: any) => {
         const metadata = draft.metadata && typeof draft.metadata === "object" ? draft.metadata as Record<string, unknown> : {};
         const variantCount = asArray(draft.variant_ids ?? draft.variantIds).length;
