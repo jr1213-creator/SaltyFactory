@@ -4,6 +4,7 @@ import { publicImageGenerationProviderResolution, resolveImageGenerationProvider
 import {
   HUGGING_FACE_IMAGE_PROVIDER,
   applyImageGenerationRuntimeReadiness,
+  applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   buildOwnerSetupCards,
   parseEnv,
@@ -15,6 +16,7 @@ import {
 } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
 import { decryptCredential, encryptCredential, sanitizeProviderError } from "@saltyfactory/security";
+import { checkStorageReadiness } from "@saltyfactory/storage";
 import { studioAuthErrorResponse } from "../_auth";
 import {
   createShopifyAdminProviderForWorkspace,
@@ -282,8 +284,9 @@ export async function handleProviderConnectionsList(req: Request) {
     const config = parseEnv();
     const connections = await repos.integration.listProviderConnectionsForWorkspace(workspaceId);
     const imageRuntime = await resolveImageGenerationProvider({ workspaceId, repos, config });
+    const storageRuntime = await checkStorageReadiness(config);
     const report = applyImageGenerationRuntimeReadiness(
-      buildFeatureReadiness(config, process.env, workspaceId),
+      applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storageRuntime),
       publicImageGenerationProviderResolution(imageRuntime)
     );
     const cards = buildOwnerSetupCards(report).map((card) => ({

@@ -207,6 +207,7 @@ describe("image generation runtime route and UI", () => {
     vi.stubEnv("SUPABASE_URL", "https://supabase.test");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "supabase_service_role_test");
     vi.stubEnv("SUPABASE_PRIVATE_ASSETS_BUCKET", "private-assets");
+    vi.stubEnv("SUPABASE_PUBLIC_ASSETS_BUCKET", "public-assets");
 
     const repos = createRepositories();
     const token = "hf_route_secret_credential_store";
@@ -230,6 +231,12 @@ describe("image generation runtime route and UI", () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
       calls.push({ url: String(url), init });
+      if (String(url).includes("/storage/v1/bucket")) {
+        return Response.json([{ name: "private-assets" }, { name: "public-assets" }]);
+      }
+      if (String(url).includes("/storage/v1/object/private-assets") && init.method === "DELETE") {
+        return Response.json([]);
+      }
       if (String(url).includes("router.huggingface.co")) {
         return new Response(imageBytes, { status: 200, headers: { "content-type": "image/png" } });
       }

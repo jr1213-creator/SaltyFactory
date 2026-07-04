@@ -20,6 +20,7 @@ const envSchema = z.object({
   CREDENTIAL_ENCRYPTION_KEY: z.string().optional().default(""),
   SUPABASE_PRIVATE_ASSETS_BUCKET: z.string().default("saltyfactory-private-assets"),
   SUPABASE_PUBLIC_ASSETS_BUCKET: z.string().default("saltyfactory-public-assets"),
+  SUPABASE_STORAGE_BUCKET: z.string().optional().default(""),
   STUDIO_AUTH_ENABLED: asBool(true),
   STUDIO_ADMIN_EMAIL: z.string().optional().default(""),
   AUTH_SECRET: z.string().optional().default(""),
@@ -194,6 +195,7 @@ export type {
 } from "./hugging-face-image";
 export {
   applyImageGenerationRuntimeReadiness,
+  applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   featureReadinessEnvVars
 } from "./feature-readiness";
@@ -201,7 +203,8 @@ export type {
   FeatureReadiness,
   FeatureReadinessReport,
   FeatureReadinessStatus,
-  ImageGenerationRuntimeReadiness
+  ImageGenerationRuntimeReadiness,
+  StorageRuntimeReadiness
 } from "./feature-readiness";
 export {
   assertNoDeadConfigStates,

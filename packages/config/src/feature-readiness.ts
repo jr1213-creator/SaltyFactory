@@ -51,6 +51,20 @@ export type ImageGenerationRuntimeReadiness = {
   blockingReasons: string[];
 };
 
+export type StorageRuntimeReadiness = {
+  ok: boolean;
+  status: "connected" | "configured_not_verified" | "setup_needed" | "disabled" | "failed";
+  safeMessage: string;
+  setupRequired: string[];
+  checks: {
+    canCreateSupabaseAdminClient: boolean;
+    privateBucketExists: boolean;
+    publicBucketExists: boolean;
+    canWriteTestObjectToPrivateBucket: boolean;
+    canDeleteTestObject: boolean;
+  };
+};
+
 export const featureReadinessEnvVars = [
   "NODE_ENV",
   "APP_ENV",
@@ -564,6 +578,57 @@ export function applyImageGenerationRuntimeReadiness(
             : "Worker can use the advanced server fallback image provider.",
           storageReady ? "Private storage is ready." : "Private storage is still required before real provider bytes can be persisted."
         ]
+      };
+    }
+    return feature;
+  });
+
+  return {
+    ...report,
+    features,
+    summary: summarize(features),
+    safeLocalTesting: features
+      .filter((item) => item.canTestWithoutProvider)
+      .map((item) => ({
+        featureKey: item.featureKey,
+        label: item.label,
+        ...(item.safeLocalRoute ? { route: item.safeLocalRoute } : {})
+      }))
+  };
+}
+
+export function applyStorageRuntimeReadiness(
+  report: FeatureReadinessReport,
+  storage: StorageRuntimeReadiness
+): FeatureReadinessReport {
+  const features = report.features.map((feature) => {
+    if (feature.featureKey === "storage") {
+      return {
+        ...feature,
+        status: storage.ok ? "ready" as const : storage.status === "configured_not_verified" ? "partial" as const : "config_blocked" as const,
+        requiredEnv: storage.ok ? [] : ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET", "SUPABASE_PUBLIC_ASSETS_BUCKET"],
+        missingEnv: [],
+        enabledFlags: storage.ok ? ["supabase_storage_diagnostic:connected"] : [],
+        disabledFlags: storage.ok ? [] : ["private_storage_blocked"],
+        setupRequired: storage.ok ? [] : storage.setupRequired.length ? storage.setupRequired : ["Run the storage readiness diagnostic."],
+        canTestWithoutProvider: false,
+        notes: [
+          storage.safeMessage,
+          storage.checks.privateBucketExists ? "Private generated-assets bucket was found." : "Private generated-assets bucket was not verified.",
+          storage.checks.canWriteTestObjectToPrivateBucket ? "A private test object could be written." : "Private test write was not verified.",
+          storage.checks.canDeleteTestObject ? "The private test object could be deleted." : "Private test delete was not verified."
+        ]
+      };
+    }
+    if (feature.featureKey === "worker" && !storage.ok) {
+      return {
+        ...feature,
+        status: feature.status === "ready" ? "partial" as const : feature.status,
+        requiredEnv: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"],
+        missingEnv: [],
+        disabledFlags: unique([...feature.disabledFlags, "private_storage_blocked"]),
+        setupRequired: unique([...feature.setupRequired, ...(storage.setupRequired.length ? storage.setupRequired : ["Run the storage readiness diagnostic."])]),
+        notes: unique([...feature.notes, storage.safeMessage])
       };
     }
     return feature;

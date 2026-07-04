@@ -13,7 +13,7 @@ import {
 } from "@saltyfactory/ai-free";
 import { createCommerceProviders } from "@saltyfactory/commerce";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
-import { createStorageProvider, type StorageProvider } from "@saltyfactory/storage";
+import { createStorageProvider, resolveStorageRuntimeConfig, type StorageProvider } from "@saltyfactory/storage";
 import { DatabaseBackedQueue } from "@saltyfactory/queue";
 
 type WorkerQueue = Pick<DatabaseBackedQueue, "claimQueuedJob" | "markCompleted" | "markFailed">;
@@ -59,7 +59,13 @@ async function persistGeneratedBuffer(input: {
   const storageKey = `workspaces/${safeSegment(workspaceId)}/private/assets/${assetId}.png`;
   const contentType = "image/png";
   const upload = await input.storage.uploadPrivateAsset(storageKey, input.buffer, contentType);
-  let storageBucket = process.env.SUPABASE_PRIVATE_ASSETS_BUCKET || "local-dev-private-assets";
+  let storageBucket = resolveStorageRuntimeConfig({
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_PRIVATE_ASSETS_BUCKET: process.env.SUPABASE_PRIVATE_ASSETS_BUCKET,
+    SUPABASE_PUBLIC_ASSETS_BUCKET: process.env.SUPABASE_PUBLIC_ASSETS_BUCKET,
+    SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET
+  }).SUPABASE_PRIVATE_ASSETS_BUCKET || "local-dev-private-assets";
 
   if (!upload.ok) {
     if (process.env.APP_ENV === "production") throw Object.assign(new Error(upload.error), { retryable: false });
