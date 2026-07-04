@@ -17,9 +17,11 @@ import ProductBuilderPage from "../apps/studio/app/studio/product-builder/page";
 import PublishReviewPage from "../apps/studio/app/studio/publish-review/page";
 import { POST as sendToGenerationPost } from "../apps/studio/app/api/studio/design-briefs/[id]/send-to-generation/route";
 import { GET as assetPreviewGet } from "../apps/studio/app/api/studio/assets/[id]/preview/route";
+import { GET as assetDerivativePreviewGet } from "../apps/studio/app/api/studio/assets/[id]/derivatives/[kind]/preview/route";
 import { GET as mockupPreviewGet } from "../apps/studio/app/api/studio/mockups/[id]/preview/route";
 import { POST as mockupGeneratePost } from "../apps/studio/app/api/studio/mockups/generate/route";
 import { POST as mockupApprovePost } from "../apps/studio/app/api/studio/mockups/[id]/approve/route";
+import { POST as mockupHeroPost } from "../apps/studio/app/api/studio/mockups/[id]/hero/route";
 import { POST as draftFromAssetsPost } from "../apps/studio/app/api/studio/drafts/create-from-assets/route";
 import { POST as printifySelectionPost } from "../apps/studio/app/api/studio/integrations/printify/catalog/selection/route";
 import { GET as printifyBlueprintsGet } from "../apps/studio/app/api/studio/integrations/printify/catalog/blueprints/route";
@@ -106,6 +108,34 @@ async function seedApprovedAsset(repos: RepositoryBundle, suffix: string) {
     mime_type: "image/png",
     extension: "png",
     visibility: "private",
+    created_by: actorId,
+    updated_by: actorId
+  } as WorkspaceRow);
+  const derivativeKey = `workspaces/${workspaceId}/private/assets/${assetId}-print_png.png`;
+  const derivativePath = localPrivatePath("assets", derivativeKey);
+  await mkdir(path.dirname(derivativePath), { recursive: true });
+  await writeFile(derivativePath, buffer);
+  await repos.asset.create({
+    id: `${assetId}_print_png`,
+    workspace_id: workspaceId,
+    brief_id: `brief_${suffix}`,
+    asset_type: "print_png",
+    storage_bucket: "local-dev-private-assets",
+    file_path: derivativeKey,
+    file_size_bytes: buffer.byteLength,
+    width: 3000,
+    height: 3000,
+    dpi: 300,
+    transparent_background: true,
+    generator: "huggingface",
+    model: "black-forest-labs/FLUX.1-schnell",
+    qa_status: "passed",
+    risk_status: "pending",
+    approved_for_mockup: false,
+    mime_type: "image/png",
+    extension: "png",
+    visibility: "private",
+    metadata: { derivative_package: true, derivative_kind: "print_png", source_asset_id: assetId, parent_asset_id: assetId },
     created_by: actorId,
     updated_by: actorId
   } as WorkspaceRow);
@@ -220,7 +250,7 @@ describe("POD golden path execution", () => {
 
     expect(html).toContain("Design Briefs");
     expect(html).toContain("POD Product Builder");
-    expect(html).toContain("Generation Queue");
+    expect(html).toContain("Image Generation Studio");
     expect(html).toContain("Generation Jobs &amp; Assets");
     expect(html).toContain("Mockups");
     expect(html).toContain("Printify Catalog");
@@ -256,10 +286,19 @@ describe("POD golden path execution", () => {
     const body = await response.json();
     const assetId = String(body.asset?.id ?? "");
     const asset = await repos.asset.getById(assetId, workspaceId);
+    const generatedAssets = Array.isArray(body.assets) ? body.assets : [];
+    const allAssets = await repos.asset.listByWorkspace(workspaceId);
+    const derivativeRows = allAssets.filter((row) => {
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
+      return String(metadata.source_asset_id ?? "") === assetId;
+    });
 
     expect(response.status).toBe(200);
     expect(body.status).toBe("succeeded");
+    expect(generatedAssets).toHaveLength(4);
     expect(asset).toBeTruthy();
+    expect(asset?.metadata).toMatchObject({ variant_index: 0, seed: expect.any(Number), style_preset: "coastal_cowgirl", print_target: "apparel_front_square" });
+    expect(derivativeRows.map((row) => row.asset_type).sort()).toEqual(["print_png", "thumbnail", "web_preview"]);
     expect(JSON.stringify(body)).not.toMatch(/hf_|service_role|token/i);
 
     const unauthPreview = await assetPreviewGet(new Request(`http://localhost:3001/api/studio/assets/${assetId}/preview`), {
@@ -268,6 +307,9 @@ describe("POD golden path execution", () => {
     const preview = await assetPreviewGet(authedRequest(`/api/studio/assets/${assetId}/preview`), {
       params: Promise.resolve({ id: assetId })
     });
+    const derivativePreview = await assetDerivativePreviewGet(authedRequest(`/api/studio/assets/${assetId}/derivatives/print_png/preview`), {
+      params: Promise.resolve({ id: assetId, kind: "print_png" })
+    });
     const assetsHtml = renderToStaticMarkup(await AssetsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
     const generateHtml = renderToStaticMarkup(await GeneratePage());
 
@@ -275,11 +317,15 @@ describe("POD golden path execution", () => {
     expect(preview.status).toBe(200);
     expect(preview.headers.get("content-type")).toContain("image/png");
     expect((await preview.arrayBuffer()).byteLength).toBeGreaterThan(100);
+    expect(derivativePreview.status).toBe(200);
+    expect(derivativePreview.headers.get("content-type")).toContain("image/png");
     expect(assetsHtml).toContain(`/api/studio/assets/${assetId}/preview`);
+    expect(assetsHtml).toContain(`/api/studio/assets/${assetId}/derivatives/print_png/preview`);
     expect(assetsHtml).toContain("Open asset");
     expect(generateHtml).toContain("Generated Artwork");
     expect(generateHtml).toContain(`/api/studio/assets/${assetId}/preview`);
-  });
+    expect(generateHtml).toContain("Generate 4 options");
+  }, 15000);
 
   it("serves Supabase-backed private asset previews as protected image bytes", async () => {
     authorizeAsOwner();
@@ -400,9 +446,15 @@ describe("POD golden path execution", () => {
     const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
     const body = await response.json();
     const mockupId = String(body.mockup?.id ?? "");
+    const rerenderResponse = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front", placement: { x: 520, y: 620, scale: 0.8 } }));
+    const rerenderBody = await rerenderResponse.json();
     await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
       params: Promise.resolve({ id: mockupId })
     });
+    const heroResponse = await mockupHeroPost(authedPost(`/api/studio/mockups/${mockupId}/hero`), {
+      params: Promise.resolve({ id: mockupId })
+    });
+    const heroBody = await heroResponse.json();
     const preview = await mockupPreviewGet(authedRequest(`/api/studio/mockups/${mockupId}/preview`), {
       params: Promise.resolve({ id: mockupId })
     });
@@ -411,11 +463,75 @@ describe("POD golden path execution", () => {
     const html = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
 
     expect(response.status).toBe(200);
+    expect(rerenderResponse.status).toBe(200);
     expect(body.status).toBe("composited_mockup_created");
+    expect(body.mockup.metadata).toMatchObject({ derivative_kind: "print_png", provider_source: "internal", renderer_version: "internal-sharp-v1" });
+    expect(rerenderBody.mockup.metadata.checksum_sha256).not.toBe(body.mockup.metadata.checksum_sha256);
+    expect(heroResponse.status).toBe(200);
+    expect(heroBody.mockup.metadata).toMatchObject({ is_hero: true });
     expect(preview.status).toBe(200);
     expect(sampled[1]).toBeGreaterThan(80);
     expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(html).toContain("Use in product draft");
+  });
+
+  it("blocks internal mockup rendering when the print-ready derivative is missing", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const assetId = `asset_no_derivative_${Date.now()}`;
+    const { storageKey, buffer } = await writeLocalArtwork(assetId, "#ef675b");
+    await repos.asset.create({
+      id: assetId,
+      workspace_id: workspaceId,
+      brief_id: `brief_${assetId}`,
+      asset_type: "generated_source_art",
+      storage_bucket: "local-dev-private-assets",
+      file_path: storageKey,
+      file_size_bytes: buffer.byteLength,
+      width: 3000,
+      height: 3000,
+      dpi: 300,
+      transparent_background: true,
+      generator: "huggingface",
+      model: "black-forest-labs/FLUX.1-schnell",
+      qa_status: "passed",
+      risk_status: "pending",
+      approved_for_mockup: true,
+      mime_type: "image/png",
+      extension: "png",
+      visibility: "private",
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
+
+    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      ok: false,
+      status: "blocked",
+      blockingReasons: ["print_derivative_missing"]
+    });
+    expect(JSON.stringify(body)).not.toMatch(/service_role|token|secret/i);
+  });
+
+  it("renders multiple recommended internal mockups for an approved asset package", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const assetId = await seedApprovedAsset(repos, `recommended_${Date.now()}`);
+
+    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, mode: "recommended" }));
+    const body = await response.json();
+    const mockups = await repos.mockup.listByWorkspace(workspaceId);
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe("recommended_mockups_created");
+    expect(body.mockups.length).toBeGreaterThanOrEqual(1);
+    expect(mockups.length).toBeGreaterThanOrEqual(1);
+    expect(mockups[0]?.metadata).toMatchObject({ derivative_kind: "print_png", renderer_version: "internal-sharp-v1" });
   });
 
   it("makes Printify catalog browsable when connected, even before a product draft exists", async () => {

@@ -57,6 +57,57 @@ export function MockupPreviewDefault() {
   return <MockupPreviewCard title="Mockup preview"><p className="text-muted">Rendered mockups appear here after approved artwork and template QA pass.</p></MockupPreviewCard>;
 }
 
+export function GenerationEmptyState() {
+  return <section className="surface-card" style={{ maxWidth: 960, display: "grid", gap: 16 }}>
+    <div><p className="eyebrow-label">Creative production</p><h2>Generate artwork options</h2><p className="text-muted">Approve a brief before generating private source-art variants.</p></div>
+    <button className="btn btn-primary" disabled title="Approve a brief before generating artwork.">Generate 4 options</button>
+  </section>;
+}
+
+export function GenerationRunningState() {
+  return <section className="provider-result-panel provider-result-panel-success" style={{ maxWidth: 960 }}>
+    <p className="eyebrow-label">Generation result</p><h3>Generating artwork</h3><p className="text-muted">The provider is creating image bytes and SaltyFactory will store private previews before marking the job complete.</p>
+  </section>;
+}
+
+export function GenerationCompletedVariants() {
+  return <section className="layout-grid layout-grid-2" style={{ maxWidth: 1100 }}>
+    {[1, 2, 3, 4].map((variant) => <article className="surface-card" key={variant} style={{ display: "grid", gap: 12 }}>
+      <div style={{ aspectRatio: "1 / 1", borderRadius: 8, border: "1px solid rgba(15,23,42,0.12)", background: variant % 2 ? "#f6ede0" : "#cae8de", display: "grid", placeItems: "center" }}><strong>Variant {variant}</strong></div>
+      <strong>Artwork generated</strong><p className="text-muted">Seed {202607040 + variant} - print PNG, thumbnail, and web preview created.</p>
+      <div className="action-bar"><button className="btn btn-primary">Review asset</button><button className="btn btn-secondary">Run QA</button></div>
+    </article>)}
+  </section>;
+}
+
+export function GenerationPartialFailure() {
+  return <section className="provider-result-panel provider-result-panel-warning" style={{ maxWidth: 960 }}>
+    <p className="eyebrow-label">Generation result</p><h3>Artwork generated with partial failures</h3><p className="text-muted">Two variants were stored. Two variants failed safely because the provider was rate-limited.</p>
+    <ul><li>Variant 3: Provider rate limited</li><li>Variant 4: Try again after a short wait</li></ul>
+  </section>;
+}
+
+export function MockupTemplatePickerState() {
+  return <section className="surface-card" style={{ maxWidth: 960, display: "grid", gap: 14 }}>
+    <h2>Internal Mockup Workflow</h2>
+    <div className="form-grid"><label>Internal template<select><option>Apparel Front - Light Tee</option><option>Tote Front - Natural Canvas</option><option>Mug Front - White Mug</option></select></label><label>Scale<input type="number" value="1" readOnly /></label><button className="btn btn-primary">Render selected template</button></div>
+  </section>;
+}
+
+export function MockupGalleryHeroSelected() {
+  return <section className="layout-grid layout-grid-3" style={{ maxWidth: 1100 }}>
+    {["Light Tee", "Sand Tee", "Tote"].map((label, index) => <article className="surface-card" key={label} style={{ display: "grid", gap: 10 }}>
+      <div style={{ aspectRatio: "4 / 5", borderRadius: 8, border: "1px solid rgba(15,23,42,0.12)", background: index === 0 ? "#cae8de" : "#f6ede0", display: "grid", placeItems: "center" }}><strong>{label}</strong></div>
+      <strong>{label}</strong><p className="text-muted">{index === 0 ? "Hero mockup selected" : "Internal renderer proof stored"}</p>
+      <div className="action-bar"><button className="btn btn-secondary">Set hero mockup</button></div>
+    </article>)}
+  </section>;
+}
+
+export function PrintifyMockupsUnavailable() {
+  return <SetupRequiredPanel items={["Create a Printify product before importing provider-generated mockups."]} />;
+}
+
 export function ShopifyDraftDefault() {
   return <ShopifyDraftCard title="Shopify draft" status="not_created"><p className="text-muted">Draft creation is blocked until provider config and publish gates pass.</p></ShopifyDraftCard>;
 }

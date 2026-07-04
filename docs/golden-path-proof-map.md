@@ -5,10 +5,10 @@ This map is the implementation proof surface for the private-beta POD path. It t
 | Step | Owner route | Backend/provider route | Persisted proof | Downstream consumer | Regression proof |
 |---|---|---|---|---|---|
 | Brief approval | `/studio/briefs` | Design brief approval routes | Approved brief row with generation prompt and owner approval state | Send-to-generation route | `tests/pod-golden-path-execution.test.ts` |
-| Generate art | `/studio/briefs`, `/studio/image-generation` | `/api/studio/design-briefs/[id]/send-to-generation`, worker | Generation job plus `design_assets` row with private bucket/path/MIME/provider/model | Asset preview, QA, mockups, product builder | `tests/pod-golden-path-execution.test.ts` |
-| Private asset preview | `/studio/assets`, downstream preview cards | `/api/studio/assets/[id]/preview` | Private storage object read server-side; no public source art URL | QA, mockups, product builder, publish review | `tests/pod-golden-path-execution.test.ts` |
-| QA approval | `/studio/assets` | Asset QA/approval routes | QA row and asset `qa_status`, `approved_for_mockup` | Mockup generation and product draft creation | `tests/pod-golden-path-execution.test.ts` |
-| Mockup generation | `/studio/mockups` | `/api/studio/mockups/generate` | Mockup row with source asset, private path, MIME, approved state | Product builder and Shopify media handoff | `tests/pod-golden-path-execution.test.ts`, `tests/provider-functional-api-mapping.test.ts` |
+| Generate art | `/studio/briefs`, `/studio/image-generation` | `/api/studio/design-briefs/[id]/send-to-generation`, worker | Generation job plus master `design_assets` rows and derivative rows: `thumbnail`, `web_preview`, `print_png` | Asset preview, QA, mockups, product builder | `tests/pod-golden-path-execution.test.ts` |
+| Private asset preview | `/studio/assets`, downstream preview cards | `/api/studio/assets/[id]/preview`, `/api/studio/assets/[id]/derivatives/[kind]/preview` | Private storage objects read server-side; no public source art URL or private bucket path in owner response | QA, mockups, product builder, publish review | `tests/pod-golden-path-execution.test.ts` |
+| QA approval | `/studio/assets` | Asset QA/approval routes | QA row and asset `qa_status`, `approved_for_mockup`; generated masters must have derivative package proof | Mockup generation and product draft creation | `tests/pod-golden-path-execution.test.ts` |
+| Mockup generation | `/studio/mockups` | `/api/studio/mockups/generate` | Mockup row with source asset, print derivative asset, template, placement JSON, renderer version, checksum, private path, approved state | Product builder and Shopify media handoff | `tests/pod-golden-path-execution.test.ts`, `tests/provider-functional-api-mapping.test.ts` |
 | Mockup preview | `/studio/mockups`, product/publish pages | `/api/studio/mockups/[id]/preview` | Authenticated byte response from private mockup storage | Product Builder, Publish Review, Shopify draft route | `tests/pod-golden-path-execution.test.ts` |
 | Product draft | `/studio/product-builder` | `/api/studio/drafts/create-from-assets` | Product draft with asset ID, mockup IDs, pricing, collection, tags, provider target | Printify catalog selection and Publish Review | `tests/pod-golden-path-execution.test.ts` |
 | Printify catalog | `/studio/printify-catalog` | `/api/studio/integrations/printify/catalog/*` | Live blueprint/provider/variant data fetched through resolver; saved variant rows and margin checks | Printify upload/product create | `tests/printify-runtime-resolver.test.ts`, `tests/pod-golden-path-execution.test.ts` |
@@ -39,6 +39,7 @@ Provider proof now visible in `/studio/publish-review`:
 
 ## Known Verification Gaps
 
-- Live external provider smoke was not run by automated tests; tests use mocked provider responses for deterministic CI.
+- Live external provider smoke was not run by automated tests; tests use mocked provider responses or local demo image bytes for deterministic CI.
+- Live image/mockup smoke exists as `corepack pnpm smoke:image-mockup-live` and is skipped unless `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true`.
 - Shopify currently uses the REST Admin adapter in the repo. GraphQL is a future migration, not required for the current verified draft path.
 - Publish Review provider proof rows are derived from persisted refs and asset metadata. The core domain gate schema still uses the legacy compact gate set.

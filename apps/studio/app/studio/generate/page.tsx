@@ -3,6 +3,7 @@ import { getStudioLists } from "../data";
 import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel } from "../_provider-readiness";
 import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 import { assetPreviewPath } from "../_private-preview-paths";
+import { GenerationStudioClient } from "./GenerationStudioClient";
 
 type RecommendedModel = { model: string; label: string };
 
@@ -11,7 +12,7 @@ function ownerLabel(value: unknown, fallback = "pending") {
 }
 
 export default async function Page() {
-  const { jobs, assets } = await getStudioLists();
+  const { jobs, assets, briefs } = await getStudioLists();
   const readiness = await getWorkspaceProviderReadiness();
   const resolvedProvider = readiness.providers.image_generation;
   const storage = readiness.providers.storage;
@@ -28,10 +29,11 @@ export default async function Page() {
       : resolvedProvider.safeMessage;
 
   return <>
-    <PageHeader title="Generation Queue" description="Provider-gated job monitoring for image generation and downstream asset processing.">
+    <PageHeader title="Image Generation Studio" description="Generate private source-art variants, derivative packages, and print-ready files from approved briefs.">
       <a className="btn btn-primary" href="/studio/briefs">Send Approved Brief</a>
       {!connected ? <a className="btn btn-secondary" href="/studio/onboarding/providers/image-generation">Configure image generation</a> : null}
     </PageHeader>
+    <GenerationStudioClient initialBriefs={briefs as any[]} />
     <div className="layout-grid layout-grid-3"><MetricCard title="Queued jobs" value={String(jobs.filter((j:any)=>j.status==="queued").length)} /><MetricCard title="Running" value={String(jobs.filter((j:any)=>j.status==="running").length)} tone="info" /><MetricCard title="Failed" value={String(jobs.filter((j:any)=>j.status==="failed").length)} tone="danger" /></div>
     <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
       <section className="surface-card">

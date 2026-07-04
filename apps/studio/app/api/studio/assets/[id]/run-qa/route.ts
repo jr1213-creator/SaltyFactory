@@ -4,6 +4,7 @@ import { requireDraftMutationPermission } from "@saltyfactory/auth";
 import { createRepositories } from "@saltyfactory/db";
 import { computePerceptualHash, evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../../_auth";
+import { findAssetDerivative, generatedDerivativeKinds, isGeneratedDerivativeAsset, metadataOf } from "../../../_image-production";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
@@ -43,23 +44,66 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       filename: String(asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? ""),
       perceptualHash
     }, undefined, existingHashes);
+    const isGeneratedMaster = String(asset.asset_type ?? asset.assetType) === "generated_source_art" && !isGeneratedDerivativeAsset(asset);
+    const derivatives = isGeneratedMaster
+      ? await Promise.all(generatedDerivativeKinds.map(async (kind) => ({ kind, row: await findAssetDerivative(repos, workspaceId, id, kind) })))
+      : [];
+    const missingDerivativeKinds = derivatives.filter((item) => !item.row).map((item) => item.kind);
+    const assetMetadata = metadataOf(asset);
+    const checks = {
+      ...qaResult.checks,
+      ...(isGeneratedMaster ? {
+        derivative_package_ok: {
+          status: missingDerivativeKinds.length ? "failed" : "passed",
+          message: missingDerivativeKinds.length
+            ? `Missing generated derivative package: ${missingDerivativeKinds.join(", ")}.`
+            : "Thumbnail, web preview, and print-ready PNG derivatives exist.",
+          evidence: { derivativeKinds: generatedDerivativeKinds, missingDerivativeKinds }
+        },
+        print_ready_png_exists: {
+          status: missingDerivativeKinds.includes("print_png") ? "failed" : "passed",
+          message: missingDerivativeKinds.includes("print_png")
+            ? "This asset needs a print-ready PNG before mockups can be rendered."
+            : "Print-ready PNG derivative exists for internal mockup rendering."
+        },
+        preview_route_available: {
+          status: "passed",
+          message: "Protected preview routes are available for the master asset and derivative package."
+        }
+      } : {}),
+      ...(assetMetadata.text_requested === true || assetMetadata.textRequested === true ? {
+        text_reliability_warning: {
+          status: "warnings",
+          message: "AI-generated text can be unreliable. Owner spelling review is required before product use."
+        }
+      } : {})
+    };
+    const blockedReasons = [
+      ...qaResult.blocked_reasons,
+      ...(missingDerivativeKinds.length ? ["derivative_package_missing"] : [])
+    ];
+    const warnings = [
+      ...qaResult.warnings,
+      ...(assetMetadata.text_requested === true || assetMetadata.textRequested === true ? ["text_reliability_warning"] : [])
+    ];
+    const status = blockedReasons.length ? "failed" : qaResult.status;
     const qa = await repos.qa.create({
       id: `qa_${Date.now()}`,
       workspace_id: workspaceId,
       asset_id: id,
-      checks: qaResult.checks,
-      status: qaResult.status,
-      blocked_reasons: qaResult.blocked_reasons,
-      warnings: qaResult.warnings,
+      checks,
+      status,
+      blocked_reasons: blockedReasons,
+      warnings,
       evidence: qaResult.evidence,
-      approved_for_product_draft: qaResult.approved_for_product_draft,
+      approved_for_product_draft: blockedReasons.length === 0 && qaResult.approved_for_product_draft,
       reviewed_by: user.id,
       reviewed_at: new Date().toISOString(),
       created_by: user.id,
       updated_by: user.id
     });
-    await repos.asset.update(id, { qa_status: qaResult.status, updated_by: user.id });
-    return NextResponse.json({ ok: true, status: qaResult.status, qa });
+    await repos.asset.update(id, { qa_status: status, updated_by: user.id });
+    return NextResponse.json({ ok: true, status, qa });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

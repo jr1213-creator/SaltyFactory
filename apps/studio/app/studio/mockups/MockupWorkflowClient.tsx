@@ -6,8 +6,22 @@ import { assetPreviewPath, mockupPreviewPath } from "../_private-preview-paths";
 
 type Row = Record<string, any>;
 
+const internalTemplates = [
+  ["tmpl_internal_apparel_light_tee", "Apparel Front - Light Tee"],
+  ["tmpl_internal_apparel_dark_tee", "Apparel Front - Dark Tee"],
+  ["tmpl_internal_apparel_sand_tee", "Apparel Front - Sand Tee"],
+  ["tmpl_internal_tote_natural_canvas", "Tote Front - Natural Canvas"],
+  ["tmpl_internal_sticker_sheet_cream", "Sticker Sheet - Cream Background"],
+  ["tmpl_internal_mug_white_front", "Mug Front - White Mug"],
+  ["tmpl_internal_square_product_card", "Square Product Card - Boutique Flatlay"]
+] as const;
+
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
+}
+
+function StatusLine({ label, value }: { label: string; value: string }) {
+  return <p className="text-muted" style={{ margin: 0 }}><strong>{label}:</strong> {value}</p>;
 }
 
 function sanitizeDeveloperDetails(value: unknown) {
@@ -35,6 +49,7 @@ function ResultPanel({ result }: { result: unknown }) {
   const message = String(record.message ?? (ok ? "Mockup workflow action completed." : "Mockup workflow action could not be completed."));
   const blockers = Array.isArray(record.blockingReasons) ? record.blockingReasons.map((item: unknown) => ownerLabel(item)) : [];
   const mockup = record.mockup && typeof record.mockup === "object" ? record.mockup as Row : null;
+  const mockups = Array.isArray(record.mockups) ? record.mockups.filter((item: unknown): item is Row => Boolean(item && typeof item === "object" && !Array.isArray(item))) : [];
   const draft = record.draft && typeof record.draft === "object" ? record.draft as Row : null;
 
   return <section className={`provider-result-panel provider-result-panel-${ok ? "success" : "warning"}`} aria-live="polite">
@@ -46,6 +61,11 @@ function ResultPanel({ result }: { result: unknown }) {
       </div>
     </div>
     {mockup ? <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Composited mockup preview" aspectRatio="4 / 5" maxHeight={360} /> : null}
+    {!mockup && mockups.length ? <div className="layout-grid layout-grid-3">{mockups.map((item) => <article key={String(item.id)} className="surface-card" style={{ display: "grid", gap: 8 }}>
+      <PrivateImagePreview src={String(item.previewUrl ?? mockupPreviewPath(item))} alt="Rendered mockup preview" aspectRatio="4 / 5" maxHeight={260} />
+      <strong>{item.id}</strong>
+      <p className="text-muted" style={{ margin: 0 }}>{ownerLabel(item.providerSource, "internal")} renderer</p>
+    </article>)}</div> : null}
     <dl className="result-detail-grid">
       {mockup ? <div><dt>Mockup</dt><dd>{mockup.id}</dd></div> : null}
       {mockup ? <div><dt>Status</dt><dd>{ownerLabel(mockup.status)}</dd></div> : null}
@@ -71,6 +91,8 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
   const initialApprovedAssetId = approvedAssets.some((asset) => asset.id === initialAssetId) ? initialAssetId : approvedAssets[0]?.id;
   const [assetId, setAssetId] = useState(initialApprovedAssetId ?? "");
   const [productType, setProductType] = useState("tee_front");
+  const [templateId, setTemplateId] = useState("tmpl_internal_apparel_light_tee");
+  const [placement, setPlacement] = useState({ x: 450, y: 520, scale: 1, rotation: 0, opacity: 0.96 });
   const [mockups, setMockups] = useState(initialMockups);
   const [selectedMockupId, setSelectedMockupId] = useState(initialMockups[0]?.id ?? "");
   const [result, setResult] = useState<unknown>(null);
@@ -87,15 +109,36 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
     }
   }
 
-  async function generate() {
+  async function generate(mode: "single" | "recommended" = "single") {
     setBusy(true);
     try {
-      const data = await postJson("/api/studio/mockups/generate", { asset_id: assetId, product_type: productType });
+      const data = await postJson("/api/studio/mockups/generate", {
+        asset_id: assetId,
+        product_type: productType,
+        template_id: templateId,
+        mode: mode === "recommended" ? "recommended" : "single",
+        placement
+      });
       setResult(data);
       await refresh();
       if (data.mockup?.id) setSelectedMockupId(data.mockup.id);
+      if (!data.mockup?.id && Array.isArray(data.mockups) && data.mockups[0]?.id) setSelectedMockupId(data.mockups[0].id);
     } catch {
       setResult({ ok: false, status: "request_failed", message: "Unable to generate mockup." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setHero() {
+    if (!selectedMockupId) return;
+    setBusy(true);
+    try {
+      const data = await postJson(`/api/studio/mockups/${selectedMockupId}/hero`);
+      setResult(data);
+      await refresh();
+    } catch {
+      setResult({ ok: false, status: "request_failed", message: "Unable to set hero mockup." });
     } finally {
       setBusy(false);
     }
@@ -144,8 +187,16 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
     <h2>Internal Mockup Workflow</h2>
     <div className="form-grid">
       <label>Approved art<select value={assetId} onChange={(event) => setAssetId(event.target.value)}>{approvedAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename ?? asset.file_path ?? asset.id}</option>)}</select></label>
-      <label>Template<select value={productType} onChange={(event) => setProductType(event.target.value)}><option value="tee_front">Tee front</option><option value="sweatshirt_front">Sweatshirt front</option><option value="tote">Tote</option><option value="mug">Mug</option><option value="sticker">Sticker</option></select></label>
-      <button className="btn btn-primary" disabled={busy || !assetId} onClick={generate}>Generate Internal Mockup</button>
+      <label>Template group<select value={productType} onChange={(event) => setProductType(event.target.value)}><option value="tee_front">Tee front</option><option value="tote">Tote</option><option value="mug">Mug</option><option value="sticker">Sticker</option><option value="product_card">Product card</option></select></label>
+      <label>Internal template<select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{internalTemplates.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+    </div>
+    <div className="form-grid">
+      <label>X<input type="number" value={placement.x} onChange={(event) => setPlacement((current) => ({ ...current, x: Number(event.target.value) || 0 }))} /></label>
+      <label>Y<input type="number" value={placement.y} onChange={(event) => setPlacement((current) => ({ ...current, y: Number(event.target.value) || 0 }))} /></label>
+      <label>Scale<input type="number" step="0.05" min="0.25" max="2.5" value={placement.scale} onChange={(event) => setPlacement((current) => ({ ...current, scale: Number(event.target.value) || 1 }))} /></label>
+      <label>Rotation<input type="number" value={placement.rotation} onChange={(event) => setPlacement((current) => ({ ...current, rotation: Number(event.target.value) || 0 }))} /></label>
+      <button className="btn btn-primary" disabled={busy || !assetId} onClick={() => generate("single")}>Render selected template</button>
+      <button className="btn btn-secondary" disabled={busy || !assetId} onClick={() => generate("recommended")}>Generate recommended mockups</button>
     </div>
     {selectedAsset ? <div className="surface-card" style={{ display: "grid", gap: 10 }}>
       <PrivateImagePreview src={assetPreviewPath(selectedAsset)} alt="Approved source artwork preview" maxHeight={260} />
@@ -155,10 +206,12 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
     {selected ? <div className="surface-card" style={{ display: "grid", gap: 10 }}>
       <PrivateImagePreview src={mockupPreviewPath(selected)} alt="Selected composited mockup preview" aspectRatio="4 / 5" maxHeight={360} />
       <p className="text-muted">{ownerLabel(selected.status)} - approved for product {String(selectedApproved)} - internal preview only</p>
+      {(selected.metadata?.is_hero || selected.metadata?.isHero) ? <StatusLine label="Hero mockup" value="Selected" /> : null}
     </div> : <p className="text-muted">Generate a mockup from an approved asset first.</p>}
     <div className="action-bar">
       <button className="btn btn-primary" disabled={!selected || busy || selectedApproved} onClick={() => review("approve")}>Approve Mockup</button>
       <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => review("reject")}>Reject Mockup</button>
+      <button className="btn btn-secondary" disabled={!selected || busy} onClick={setHero}>Set hero mockup</button>
       <button className="btn btn-primary" disabled={!selected || busy || !selectedApproved} onClick={createDraft}>Create Product Draft</button>
       {selectedApproved ? <a className="btn btn-secondary" href="/studio/product-builder">Open Product Builder</a> : null}
     </div>

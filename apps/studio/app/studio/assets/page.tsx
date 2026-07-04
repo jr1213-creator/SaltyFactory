@@ -1,7 +1,7 @@
 import { ApprovalGateList, Card, EmptyState, FilterBar, MetricCard, PageHeader, ProductGrid, ProgressRing, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { PrivateImagePreview } from "../_components/PrivateImagePreview";
-import { assetPreviewPath } from "../_private-preview-paths";
+import { assetDerivativePreviewPath, assetPreviewPath } from "../_private-preview-paths";
 import { AssetWorkflowClient } from "./AssetWorkflowClient";
 
 function ownerLabel(value: unknown, fallback = "pending") {
@@ -10,7 +10,14 @@ function ownerLabel(value: unknown, fallback = "pending") {
 
 export default async function Page({ searchParams }: { searchParams?: Promise<{ asset_id?: string }> } = {}) {
   const params = await searchParams;
-  const { assets, jobs, mockups, setupMessage } = await getStudioLists();
+  const { assets, assetDerivatives, jobs, mockups, setupMessage } = await getStudioLists();
+  const selectedAsset = params?.asset_id ? assets.find((asset: any) => String(asset.id) === params.asset_id) : assets[0];
+  const selectedDerivatives = selectedAsset
+    ? assetDerivatives.filter((asset: any) => {
+      const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
+      return String(metadata.source_asset_id ?? metadata.sourceAssetId ?? metadata.parent_asset_id ?? metadata.parentAssetId ?? "") === String((selectedAsset as any).id);
+    })
+    : [];
 
   return <>
     <PageHeader title="Generation Jobs & Assets" description="Manage generated designs, mockups, and print-ready files from concept to production.">
@@ -32,6 +39,27 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
     <div className="split-pane" style={{ marginTop: 18 }}>
       <div className="layout-grid">
         <AssetWorkflowClient initialAssets={assets as any[]} initialAssetId={params?.asset_id} />
+        {selectedAsset ? <section className="surface-card" style={{ display: "grid", gap: 12 }}>
+          <div>
+            <p className="eyebrow-label">Asset package</p>
+            <h2>Private derivative proof</h2>
+            <p className="text-muted">Generated masters stay immutable. The workflow creates private preview derivatives and a print-ready PNG for mockup rendering.</p>
+          </div>
+          {selectedDerivatives.length ? <div className="layout-grid layout-grid-3">
+            {selectedDerivatives.map((derivative: any) => {
+              const metadata = derivative.metadata && typeof derivative.metadata === "object" ? derivative.metadata as Record<string, unknown> : {};
+              const kind = String(metadata.derivative_kind ?? metadata.derivativeKind ?? derivative.asset_type ?? derivative.assetType ?? "");
+              return <article key={derivative.id} className="surface-card" style={{ display: "grid", gap: 8 }}>
+                <PrivateImagePreview src={assetDerivativePreviewPath(selectedAsset as any, kind)} alt={`${ownerLabel(kind)} private derivative preview`} maxHeight={220} />
+                <strong>{ownerLabel(kind)}</strong>
+                <dl className="result-detail-grid">
+                  <div><dt>Size</dt><dd>{derivative.width && derivative.height ? `${derivative.width} x ${derivative.height}` : "stored"}</dd></div>
+                  <div><dt>Type</dt><dd>{derivative.mime_type ?? derivative.mimeType}</dd></div>
+                </dl>
+              </article>;
+            })}
+          </div> : <EmptyState title="Derivative package pending" description="Generate artwork through the Image Generation Studio to create thumbnail, web preview, and print-ready PNG derivatives." />}
+        </section> : null}
         <div className="tabs-list"><span>Generated Art</span><span>Mockups</span><span>Print Files</span></div>
         {assets.length ? <ProductGrid>{assets.slice(0, 9).map((asset: any) => {
           const approved = Boolean(asset.approved_for_mockup || asset.approvedForMockup);

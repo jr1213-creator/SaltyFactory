@@ -1,7 +1,7 @@
 import { createRepositories } from "@saltyfactory/db";
 
 export const studioWorkspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
-const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], mockups: [], drafts: [], marginChecks: [], publishReviews: [], products: [], printifyProducts: [], productBatches: [], productBatchItems: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], aiEmployeeRuns: [], aiEmployeeOutputs: [], activity: [] };
+const emptyLists = { trends: [], clusters: [], phrases: [], briefs: [], jobs: [], assets: [], assetDerivatives: [], mockups: [], drafts: [], marginChecks: [], publishReviews: [], products: [], printifyProducts: [], productBatches: [], productBatchItems: [], providerConnections: [], integrationSyncRuns: [], workspaceMetrics: [], businessProfiles: [], channels: [], migrationGuides: [], baselines: [], podCandidates: [], dropshipCandidates: [], listingDraftsV1: [], socialContent: [], aiEmployees: [], aiEmployeeRuns: [], aiEmployeeOutputs: [], activity: [] };
 type StudioDataSetupKind =
   | "schema_incomplete"
   | "database_not_configured"
@@ -116,6 +116,18 @@ function handleBusinessProfileDataError(error: unknown) {
   return state;
 }
 
+function isGeneratedDerivativeAsset(row: Record<string, unknown>) {
+  const type = String(row.asset_type ?? row.assetType ?? "");
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? row.metadata as Record<string, unknown>
+    : {};
+  const kind = String(metadata.derivative_kind ?? metadata.derivativeKind ?? "");
+  return ["thumbnail", "web_preview", "print_png"].includes(type)
+    || ["thumbnail", "web_preview", "print_png"].includes(kind)
+    || metadata.derivative_package === true
+    || metadata.derivativePackage === true;
+}
+
 export async function getBusinessProfileStudioData() {
   if (!process.env.DATABASE_URL && process.env.REPOSITORY_ADAPTER !== "memory") {
     return setupState("database_not_configured");
@@ -166,7 +178,9 @@ export async function getStudioLists() {
       repos.aiEmployee.outputs.listByWorkspace(studioWorkspaceId),
       repos.audit.listByWorkspace(studioWorkspaceId)
     ]);
-    return { trends, clusters, phrases, briefs, jobs, assets, mockups, drafts, marginChecks, publishReviews, products, printifyProducts, productBatches, productBatchItems, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity, schemaIncomplete: false, setupMessage: "" };
+    const assetDerivatives = assets.filter((asset) => isGeneratedDerivativeAsset(asset as Record<string, unknown>));
+    const visibleAssets = assets.filter((asset) => !isGeneratedDerivativeAsset(asset as Record<string, unknown>));
+    return { trends, clusters, phrases, briefs, jobs, assets: visibleAssets, assetDerivatives, mockups, drafts, marginChecks, publishReviews, products, printifyProducts, productBatches, productBatchItems, providerConnections, integrationSyncRuns, workspaceMetrics, businessProfiles, channels, migrationGuides, baselines, podCandidates, dropshipCandidates, listingDraftsV1, socialContent, aiEmployees, aiEmployeeRuns, aiEmployeeOutputs, activity, schemaIncomplete: false, setupMessage: "" };
   } catch (error) {
     return handleStudioDataError(error, "studio_lists_loader");
   }

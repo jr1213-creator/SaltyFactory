@@ -46,6 +46,104 @@ function extensionForContentType(contentType: string) {
   return "png";
 }
 
+function resolvePrintTargetDimensions(printTarget = "apparel_front_square") {
+  const targets: Record<string, { width: number; height: number }> = {
+    apparel_front_square: { width: 4500, height: 4500 },
+    apparel_front_vertical: { width: 4500, height: 5400 },
+    sticker_square: { width: 3000, height: 3000 },
+    mug_wrap: { width: 5400, height: 2400 },
+    tote_front: { width: 4200, height: 4800 },
+    generic_square: { width: 3000, height: 3000 }
+  };
+  return targets[printTarget] ?? targets.generic_square!;
+}
+
+async function storeWorkerDerivative(input: {
+  repos: RepositoryBundle;
+  storage: StorageProvider;
+  sourceAsset: Record<string, any>;
+  kind: "thumbnail" | "web_preview" | "print_png";
+  buffer: Buffer;
+  contentType: string;
+  actorId: string;
+}) {
+  const extension = extensionForContentType(input.contentType);
+  const sourceId = String(input.sourceAsset.id);
+  const storageKey = `workspaces/${safeSegment(workspaceId)}/private/assets/${sourceId}-${input.kind}.${extension}`;
+  const upload = await input.storage.uploadPrivateAsset(storageKey, input.buffer, input.contentType);
+  let storageBucket = resolveStorageRuntimeConfig({
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_PRIVATE_ASSETS_BUCKET: process.env.SUPABASE_PRIVATE_ASSETS_BUCKET,
+    SUPABASE_PUBLIC_ASSETS_BUCKET: process.env.SUPABASE_PUBLIC_ASSETS_BUCKET,
+    SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET
+  }).SUPABASE_PRIVATE_ASSETS_BUCKET || "local-dev-private-assets";
+  if (!upload.ok) {
+    if (process.env.APP_ENV === "production") throw Object.assign(new Error(upload.error), { retryable: false });
+    const localRoot = path.resolve(process.cwd(), ".saltyfactory-private", "assets", safeSegment(workspaceId));
+    await mkdir(localRoot, { recursive: true });
+    await writeFile(path.resolve(localRoot, path.basename(storageKey)), input.buffer);
+    storageBucket = "local-dev-private-assets";
+  }
+  const metadata = await (await import("sharp")).default(input.buffer).metadata();
+  const checksum = crypto.createHash("sha256").update(input.buffer).digest("hex");
+  return input.repos.asset.create({
+    id: `${sourceId}_${input.kind}`,
+    workspace_id: workspaceId,
+    job_id: input.sourceAsset.job_id ?? input.sourceAsset.jobId,
+    brief_id: input.sourceAsset.brief_id ?? input.sourceAsset.briefId,
+    asset_type: input.kind,
+    storage_bucket: storageBucket,
+    file_path: storageKey,
+    file_size_bytes: input.buffer.byteLength,
+    width: metadata.width ?? 0,
+    height: metadata.height ?? 0,
+    dpi: metadata.density ?? 300,
+    transparent_background: Boolean(metadata.hasAlpha),
+    generator: input.sourceAsset.generator ?? "image_provider",
+    model: input.sourceAsset.model ?? "unknown",
+    qa_status: "passed",
+    risk_status: "pending",
+    approved_for_mockup: false,
+    checksum,
+    mime_type: input.contentType,
+    extension,
+    visibility: "private",
+    notes: `Worker-created ${input.kind.replace(/_/g, " ")} derivative.`,
+    created_by: input.actorId,
+    updated_by: input.actorId,
+    metadata: {
+      derivative_package: true,
+      derivative_kind: input.kind,
+      source_asset_id: sourceId,
+      parent_asset_id: sourceId,
+      generated_by_worker: true
+    }
+  });
+}
+
+async function createWorkerAssetDerivatives(input: {
+  repos: RepositoryBundle;
+  storage: StorageProvider;
+  sourceAsset: Record<string, any>;
+  imageBytes: Buffer;
+  actorId: string;
+  printTarget?: string;
+}) {
+  const sharp = (await import("sharp")).default;
+  const metadata = await sharp(input.imageBytes).metadata();
+  const target = resolvePrintTargetDimensions(input.printTarget);
+  const printBackground = metadata.hasAlpha
+    ? { r: 255, g: 255, b: 255, alpha: 0 }
+    : { r: 255, g: 255, b: 255, alpha: 1 };
+  const thumbnail = await sharp(input.imageBytes).autoOrient().resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: false }).webp({ quality: 82 }).toBuffer();
+  const webPreview = await sharp(input.imageBytes).autoOrient().resize({ width: 1400, height: 1400, fit: "inside", withoutEnlargement: false }).webp({ quality: 88 }).toBuffer();
+  const printPng = await sharp(input.imageBytes).autoOrient().resize({ width: target.width, height: target.height, fit: "contain", background: printBackground }).png({ compressionLevel: 9 }).toBuffer();
+  await storeWorkerDerivative({ repos: input.repos, storage: input.storage, sourceAsset: input.sourceAsset, kind: "thumbnail", buffer: thumbnail, contentType: "image/webp", actorId: input.actorId });
+  await storeWorkerDerivative({ repos: input.repos, storage: input.storage, sourceAsset: input.sourceAsset, kind: "web_preview", buffer: webPreview, contentType: "image/webp", actorId: input.actorId });
+  await storeWorkerDerivative({ repos: input.repos, storage: input.storage, sourceAsset: input.sourceAsset, kind: "print_png", buffer: printPng, contentType: "image/png", actorId: input.actorId });
+}
+
 async function persistGeneratedBuffer(input: {
   repos: RepositoryBundle;
   storage: StorageProvider;
@@ -108,6 +206,15 @@ async function persistGeneratedBuffer(input: {
     created_by: input.actorId,
     updated_by: input.actorId,
     metadata: { generated_by_worker: true }
+  });
+
+  await createWorkerAssetDerivatives({
+    repos: input.repos,
+    storage: input.storage,
+    sourceAsset: asset,
+    imageBytes: input.buffer,
+    actorId: input.actorId,
+    printTarget: String(input.job.parameters?.print_target ?? input.job.parameters?.printTarget ?? "apparel_front_square")
   });
 
   await input.repos.qa.create({

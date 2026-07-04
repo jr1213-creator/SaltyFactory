@@ -53,6 +53,46 @@ export type PromptPackage = {
   safe_to_generate: boolean;
 };
 
+export type PodStylePreset = {
+  id: string;
+  label: string;
+  promptAdditions: string[];
+  negativePromptAdditions: string[];
+  defaultDimensions: { width: number; height: number };
+  suggestedPrintTargets: string[];
+  styleTags: string[];
+};
+
+export type PodPromptRecipe = {
+  prompt: string;
+  negativePrompt: string;
+  width: number;
+  height: number;
+  guidanceScale: number;
+  numInferenceSteps: number;
+  seed: number | null;
+  printTarget: string;
+  stylePreset: string;
+  safetyNotes: string[];
+  textRequested: boolean;
+  basePackage: PromptPackage;
+};
+
+export const defaultPodNegativePrompt = "blurry, low resolution, distorted text, misspelled words, extra letters, warped letters, cropped design, watermark, logo, signature, mockup, t-shirt photo, product photo, human model, hands, face, bad anatomy, noisy background, cluttered background";
+
+export const podStylePresets: PodStylePreset[] = [
+  { id: "coastal_cowgirl", label: "Coastal Cowgirl", promptAdditions: ["boutique western coastal style", "coral and turquoise accents", "sun-faded premium apparel graphic"], negativePromptAdditions: ["cheap clip art", "muddy colors"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square", "tote_front"], styleTags: ["coastal", "western", "feminine"] },
+  { id: "western_luxe", label: "Western Luxe", promptAdditions: ["premium western boutique design", "refined leather and ranch-inspired detailing", "polished high-end print artwork"], negativePromptAdditions: ["cartoonish", "messy layout"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square"], styleTags: ["western", "premium"] },
+  { id: "retro_rodeo", label: "Retro Rodeo", promptAdditions: ["retro rodeo poster energy", "vintage screenprint feel", "bold readable composition"], negativePromptAdditions: ["modern tech style", "photorealistic shirt"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square", "sticker_square"], styleTags: ["retro", "rodeo"] },
+  { id: "surf_ranch", label: "Surf Ranch", promptAdditions: ["coastal surf ranch mood", "weathered beach rodeo palette", "relaxed premium apparel graphic"], negativePromptAdditions: ["corporate", "neon overload"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square"], styleTags: ["surf", "ranch"] },
+  { id: "minimal_boutique", label: "Minimal Boutique", promptAdditions: ["minimal boutique graphic", "clean negative space", "elegant simple linework"], negativePromptAdditions: ["crowded", "overly detailed"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square", "tote_front"], styleTags: ["minimal", "boutique"] },
+  { id: "sticker_pack", label: "Sticker Pack", promptAdditions: ["sticker-ready isolated graphic", "bold outline", "compact collectible design"], negativePromptAdditions: ["thin fragile lines", "background scene"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["sticker_square"], styleTags: ["sticker", "bold"] },
+  { id: "kids_tee", label: "Kids Tee", promptAdditions: ["playful kid-friendly apparel graphic", "simple shapes", "soft cheerful color accents"], negativePromptAdditions: ["scary", "adult slogan"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square"], styleTags: ["kids", "playful"] },
+  { id: "holiday_drop", label: "Holiday Drop", promptAdditions: ["seasonal holiday drop artwork", "giftable boutique design", "festive but not cluttered"], negativePromptAdditions: ["licensed characters", "brand logos"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square", "mug_wrap"], styleTags: ["holiday", "seasonal"] },
+  { id: "monoline", label: "Monoline", promptAdditions: ["single-weight monoline illustration", "clean scalable line art", "premium minimal composition"], negativePromptAdditions: ["messy shading", "photorealism"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square"], styleTags: ["linework", "minimal"] },
+  { id: "vintage_distressed", label: "Vintage Distressed", promptAdditions: ["vintage distressed print texture", "screenprint-inspired wear", "heritage apparel graphic"], negativePromptAdditions: ["digital gloss", "3d render"], defaultDimensions: { width: 1024, height: 1024 }, suggestedPrintTargets: ["apparel_front_square"], styleTags: ["vintage", "distressed"] }
+];
+
 type SafetyRule = {
   term: string;
   category: string;
@@ -264,5 +304,65 @@ export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { 
     detected_terms: safety.detected_terms,
     safe_to_approve: safety.safe_to_approve,
     safe_to_generate: safety.safe_to_generate
+  };
+}
+
+function presetById(id = "") {
+  return podStylePresets.find((preset) => preset.id === id) ?? podStylePresets[0]!;
+}
+
+export function buildPodPromptRecipeFromBrief(
+  brief: PromptBriefInput,
+  options: {
+    stylePreset?: string;
+    printTarget?: string;
+    variantCount?: number;
+    width?: number;
+    height?: number;
+    seed?: number | null;
+    negativePrompt?: string;
+    guidanceScale?: number;
+    numInferenceSteps?: number;
+  } = {}
+): PodPromptRecipe {
+  const preset = presetById(options.stylePreset ?? "coastal_cowgirl");
+  const printTarget = options.printTarget ?? preset.suggestedPrintTargets[0] ?? "apparel_front_square";
+  const width = Number(options.width ?? preset.defaultDimensions.width);
+  const height = Number(options.height ?? preset.defaultDimensions.height);
+  const base = buildPromptPackageFromBrief(brief, { count: options.variantCount ?? 4, width, height });
+  const style = styleOf(brief);
+  const requestedText = String(style.suggested_phrase ?? style.suggestedPhrase ?? "").trim();
+  const textRequested = requestedText.length > 0;
+  const prompt = [
+    "Create a high-resolution print-on-demand artwork design.",
+    "Artwork only: centered composition, clean isolated graphic, suitable for DTG printing on apparel and POD products.",
+    `Print target: ${printTarget.replace(/_/g, " ")}.`,
+    base.positive_prompt,
+    `Style preset: ${preset.label}.`,
+    `Style details: ${preset.promptAdditions.join(", ")}.`,
+    "No product mockup, no model, no watermark, no brand logo, no copyrighted character."
+  ].join(" ");
+  const negativePrompt = [
+    base.negative_prompt,
+    defaultPodNegativePrompt,
+    ...(options.negativePrompt ? [options.negativePrompt] : []),
+    ...preset.negativePromptAdditions
+  ].filter(Boolean).join(", ");
+  return {
+    prompt,
+    negativePrompt,
+    width,
+    height,
+    guidanceScale: Number(options.guidanceScale ?? 7),
+    numInferenceSteps: Number(options.numInferenceSteps ?? 28),
+    seed: typeof options.seed === "number" && Number.isFinite(options.seed) ? Math.trunc(options.seed) : null,
+    printTarget,
+    stylePreset: preset.id,
+    safetyNotes: [
+      ...base.warnings,
+      ...(textRequested ? ["AI-generated text may be unreliable; owner spelling review is required."] : [])
+    ],
+    textRequested,
+    basePackage: base
   };
 }

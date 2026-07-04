@@ -272,10 +272,13 @@ describe("provider-backed POD functional API mapping", () => {
     const job = await repos.job.getById("genjob_success", "wks_default");
 
     expect(result).toMatchObject({ ok: true, processed: 1 });
-    expect(assets).toHaveLength(1);
+    const masterAssets = assets.filter((asset) => asset.asset_type === "generated_source_art");
+    const derivativeAssets = assets.filter((asset) => ["thumbnail", "web_preview", "print_png"].includes(String(asset.asset_type)));
+    expect(masterAssets).toHaveLength(1);
+    expect(derivativeAssets.map((asset) => asset.asset_type).sort()).toEqual(["print_png", "thumbnail", "web_preview"]);
     expect(qa).toHaveLength(1);
     expect(job?.status).toBe("completed");
-    expect(job?.output_asset_id).toBe(assets[0]?.id);
+    expect(job?.output_asset_id).toBe(masterAssets[0]?.id);
   });
 
   it("batch repository workflow creates 15 independent items and allows partial failure without marking the batch published", async () => {

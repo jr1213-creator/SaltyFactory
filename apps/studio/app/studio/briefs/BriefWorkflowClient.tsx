@@ -46,7 +46,7 @@ function ResultPanel({ result }: { result: unknown }) {
   const provider = asRecord(record.provider);
   const job = asRecord(record.job);
   const asset = asRecord(record.asset);
-  const assetHref = asset ? assetPreviewPath(asset) : "";
+  const assets = Array.isArray(record.assets) ? record.assets.map(asRecord).filter(Boolean) as ResultRecord[] : asset ? [asset] : [];
   const qaStatus = String(asset?.qaStatus ?? asset?.status ?? "pending");
   const assetReadyForMockup = Boolean(asset?.approvedForMockup) || qaStatus === "passed";
   const blockers = Array.isArray(record.blockingReasons)
@@ -70,21 +70,26 @@ function ResultPanel({ result }: { result: unknown }) {
       <div><dt>Provider</dt><dd>{provider?.provider === "huggingface" ? "Hugging Face" : provider?.provider ?? job.provider ?? "not connected"}</dd></div>
       <div><dt>Model</dt><dd>{provider?.model ?? job.model ?? "not selected"}</dd></div>
     </dl> : null}
-    {asset ? <div className="surface-card" style={{ display: "grid", gap: 12 }}>
-      {assetHref ? <PrivateImagePreview src={assetHref} alt="Generated private source artwork preview" maxHeight={320} /> : null}
+    {assets.length ? <div className="layout-grid layout-grid-2">
+      {assets.map((item) => {
+        const itemHref = assetPreviewPath(item);
+        return <div key={String(item.id)} className="surface-card" style={{ display: "grid", gap: 12 }}>
+      {itemHref ? <PrivateImagePreview src={itemHref} alt="Generated private source artwork preview" maxHeight={320} /> : null}
       <dl className="result-detail-grid">
-        <div><dt>Asset ID</dt><dd>{asset.id}</dd></div>
-        <div><dt>Created</dt><dd>{asset.createdAt ? new Date(String(asset.createdAt)).toLocaleString() : "just now"}</dd></div>
-        <div><dt>QA status</dt><dd>{ownerLabel(qaStatus)}</dd></div>
-        <div><dt>Visibility</dt><dd>{ownerLabel(asset.visibility, "private")}</dd></div>
+        <div><dt>Asset ID</dt><dd>{item.id}</dd></div>
+        <div><dt>Created</dt><dd>{item.createdAt ? new Date(String(item.createdAt)).toLocaleString() : "just now"}</dd></div>
+        <div><dt>QA status</dt><dd>{ownerLabel(item.qaStatus ?? item.status)}</dd></div>
+        <div><dt>Visibility</dt><dd>{ownerLabel(item.visibility, "private")}</dd></div>
       </dl>
+    </div>;
+      })}
     </div> : null}
     {blockers.length ? <div>
       <strong>Blocker reasons</strong>
       <ul>{blockers.map((item) => <li key={item}>{ownerLabel(item)}</li>)}</ul>
     </div> : null}
     <div className="action-bar">
-      {asset ? <a className="btn btn-primary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Open asset</a> : null}
+      {asset ? <a className="btn btn-primary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Open first asset</a> : null}
       {asset && assetReadyForMockup ? <a className="btn btn-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(asset.id))}`}>Create mockup</a> : null}
       {asset && !assetReadyForMockup ? <a className="btn btn-secondary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Review QA</a> : null}
       {record.ok && !asset ? <a className="btn btn-primary" href="/studio/image-generation">Open image generation</a> : null}
@@ -142,7 +147,7 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
     setBusy(true);
     try {
       const suffix = action === "generation" ? "send-to-generation" : action;
-      const data = await postJson(`/api/studio/design-briefs/${selectedBriefId}/${suffix}`);
+      const data = await postJson(`/api/studio/design-briefs/${selectedBriefId}/${suffix}`, action === "generation" ? { variantCount: 4 } : undefined);
       setResult(data);
       await refresh();
     } catch {
@@ -165,7 +170,7 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
     <div className="action-bar">
       <button className="btn btn-primary" disabled={!selected || busy || selected?.approved_for_generation} onClick={() => run("approve")}>Approve Brief</button>
       <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("reject")}>Reject Brief</button>
-      <button className="btn btn-primary" disabled={!selected || busy || !selected?.approved_for_generation} onClick={() => run("generation")}>Send to Generation</button>
+      <button className="btn btn-primary" disabled={!selected || busy || !selected?.approved_for_generation} onClick={() => run("generation")}>Generate 4 options</button>
     </div>
     {result ? <ResultPanel result={result} /> : null}
   </section>;
