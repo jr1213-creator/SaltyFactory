@@ -116,17 +116,16 @@ describe("production UI routes", () => {
     expect(source).toContain("StudioWorkflowContextPanel");
     expect(source).toContain("StudioPodStageRail");
     expect(source).toContain("StudioCommandCenterNav");
-    expect(source).toContain("Studio global command navigation");
+    expect(source).toContain("Studio command center navigation");
     expect(source).toContain("Current Studio workflow");
     expect(source).toContain("POD launch stages");
     expect(source).toContain("studio-command-nav");
     expect(source).toContain("studio-stage-rail");
-    expect(source).toContain("studio-mega-menu");
-    expect(source).toContain("StudioWorkflowSidebar");
+    expect(source).toContain("studio-top-nav-menu");
   });
 
   it("Studio IA exposes primary command centers and active workflow breadcrumbs", () => {
-    expect(topStudioCommandLabels()).toEqual(["Home", "POD Factory", "AI Workforce", "Business", "Storefront", "Marketing", "Customers", "Operations"]);
+    expect(topStudioCommandLabels()).toEqual(["Home", "POD", "AI", "Business", "Customer", "Marketing", "Setup"]);
     expect(getActiveStudioNavContext("/studio/business/documents")?.activeLink).toEqual(["Documents", "/studio/business/documents"]);
     expect(getActiveStudioNavContext("/studio/printify-catalog")?.section.id).toBe("pod-studio");
     expect(getStudioBreadcrumbs("/studio/printify-catalog")).toEqual([
@@ -135,7 +134,6 @@ describe("production UI routes", () => {
       ["Printify Catalog", "/studio/printify-catalog"]
     ]);
     const source = readFileSync(join(process.cwd(), "apps/studio/app/studio/StudioNavigation.tsx"), "utf8");
-    expect(source).toContain("STUDIO_MEGA_MENU_AREAS");
     expect(source).toContain("STUDIO_COMMAND_CENTER_LINKS");
     expect(source).toContain("STUDIO_POD_STAGE_LINKS");
     expect(source).toContain("Module explorer");
@@ -243,8 +241,7 @@ describe("production UI routes", () => {
   it("Dashboard page renders key cards", async () => {
     const html = renderToStaticMarkup(await StudioDashboard());
     expect(html).toContain("Salty Cowhide AI POD Business Command Center");
-    expect(html).toContain("Owner launchpad");
-    expect(html).toContain("bento-grid");
+    expect(html).toContain("Command Center Launchpad");
     expect(html).toContain("POD Launch Studio");
     expect(html).toContain("Setup / Feature Readiness");
     expect(html).toContain("Product ideas");

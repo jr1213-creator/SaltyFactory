@@ -1,6 +1,6 @@
 import { parseEnv } from "@saltyfactory/config";
 import { createAgenticApprovalQueue, deriveNextBestActions, runAgenticPodWorkflow, scoreChannelCompleteness } from "@saltyfactory/domain";
-import { AiEmployeeCard, BarList, BentoCard, BentoGrid, ChartCard, DataTable, LineChartCard, PageHeader, ProviderStatusCard, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
+import { AiEmployeeCard, BarList, ChartCard, DataTable, LineChartCard, PageHeader, ProviderStatusCard, RecommendationCard, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "./data";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
@@ -210,13 +210,17 @@ export default async function Page() {
     <section className="surface-card command-center-launchpad">
       <div className="section-header">
         <div>
-          <h2>Owner launchpad</h2>
+          <h2>Command Center Launchpad</h2>
           <p className="text-muted">Primary operating areas are separated from the full module explorer. Open the area that matches the job, then use the sidebar for the active workflow stage.</p>
         </div>
       </div>
-      <BentoGrid className="studio-command-center-grid">
-        {commandCenters.map((center) => <BentoCard className="studio-command-center-card" span="md" tone={center.status.includes("ready") ? "seafoam" : "sand"} key={center.href} eyebrow={center.status} title={center.title} description={center.description} action={<a className="btn btn-secondary" href={center.href}>Open</a>} />)}
-      </BentoGrid>
+      <div className="studio-command-center-grid">
+        {commandCenters.map((center) => <a className="studio-command-center-card" href={center.href} key={center.href}>
+          <span className="status-badge tone-primary">{center.status}</span>
+          <strong>{center.title}</strong>
+          <p>{center.description}</p>
+        </a>)}
+      </div>
     </section>
     <div className="owner-metric-grid" aria-label="Owner command center metrics">
       {ownerMetrics.map((metric) => <OwnerMetricCard key={metric.label} {...metric} />)}

@@ -1,11 +1,6 @@
 import React from "react";
 import {
   AuthorityRequestPanel,
-  ArtifactCard,
-  BentoActionPanel,
-  BentoCard,
-  BentoGrid,
-  BentoMetric,
   BlockerCard,
   BusinessCardPreview,
   BusinessKpiCard,
@@ -16,12 +11,8 @@ import {
   MockupPreviewCard,
   NextActionCard,
   ProductPipelineCard,
-  ProductDraftCard,
-  ProviderCard,
   ProviderHealthCard,
-  PublishGateCard,
   SetupRequiredPanel,
-  SetupConciergeCard,
   ShopifyDraftCard,
   UnitEconomicsCard,
   VariantMarginMatrix
@@ -38,47 +29,8 @@ export function ProviderHealthDefault() {
 }
 
 export function ProviderHealthBlocked() {
-  return <SetupRequiredPanel items={["Connect Printify through Guided Setup", "Choose a shop", "Keep product creation owner-gated"]} />;
+  return <SetupRequiredPanel items={["PRINTIFY_ENABLED=true", "PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"]} />;
 }
-
-export function StudioGlobalNavStory() {
-  return <div className="surface-card"><strong>StudioGlobalNav</strong><p className="text-muted">The app shell renders the keyboard-accessible mega menu from the Studio route map.</p></div>;
-}
-
-export function StudioMegaMenuStory() {
-  return <BentoCard title="StudioMegaMenu" description="Top-level command areas open structured route groups with descriptions, compact status badges, and no API links." tone="sand" />;
-}
-
-export function StudioWorkflowSidebarStory() {
-  return <BentoCard title="StudioWorkflowSidebar" description="The contextual left rail shows the active workflow, purpose, next action, help link, and section routes." tone="seafoam" />;
-}
-
-export function BentoDashboardSystem() {
-  return <BentoGrid>
-    <BentoCard span="wide" tone="ink" eyebrow="POD Factory" title="Launch packet control" description="Generated art, mockup, catalog selection, draft product, and publish gates in one visible path." />
-    <BentoMetric label="Generated art" value="1" detail="Private asset preview ready" tone="seafoam" />
-    <ProviderCard title="Hugging Face" status="connected" source="secure workspace credential" description="Approved briefs can send real image generation jobs when storage is ready." />
-    <ArtifactCard title="Generated asset" status="QA ready" description="Protected preview route serves private source art." />
-    <ProductDraftCard title="Product draft" status="owner gated" description="Draft captures artwork, mockup, Printify selection, pricing, and Shopify collection." />
-    <PublishGateCard title="Publish gate" status="blocked by owner gate" description="Live publish never runs without explicit owner approval." tone="warning" />
-    <SetupConciergeCard title="Setup Concierge" status="ready" description="Provider records are the normal runtime path; env vars are advanced fallback only." tone="success" />
-  </BentoGrid>;
-}
-
-export function BentoActionPanelDefault() {
-  return <BentoActionPanel title="Try the golden path" description="Open an approved brief, generate private artwork, create a mockup, then review the launch packet." primaryAction={<a className="btn btn-primary" href="/studio/briefs">Open briefs</a>} secondaryAction={<a className="btn btn-secondary" href="/studio/publish-review">Review gates</a>} />;
-}
-
-export const StudioGlobalNav = StudioGlobalNavStory;
-export const StudioMegaMenu = StudioMegaMenuStory;
-export const StudioWorkflowSidebar = StudioWorkflowSidebarStory;
-export const BentoGridDefault = BentoDashboardSystem;
-export const BentoCardDefault = BentoDashboardSystem;
-export const ProviderCardDefault = BentoDashboardSystem;
-export const ArtifactCardDefault = BentoDashboardSystem;
-export const ProductDraftCardDefault = BentoDashboardSystem;
-export const PublishGateCardDefault = BentoDashboardSystem;
-export const SetupConciergeCardDefault = BentoDashboardSystem;
 
 export function ProductPipelineDefault() {
   return <ProductPipelineCard title="Launch pipeline" stages={[

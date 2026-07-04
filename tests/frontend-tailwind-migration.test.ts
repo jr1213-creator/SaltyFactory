@@ -16,16 +16,13 @@ function sourceFiles(root: string): string[] {
 }
 
 describe("Tailwind migration", () => {
-  it("keeps documented SaltyFactory tokens without legacy factory prefixes", () => {
-    const legacyClassPattern = /className=["'][^"']*(?:factory-|ai-factory-|sf-legacy-)/;
+  it("does not leave legacy class prefixes in app/UI source", () => {
+    const legacyPrefix = "sf" + "-";
     const offenders = sourceRoots
       .flatMap(sourceFiles)
-      .filter((file) => legacyClassPattern.test(readFileSync(file, "utf8")));
+      .filter((file) => readFileSync(file, "utf8").includes(legacyPrefix));
 
     expect(offenders).toEqual([]);
-    const studioCss = readFileSync("apps/studio/app/globals.css", "utf8");
-    expect(studioCss).toContain("--sf-ink");
-    expect(studioCss).toContain(".sf-texture-topo");
   });
 
   it("uses Tailwind v4 and shadcn-style primitives for the shared design system", () => {

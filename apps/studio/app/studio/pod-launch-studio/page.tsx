@@ -48,7 +48,7 @@ function ProviderHealthCard({ item }: { item: ProviderHealthItem }) {
     </div>
     <div className="pod-health-footer">
       <StatusBadge status={item.status} tone={item.tone} />
-      <a href={item.href}>{item.ready ? "Open workflow" : "Open setup"}</a>
+      <a href={item.href}>Open setup</a>
     </div>
     <p className="pod-health-setup">{item.ready ? "No setup blocker detected for this stage." : item.setup}</p>
   </article>;
@@ -92,7 +92,7 @@ export default async function PodLaunchStudioPage() {
       tone: imageConnected ? "success" : "warning",
       detail: imageConnected ? `Approved prompts can queue generated artwork jobs through ${providerCredentialSourceLabel(imageProvider.credentialSource)}.` : "Connect the approved image provider before artwork generation can run.",
       setup: imageProvider.businessFacingSetupRequired.join(", ") || imageProvider.safeMessage,
-      href: imageConnected ? "/studio/image-generation" : "/studio/onboarding/providers/image-generation",
+      href: "/studio/setup",
       ready: imageConnected
     },
     {

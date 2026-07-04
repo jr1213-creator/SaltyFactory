@@ -4,10 +4,6 @@ import { getStudioLists } from "../data";
 import { AiApprovalQueueClient } from "./AiApprovalQueueClient";
 import { AiEmployeeWorkflowClient } from "./AiEmployeeWorkflowClient";
 
-function ownerLabel(value: unknown, fallback = "pending") {
-  return String(value ?? fallback).replace(/_/g, " ");
-}
-
 export default async function Page() {
   const lists = await getStudioLists();
   const configured = new Map(lists.aiEmployees.map((row: any) => [row.employee_key ?? row.employeeKey, row]));
@@ -55,7 +51,7 @@ export default async function Page() {
       <h2>AI Employee Team</h2>
       <div className="layout-grid layout-grid-3">{primaryEmployees.map(([key, name, requiredSources, allowedActions]) => {
       const row = configured.get(key) as any;
-      return <AiEmployeeCard key={key} name={name} role={requiredSources.join(", ")} status={ownerLabel(row?.status, "setup needed")} tasks={String(allowedActions.length)} description="Drafts and recommendations only." />;
+      return <AiEmployeeCard key={key} name={name} role={requiredSources.join(", ")} status={row?.status ?? "setup_needed"} tasks={String(allowedActions.length)} description="Drafts and recommendations only." />;
       })}</div>
     </section>
     <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
@@ -75,12 +71,12 @@ export default async function Page() {
       <h2>Run History</h2>
       <DataTable columns={["Run", "Mode", "Provider", "Status", "Review"]} rows={recentRuns.length ? recentRuns.map((run: any) => [
         run.id,
-        ownerLabel(run.task_type ?? run.taskType, "run AI Employees"),
-        ownerLabel(run.provider_used ?? run.providerUsed, "deterministic rules"),
+        run.task_type ?? run.taskType,
+        run.provider_used ?? run.providerUsed ?? "deterministic_rules",
         <StatusBadge key={run.id} status={String(run.status ?? "completed")} tone={run.status === "failed" ? "danger" : "success"} />,
         run.requires_human_review ?? run.requiresHumanReview ? "Required" : "Not required"
-      ]) : [["No AI runs yet", "Run AI Employees", "rules based", <StatusBadge key="none" status="empty" />, "Required"]]} />
+      ]) : [["No AI runs yet", "Run AI Employees", "rules_based", <StatusBadge key="none" status="empty" />, "Required"]]} />
     </section>
-    <section className="surface-card" style={{ marginTop: 18 }}><h2>Permissions</h2><DataTable columns={["Employee", "Allowed actions", "Forbidden actions", "Status"]} rows={employeeDefinitions.map(([key, name,, allowed]) => [name, allowed.join(", "), "publish/send/spend/sync/delete/expose secrets", ownerLabel((configured.get(key) as any)?.status, "setup needed")])} /></section>
+    <section className="surface-card" style={{ marginTop: 18 }}><h2>Permissions</h2><DataTable columns={["Employee", "Allowed actions", "Forbidden actions", "Status"]} rows={employeeDefinitions.map(([key, name,, allowed]) => [name, allowed.join(", "), "publish/send/spend/sync/delete/expose secrets", (configured.get(key) as any)?.status ?? "setup_needed"])} /></section>
   </>;
 }

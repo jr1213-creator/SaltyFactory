@@ -155,7 +155,7 @@ describe("unified provider readiness", () => {
 
     const html = renderToStaticMarkup(await IntegrationsPage());
 
-    expect(html).toContain("Provider runtime readiness");
+    expect(html).toContain("Provider Runtime Readiness");
     expect(html).toContain("Printify connected through Launch Setup Concierge.");
     expect(html).toContain("Shopify Admin connected through Launch Setup Concierge.");
     expect(html).toContain("Image generation connected through Launch Setup Concierge.");

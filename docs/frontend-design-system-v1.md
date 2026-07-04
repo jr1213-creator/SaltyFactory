@@ -1,6 +1,6 @@
 # Frontend Design System v1
 
-Status: Tailwind v4 tactile coastal-brutalist Studio system.
+Status: Tailwind v4 / shadcn-style foundation.
 
 Implemented:
 - reusable SaltyFactory UI primitives in `packages/ui`
@@ -9,42 +9,15 @@ Implemented:
 - Tailwind v4 design tokens in `apps/studio/app/globals.css` and `apps/storefront/app/globals.css`
 - `components.json` registry metadata pointing shadcn aliases at `@saltyfactory/ui`
 - workflow, approval, provider, POD, AI employee, and business components
-- exact Studio palette tokens in `apps/studio/app/globals.css`: ink, navy, deep navy, cream, warm paper, sand, khaki, coral, turquoise, seafoam, chocolate, leather, clay, success, warning, danger, muted, and line colors
-- tactile coastal-brutalist surface tokens for paper, sand, ink, grid paper, topo, canvas, denim, and stitched borders
-- bento dashboard primitives in `packages/ui`: `BentoGrid`, `BentoCard`, `BentoMetric`, `BentoStatusPanel`, `BentoWorkflowStep`, `BentoArtifactCard`, `BentoProviderCard`, and `BentoActionPanel`
+- token-based Studio and storefront styling with coral, turquoise, navy, sand, blush, and white surfaces
+- coral/turquoise/navy/sand/white palette using CSS variables
 - Storybook component stories in `packages/ui/src/frontend-quality.stories.tsx`
 - Playwright unauthenticated route-protection harness in `e2e/studio-frontend-quality.spec.ts`
 - zero remaining legacy factory-prefixed selectors or class references in `apps/studio`, `apps/storefront`, and `packages/ui`
 - WCAG AA token contrast audit in `scripts/check-frontend-contrast.ts`
 - generated contrast report in `docs/frontend-contrast-report-v1.md`
-- Studio IA shell polish with tactile global command navigation, keyboard-aware mega menus, contextual workflow sidebar, POD stage rail, mobile accordion navigation, and `/studio` bento launchpad
-- `/studio/pod-launch-studio` tactile coastal command-center polish with structured provider health cards, semantic metrics, no raw env-variable labels, and a single priority owner-gated launch pathway
-
-## Studio Visual Rules
-
-- main Studio background uses `--sf-cream`
-- major panels use `--sf-warm-paper` or subtle CSS-generated canvas/sand textures
-- primary text uses `--sf-ink`
-- primary CTAs use coral with coral-deep hover
-- connected/ready states use seafoam/turquoise
-- owner-gated states use coral-soft/coral
-- setup-needed states use warm paper/khaki/chocolate
-- navigation and command panels use small rectangular radii, not rounded pill clusters
-- `rounded-full` is allowed only for tiny badges/status chips
-- owner-facing UI must not show raw `snake_case`, raw JSON, secret values, POST API hrefs, or env-variable setup requirements outside advanced developer details
-
-## Bento Rules
-
-Use bento grids for command surfaces, not decorative marketing blocks. Every bento card needs a clear heading, short description, status or evidence, and a next action when relevant. Empty bento states must explain what the area does, what is missing, and where the owner goes next.
-
-## Texture Rules
-
-Textures are CSS/SVG-generated and subtle:
-
-- topo lines for headers, POD launch areas, guided setup, and business identity moments
-- sand/canvas grain for cards, empty states, and setup panels
-- denim weave only as a light accent on artifact/product areas
-- dashed stitch borders for selected items, owner-gated notices, and publish review accents
+- Studio IA shell polish with command-center top navigation, active workflow context, POD stage rail, module explorer, and `/studio` launchpad
+- `/studio/pod-launch-studio` Tech-Spa command-center polish with structured provider health cards, semantic metrics, no raw env-variable labels, and a single priority owner-gated launch pathway
 
 Build note:
 - Tailwind v4 loads through `@tailwindcss/postcss`.

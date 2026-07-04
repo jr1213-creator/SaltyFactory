@@ -13,12 +13,12 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
   const { assets, mockups } = await getStudioLists();
   const approvedAssets = assets.filter((asset: any) => asset.approved_for_mockup || asset.approvedForMockup);
   return <>
-    <PageHeader title="Mockup gallery" description="Create and inspect private internal previews from approved art before product draft and publish review.">
+    <PageHeader title="Mockups" description="Create private internal previews from approved art before product draft and publish review.">
       <StatusBadge status={`${approvedAssets.length} approved assets`} tone={approvedAssets.length ? "success" : "warning"} />
     </PageHeader>
     <MockupWorkflowClient initialAssets={assets as any[]} initialMockups={mockups as any[]} initialAssetId={params?.asset_id} />
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Composed mockups</h2>
+      <h2>Mockup Records</h2>
       {mockups.length ? <div className="layout-grid layout-grid-3" style={{ marginBottom: 18 }}>{mockups.slice(0, 9).map((mockup: any) => <article key={mockup.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
         <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Composited mockup preview" aspectRatio="4 / 5" />
         <strong>{mockup.id}</strong>

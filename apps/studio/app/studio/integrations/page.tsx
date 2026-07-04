@@ -76,7 +76,7 @@ export default async function Page() {
   const gsc = integrations.find((item) => item.key === "google_search_console");
   const gbp = integrations.find((item) => item.key === "google_business_profile");
   return <>
-    <PageHeader title="Connected commerce stack" description="Review provider connections, storage readiness, Google data sources, and safe AI tool configuration without exposing secrets or stale server variables.">
+    <PageHeader title="Integrations & AI Readiness" description="Connect Google OAuth, auto-detect available data sources, then sync only verified GA4/Search Console/optional Business Profile data. Disabled providers do not show fake live data.">
       <a className="btn btn-secondary" href="/studio/settings/setup">Setup Guide</a><a className="btn btn-primary" href="/studio/ai-readiness/audit">Run Site Audit</a>
     </PageHeader>
     <div className="layout-grid layout-grid-4">
@@ -86,7 +86,7 @@ export default async function Page() {
       <AiReadinessScoreCard title="GEO Score" score={0} />
     </div>
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Provider runtime readiness</h2>
+      <h2>Provider Runtime Readiness</h2>
       <p className="text-muted">These cards use the same credential-store-aware resolver layer as runtime routes. Advanced server fallback is optional and not the primary owner setup path.</p>
       <div className="layout-grid layout-grid-4">
         {providerItems.map((item) => <IntegrationCard
@@ -96,12 +96,12 @@ export default async function Page() {
           tone={readinessStatusTone(item)}
           description={`${item.safeMessage} Credential source: ${providerCredentialSourceLabel(item.credentialSource)}.`}
           actionHref={item.setupRoute}
-          actionLabel={isProviderReady(item) ? "Open workflow" : "Connect provider"}
+          actionLabel={isProviderReady(item) ? "Review setup" : "Open setup"}
         />)}
       </div>
     </section>
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <h2>Connected integrations</h2>
+      <h2>Connected Integrations</h2>
       <div className="layout-grid layout-grid-4">{integrations.map((item) => <IntegrationCard key={item.key} title={item.label} status={item.status.replace(/_/g, " ")} tone={item.status === "connected" ? "success" : item.status === "disabled" ? "warning" : "danger"} />)}</div>
     </section>
     <section className="surface-card" style={{ marginTop: 18 }}>
@@ -116,7 +116,7 @@ export default async function Page() {
     </section>
     <IntegrationActionsClient integrations={integrations} />
     <div className="layout-grid layout-grid-2" style={{ marginTop: 18 }}>
-      <section className="surface-card"><h2>What this stack enables</h2><DataTable columns={["Provider", "Status", "Next owner action"]} rows={providerItems.map((item) => [
+      <section className="surface-card"><h2>Provider Capabilities</h2><DataTable columns={["Provider", "Status", "Next owner action"]} rows={providerItems.map((item) => [
         item.label,
         <StatusBadge key={item.providerKey} status={readinessStatusLabel(item)} tone={readinessStatusTone(item)} />,
         nextAction(item)

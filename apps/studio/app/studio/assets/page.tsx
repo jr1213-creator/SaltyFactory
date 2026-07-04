@@ -13,7 +13,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
   const { assets, jobs, mockups, setupMessage } = await getStudioLists();
 
   return <>
-    <PageHeader title="Generated art gallery" description="Inspect private generated designs, QA status, mockups, and print-ready next actions from concept to production.">
+    <PageHeader title="Generation Jobs & Assets" description="Manage generated designs, mockups, and print-ready files from concept to production.">
       <StatusBadge status="Generated assets visible" tone="success" />
     </PageHeader>
     <SchemaSetupState message={setupMessage} />
