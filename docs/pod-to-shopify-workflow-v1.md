@@ -10,9 +10,11 @@
 8. Owner opens `/studio/printify-catalog`, browses real Printify blueprints/providers/variants through the connected credential, and saves blueprint/provider/variant/pricing selection to the draft.
 9. Publish Review computes readiness from persisted evidence: asset, mockup, Printify connection, variants, pricing, Shopify connection, collection, and owner approval.
 10. Owner clicks **Send to Printify** only after gates pass to upload artwork if needed and create a Printify draft product.
-11. Owner clicks **Create Shopify Draft** only after required gates pass and a real Shopify collection ID is available.
-12. Launch Packet summarizes product, approval, Printify, Shopify, and publish blockers.
-13. Public storefront visibility remains blocked until explicit owner-confirmed publish is implemented/enabled and all gates pass.
+11. Publish Review shows the resulting Printify upload ID and Printify draft product ID from persisted provider refs.
+12. Owner clicks **Create Shopify Draft** only after required gates pass and a real Shopify collection ID is available.
+13. Publish Review shows the resulting Shopify draft product ID, approved media count, and assigned collection IDs from persisted provider refs.
+14. Launch Packet summarizes product, approval, Printify, Shopify, and publish blockers.
+15. Public storefront visibility remains blocked until explicit owner-confirmed publish is implemented/enabled and all gates pass.
 
 The core path is generated artwork, not manual artwork references. If the image provider, storage, Printify, or Shopify is not ready, the workflow blocks with exact setup requirements and owner-safe messages. Connected providers are not enough by themselves: the product still needs generated artwork, QA approval, a mockup, catalog selection, pricing, publish review, and owner gates.
 
@@ -31,5 +33,6 @@ Use this local smoke path after Guided Setup or local demo configuration:
 5. Open `/studio/product-builder`, create one product draft.
 6. Open `/studio/printify-catalog`, load real blueprints/providers/variants, and save a variant selection.
 7. Open `/studio/publish-review` and confirm the readiness table shows the real next blocker.
+8. After guarded provider actions succeed, confirm the same page shows Printify upload/product proof and Shopify draft/media/collection proof.
 
 Local demo image generation is development/test only and does not count as real provider success. No OpenAI or Anthropic provider is used.

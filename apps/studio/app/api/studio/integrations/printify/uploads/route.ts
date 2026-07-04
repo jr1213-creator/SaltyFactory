@@ -51,7 +51,20 @@ export async function POST(req: Request) {
       updated_by: user.id,
       metadata: { productDraftId, printifyUploadId: uploadId }
     });
-    return NextResponse.json({ ok: true, status: "printify_image_uploaded", provider: "printify", uploadId, asset: updated, tokenExposed: false });
+    return NextResponse.json({
+      ok: true,
+      status: "printify_image_uploaded",
+      provider: "printify",
+      uploadId,
+      asset: {
+        id: updated.id,
+        qaStatus: updated.qa_status ?? updated.qaStatus ?? null,
+        approvedForMockup: Boolean(updated.approved_for_mockup ?? updated.approvedForMockup),
+        mimeType: updated.mime_type ?? updated.mimeType ?? null,
+        printifyUploadId: uploadId
+      },
+      tokenExposed: false
+    });
   } catch (error) {
     return studioAuthErrorResponse(error);
   }

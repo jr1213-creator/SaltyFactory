@@ -18,6 +18,7 @@ import { POST as uploadsPost } from "../apps/studio/app/api/studio/integrations/
 import { POST as printifyPublishPost } from "../apps/studio/app/api/studio/publish/printify/route";
 import { getAccountCenterReadiness } from "../apps/studio/app/studio/account-center/readiness";
 import PrintifyCatalogPage from "../apps/studio/app/studio/printify-catalog/page";
+import PublishReviewPage from "../apps/studio/app/studio/publish-review/page";
 
 const originalEnv = { ...process.env };
 const workspaceId = "wks_default";
@@ -364,7 +365,7 @@ describe("Printify runtime routes", () => {
     const repos = createRepositories();
     const token = "printify_upload_secret_credential_store";
     await seedConnectedPrintifyProvider(repos, token);
-    const { draftId } = await seedApprovedPrintifyDraft(repos, `upload_${Date.now()}`);
+    const { draftId, assetId } = await seedApprovedPrintifyDraft(repos, `upload_${Date.now()}`);
     const calls: Array<{ url: string; init: RequestInit }> = [];
     vi.stubGlobal("fetch", printifyFetch(calls));
 
@@ -376,7 +377,13 @@ describe("Printify runtime routes", () => {
     expect(uploadCall).toBeTruthy();
     expect((uploadCall?.init.headers as Record<string, string>).authorization).toBe(`Bearer ${token}`);
     expect(body).toMatchObject({ ok: true, status: "printify_image_uploaded", provider: "printify", uploadId: "upload_runtime_1", tokenExposed: false });
+    expect(body.asset).toMatchObject({ id: assetId, printifyUploadId: "upload_runtime_1" });
+    expect(body.asset).not.toHaveProperty("file_path");
+    expect(body.asset).not.toHaveProperty("storage_bucket");
+    expect(body.asset).not.toHaveProperty("storagePath");
     expect(JSON.stringify(body)).not.toContain(token);
+    expect(JSON.stringify(body)).not.toContain("private-assets");
+    expect((await repos.asset.getById(assetId, workspaceId))?.metadata).toMatchObject({ printify_upload_id: "upload_runtime_1" });
   });
 
   it("product creation route uses credential-store token and remains draft-only", async () => {
@@ -396,6 +403,11 @@ describe("Printify runtime routes", () => {
     const response = await printifyPublishPost(authedPost("/api/studio/publish/printify", { productDraftId: draftId }));
     const body = await response.json();
     const providerCalls = calls.filter((call) => call.url.includes("api.printify.com"));
+    const refs = await repos.printify.listByWorkspace(workspaceId);
+    const ref = refs[0]!;
+    const sourceRecords = await repos.shared.sourceRecords.listByWorkspace(workspaceId);
+    const updatedDraft = await repos.draft.getById(draftId, workspaceId);
+    const publishHtml = renderToStaticMarkup(await PublishReviewPage({ searchParams: Promise.resolve({ product_draft_id: draftId }) } as any));
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
@@ -411,6 +423,19 @@ describe("Printify runtime routes", () => {
     expect(providerCalls.length).toBeGreaterThanOrEqual(3);
     expect(providerCalls.every((call) => (call.init.headers as Record<string, string>).authorization === `Bearer ${token}`)).toBe(true);
     expect(providerCalls.some((call) => /publish\.json/i.test(call.url))).toBe(false);
+    expect(ref).toMatchObject({
+      product_draft_id: draftId,
+      printify_product_id: "printify_product_runtime",
+      printify_upload_id: "upload_runtime_1",
+      printify_published: false
+    });
+    expect(JSON.stringify(ref.print_areas ?? ref.printAreas)).toContain("upload_runtime_1");
+    expect(sourceRecords.some((record) => record.provider_key === "printify" && record.entity_id === draftId && record.status === "completed")).toBe(true);
+    expect(String(updatedDraft?.printify_status ?? "")).toContain("draft_created");
+    expect(publishHtml).toContain("Printify image uploaded");
+    expect(publishHtml).toContain("upload_runtime_1");
+    expect(publishHtml).toContain("Printify product created");
+    expect(publishHtml).toContain("printify_product_runtime");
     expect(JSON.stringify(body)).not.toContain(token);
   });
 

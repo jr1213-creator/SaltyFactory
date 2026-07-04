@@ -25,7 +25,9 @@ The Printify token is never returned to the browser, logs, or owner-facing error
 7. Load real variants and optional shipping snapshot.
 8. After a product draft exists, select variants and enter owner-reviewed pricing.
 9. Save the selection. The route persists product variants, draft metadata, and price-margin evidence.
-10. Product creation remains gated by Publish Review and owner permission.
+10. Upload approved generated artwork to Printify only after a product draft and approved artwork exist. The API response returns the Printify upload ID and a safe asset summary only; it does not return storage bucket/path internals or provider tokens.
+11. Product creation remains gated by Publish Review and owner permission.
+12. After guarded product creation succeeds, `/studio/publish-review` shows the persisted Printify upload ID, Printify draft product ID, sync status, and the real next blocker.
 
 ## Rules
 
@@ -46,3 +48,9 @@ The catalog stage expects a product draft created from:
 - owner-approved mockup
 
 After variant selection, `/studio/publish-review` should move the next blocker from catalog selection to the actual remaining gate, such as risk review, owner approval, Shopify collection, or provider draft creation.
+
+After provider draft creation, `/studio/publish-review` should stop treating Printify as merely connected. It should show concrete provider proof:
+
+- Printify image uploaded: the persisted upload ID.
+- Printify product created: the persisted Printify draft product ID.
+- Printify remains draft-only; live publishing remains separate and gated.

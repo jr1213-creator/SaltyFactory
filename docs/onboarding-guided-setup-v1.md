@@ -162,5 +162,6 @@ Connected providers are prerequisites, not completion. After Hugging Face, Supab
 4. `/studio/product-builder`: create one product draft from the approved asset and mockup.
 5. `/studio/printify-catalog`: browse real Printify catalog data and save blueprint/provider/variant/pricing to the draft.
 6. `/studio/publish-review`: review the single readiness matrix and run guarded provider draft actions only when gates pass.
+7. After guarded provider actions succeed, `/studio/publish-review` displays concrete persisted proof: Printify upload ID, Printify draft product ID, Shopify draft product ID, approved media count, and Shopify collection assignment.
 
 Local demo mode remains development/test only. It can show the workflow shape but must not be described as real provider success. Product creation and live publish remain owner-gated.

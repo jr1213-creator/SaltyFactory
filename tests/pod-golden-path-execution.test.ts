@@ -5,7 +5,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import sharp from "sharp";
 import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
+import type { PublishReview } from "@saltyfactory/domain";
 import { encryptCredential } from "@saltyfactory/security";
+import { allTrueGates } from "./helpers";
 import AssetsPage from "../apps/studio/app/studio/assets/page";
 import BriefsPage from "../apps/studio/app/studio/briefs/page";
 import GeneratePage from "../apps/studio/app/studio/image-generation/page";
@@ -147,8 +149,25 @@ async function seedPrintifyProvider(repos: RepositoryBundle, token = "printify_g
   return token;
 }
 
-async function seedShopifyProvider(repos: RepositoryBundle) {
-  await repos.integration.createProviderConnection({
+async function seedShopifyProvider(repos: RepositoryBundle, token = "shpat_golden_shopify_secret") {
+  const credentialRef = `cred_shopify_golden_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  await repos.integration.saveEncryptedCredential({
+    id: `ecred_${credentialRef}`,
+    workspace_id: workspaceId,
+    provider_key: "shopify",
+    credential_ref: credentialRef,
+    encrypted_payload: encryptCredential({
+      secret: JSON.stringify({ v: 1, credentialMode: "legacy_admin_token", adminToken: token }),
+      key: encryptionKey,
+      provider: "shopify",
+      workspaceId,
+      createdBy: actorId
+    }),
+    status: "active",
+    created_by: actorId,
+    updated_by: actorId
+  });
+  const row = {
     id: `conn_shopify_golden_${Date.now()}`,
     workspace_id: workspaceId,
     provider_key: "shopify",
@@ -156,14 +175,22 @@ async function seedShopifyProvider(repos: RepositoryBundle) {
     provider_name: "Shopify Admin",
     enabled: true,
     status: "connected",
+    secret_ref: credentialRef,
     configuration: {
       storeDomain: "saltycowhide.myshopify.com",
       selectedCollectionId: "gid://shopify/Collection/999",
-      credentialMode: "dev_dashboard_client_credentials"
+      credentialMode: "legacy_admin_token"
     },
     created_by: actorId,
     updated_by: actorId
-  });
+  };
+  const existing = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "shopify");
+  if (existing) {
+    await repos.integration.updateProviderConnectionStatus(workspaceId, "shopify", { ...row, id: existing.id });
+  } else {
+    await repos.integration.createProviderConnection(row);
+  }
+  return token;
 }
 
 afterEach(() => {
@@ -479,6 +506,147 @@ describe("POD golden path execution", () => {
     expect(publishHtml).toContain("Owner approval required");
   });
 
+  it("creates a Shopify draft with approved mockup media and persists collection assignment", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const token = await seedShopifyProvider(repos, "shpat_shopify_draft_secret");
+    const suffix = `shopify_${Date.now()}`;
+    const assetId = await seedApprovedAsset(repos, suffix);
+    const draftId = `draft_${suffix}`;
+    const mockupId = `mockup_${suffix}`;
+    const variantId = `variant_${suffix}`;
+    await repos.draft.create({
+      id: draftId,
+      workspace_id: workspaceId,
+      title: "Golden Path Shopify Tee",
+      description: "Approved product draft with real mockup media for Shopify.",
+      product_type: "tee",
+      brand: "SaltyFactory",
+      collection: "Studio Drafts",
+      tags: ["coastal", "western"],
+      asset_id: assetId,
+      mockup_ids: [mockupId],
+      variant_ids: [variantId],
+      approval_status: "approved",
+      status: "approved",
+      metadata: {
+        shopify_collection_id: "gid://shopify/Collection/999",
+        seo_title: "Golden Path Shopify Tee",
+        seo_description: "Approved mockup-backed Shopify draft."
+      },
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
+    await repos.mockup.create({
+      id: mockupId,
+      workspace_id: workspaceId,
+      asset_id: assetId,
+      product_draft_id: draftId,
+      status: "approved",
+      approved_for_product: true,
+      storage_bucket: "local-dev-private-assets",
+      file_path: `workspaces/${workspaceId}/private/mockups/${mockupId}.png`,
+      mime_type: "image/png",
+      metadata: { public_url: "https://cdn.example/mockups/golden-shopify-tee.png" },
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
+    await repos.variant.create({
+      id: variantId,
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      sku: "GOLDEN-SHOPIFY-S",
+      size: "S",
+      color: "Ivory",
+      price: 32,
+      cost: 12,
+      printify_variant_id: "17390",
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      active: true
+    } as WorkspaceRow);
+    await repos.publish.create({
+      id: `pubrev_${suffix}`,
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      gates: allTrueGates,
+      all_gates_passed: true,
+      shopify_publish_allowed: true,
+      printify_sync_allowed: true,
+      reviewed_by: actorId,
+      reviewed_at: "2026-07-03T00:00:00.000Z",
+      notes: [],
+      status: "approved_internal_ready",
+      created_at: "2026-07-04T00:00:00.000Z",
+      updated_at: "2026-07-04T00:00:00.000Z",
+      created_by: actorId,
+      updated_by: actorId
+    } as PublishReview & WorkspaceRow);
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
+      calls.push({ url: String(url), init });
+      const text = String(url);
+      if (text.endsWith("/products.json")) {
+        return Response.json({
+          product: {
+            id: 9876543210,
+            admin_graphql_api_id: "gid://shopify/Product/9876543210",
+            handle: "golden-path-shopify-tee",
+            variants: [{ id: 111222333 }]
+          }
+        });
+      }
+      if (text.endsWith("/collects.json")) {
+        return Response.json({ collect: { id: 444555666, product_id: 9876543210, collection_id: "gid://shopify/Collection/999" } });
+      }
+      return Response.json({ ok: true });
+    });
+
+    const response = await publishShopifyPost(authedPost("/api/studio/publish/shopify", { productDraftId: draftId }));
+    const body = await response.json();
+    const productCall = calls.find((call) => call.url.endsWith("/products.json"));
+    const collectionCall = calls.find((call) => call.url.endsWith("/collects.json"));
+    const payload = JSON.parse(String(productCall?.init.body ?? "{}"));
+    const shopifyRefs = await repos.shopify.listByWorkspace(workspaceId);
+    const shopifyRef = shopifyRefs[0]!;
+    const updatedDraft = await repos.draft.getById(draftId, workspaceId);
+    const publishHtml = renderToStaticMarkup(await PublishReviewPage({ searchParams: Promise.resolve({ product_draft_id: draftId }) } as any));
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      status: "draft_created",
+      provider: "shopify",
+      mediaCount: 1,
+      collectionAssigned: true
+    });
+    expect((productCall?.init.headers as Record<string, string>)["X-Shopify-Access-Token"]).toBe(token);
+    expect((collectionCall?.init.headers as Record<string, string>)["X-Shopify-Access-Token"]).toBe(token);
+    expect(payload.product).toMatchObject({
+      title: "Golden Path Shopify Tee",
+      body_html: "Approved product draft with real mockup media for Shopify.",
+      status: "draft",
+      images: [{ src: "https://cdn.example/mockups/golden-shopify-tee.png", alt: "Golden Path Shopify Tee product mockup" }],
+      variants: [{ price: "32.00", sku: "GOLDEN-SHOPIFY-S", option1: "S" }]
+    });
+    expect(shopifyRef).toMatchObject({
+      product_draft_id: draftId,
+      shopify_product_id: "9876543210",
+      shopify_product_gid: "gid://shopify/Product/9876543210",
+      shopify_handle: "golden-path-shopify-tee",
+      shopify_collection_ids: ["gid://shopify/Collection/999"],
+      sync_status: "draft_created"
+    });
+    expect(shopifyRef.media).toHaveLength(1);
+    expect(updatedDraft?.shopify_status).toBe("draft_created");
+    expect(publishHtml).toContain("Shopify draft created");
+    expect(publishHtml).toContain("9876543210");
+    expect(publishHtml).toContain("Shopify media attached");
+    expect(publishHtml).toContain("Shopify collection assigned");
+    expect(JSON.stringify(body)).not.toContain(token);
+  });
+
   it("keeps provider creation routes gated and workflow clients away from raw result dumps", async () => {
     authorizeAsOwner();
     setMemoryRuntime();
@@ -504,5 +672,18 @@ describe("POD golden path execution", () => {
     expect(combined).toContain("Developer details");
     expect(combined).toContain("PrivateImagePreview");
     expect(combined).toContain("Private preview could not load");
+  });
+
+  it("documents the private-beta truth table and golden-path proof map", async () => {
+    const { readFileSync } = await import("node:fs");
+    const truthTable = readFileSync(path.resolve(process.cwd(), "docs/feature-truth-table-private-beta.md"), "utf8");
+    const proofMap = readFileSync(path.resolve(process.cwd(), "docs/golden-path-proof-map.md"), "utf8");
+
+    expect(truthTable).toContain("Printify image upload | REAL LIVE PATH");
+    expect(truthTable).toContain("Shopify draft creation | REAL LIVE PATH");
+    expect(truthTable).toContain("Shopify live publish | FUTURE");
+    expect(proofMap).toContain("Printify image upload");
+    expect(proofMap).toContain("Shopify draft creation");
+    expect(proofMap).toContain("Live publish");
   });
 });
