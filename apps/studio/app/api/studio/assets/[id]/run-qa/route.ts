@@ -34,20 +34,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .map((row) => row.checks && typeof row.checks === "object" ? String((row.checks as any).perceptual_hash ?? "") : "")
       .filter(Boolean);
     const perceptualHash = await hashIfLocal(asset);
-    const qaResult = evaluateAssetQaFromMetadata({
-      width: Number(asset.width || 0),
-      height: Number(asset.height || 0),
-      format: String(asset.extension || asset.mime_type || asset.mimeType || asset.file_path || "").split(".").pop() || "png",
-      hasAlpha: Boolean(asset.transparent_background || asset.transparentBackground),
-      density: Number(asset.dpi || 0),
-      fileSizeBytes: Number(asset.file_size_bytes || asset.fileSizeBytes || 0),
-      filename: String(asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? ""),
-      perceptualHash
-    }, undefined, existingHashes);
     const isGeneratedMaster = String(asset.asset_type ?? asset.assetType) === "generated_source_art" && !isGeneratedDerivativeAsset(asset);
     const derivatives = isGeneratedMaster
       ? await Promise.all(generatedDerivativeKinds.map(async (kind) => ({ kind, row: await findAssetDerivative(repos, workspaceId, id, kind) })))
       : [];
+    const printDerivative = derivatives.find((item) => item.kind === "print_png")?.row;
+    const qaSource = printDerivative ?? asset;
+    const qaResult = evaluateAssetQaFromMetadata({
+      width: Number(qaSource.width || 0),
+      height: Number(qaSource.height || 0),
+      format: String(qaSource.extension || qaSource.mime_type || qaSource.mimeType || qaSource.file_path || "").split(".").pop() || "png",
+      hasAlpha: Boolean(qaSource.transparent_background || qaSource.transparentBackground),
+      density: Number(qaSource.dpi || 0),
+      fileSizeBytes: Number(qaSource.file_size_bytes || qaSource.fileSizeBytes || 0),
+      filename: String(qaSource.original_filename ?? qaSource.originalFilename ?? qaSource.file_path ?? ""),
+      perceptualHash
+    }, undefined, existingHashes);
     const missingDerivativeKinds = derivatives.filter((item) => !item.row).map((item) => item.kind);
     const assetMetadata = metadataOf(asset);
     const checks = {

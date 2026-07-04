@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 
 type Row = Record<string, any>;
@@ -81,8 +81,9 @@ function VariantCard({ asset }: { asset: Row }) {
 }
 
 export function GenerationStudioClient({ initialBriefs }: { initialBriefs: Row[] }) {
-  const approvedBriefs = useMemo(() => initialBriefs.filter(approvedForGeneration), [initialBriefs]);
-  const [briefId, setBriefId] = useState(approvedBriefs[0]?.id ?? "");
+  const [briefs, setBriefs] = useState<Row[]>(initialBriefs);
+  const approvedBriefs = useMemo(() => briefs.filter(approvedForGeneration), [briefs]);
+  const [briefId, setBriefId] = useState(() => initialBriefs.filter(approvedForGeneration)[0]?.id ?? "");
   const [stylePreset, setStylePreset] = useState("coastal_cowgirl");
   const [printTarget, setPrintTarget] = useState("apparel_front_square");
   const [variantCount, setVariantCount] = useState(4);
@@ -92,6 +93,27 @@ export function GenerationStudioClient({ initialBriefs }: { initialBriefs: Row[]
   const selectedBrief = approvedBriefs.find((brief) => brief.id === briefId);
   const assets = Array.isArray(result?.assets) ? result.assets as Row[] : result?.asset ? [result.asset as Row] : [];
   const blockers = Array.isArray(result?.blockingReasons) ? result.blockingReasons.map(String) : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshBriefs() {
+      try {
+        const response = await fetch("/api/studio/design-briefs", { cache: "no-store" });
+        const data = await response.json();
+        if (!cancelled && Array.isArray(data.briefs)) setBriefs(data.briefs);
+      } catch {
+        // Keep the server-provided list if the refresh is unavailable.
+      }
+    }
+    refreshBriefs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!briefId && approvedBriefs[0]?.id) setBriefId(String(approvedBriefs[0].id));
+  }, [approvedBriefs, briefId]);
 
   async function generate() {
     if (!briefId) return;

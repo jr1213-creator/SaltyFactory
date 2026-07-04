@@ -4,6 +4,8 @@ import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 import { assetDerivativePreviewPath, assetPreviewPath } from "../_private-preview-paths";
 import { AssetWorkflowClient } from "./AssetWorkflowClient";
 
+export const dynamic = "force-dynamic";
+
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
 }
@@ -38,7 +40,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
     </div>
     <div className="split-pane" style={{ marginTop: 18 }}>
       <div className="layout-grid">
-        <AssetWorkflowClient initialAssets={assets as any[]} initialAssetId={params?.asset_id} />
+        <AssetWorkflowClient initialAssets={assets as any[]} initialDerivatives={assetDerivatives as any[]} initialAssetId={params?.asset_id} />
         {selectedAsset ? <section className="surface-card" style={{ display: "grid", gap: 12 }}>
           <div>
             <p className="eyebrow-label">Asset package</p>
@@ -91,7 +93,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
           { label: "Upscale status", passed: true }
         ]} />
         <button className="btn btn-secondary" disabled title="Select an asset and run persisted QA in the workflow panel to view its report.">View Full Report</button>
-        <button className="btn btn-primary" disabled title="Use the Manual POD Asset Workflow after persisted QA passes.">Approve Asset</button>
+        <button className="btn btn-primary" disabled title="Use the Manual POD Asset Workflow after persisted QA passes.">Workflow approval only</button>
         <p className="text-muted">Approval remains manual and gate-backed in the workflow panel.</p>
       </Card>
     </div>

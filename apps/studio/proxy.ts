@@ -36,11 +36,19 @@ function hasStudioSessionCookie(request: NextRequest) {
   return cookieNamesFromHeader(header).some(isSupabaseSessionCookieName);
 }
 
+function hasGuardedPlaywrightAuthBypass() {
+  return (
+    process.env.PLAYWRIGHT_AUTH_BYPASS === "true" &&
+    (process.env.NODE_ENV === "test" || process.env.APP_ENV === "test") &&
+    process.env.APP_ENV !== "production"
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginRoute = pathname === "/api/studio/login";
   const isLogoutRoute = pathname === "/api/studio/logout";
-  const authorized = isAlwaysAllowed(pathname) || isLoginRoute || isLogoutRoute || hasStudioSessionCookie(request);
+  const authorized = isAlwaysAllowed(pathname) || isLoginRoute || isLogoutRoute || hasGuardedPlaywrightAuthBypass() || hasStudioSessionCookie(request);
 
   if (pathname.startsWith("/api/studio") && !isLoginRoute && !isLogoutRoute && !authorized) {
     return NextResponse.json(

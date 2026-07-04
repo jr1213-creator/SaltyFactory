@@ -34,10 +34,14 @@ function authorizeAsOwner() {
   }));
 }
 
-function authedPost(path: string) {
+function authedPost(path: string, body?: Record<string, unknown>) {
   return new Request(`http://localhost:3001${path}`, {
     method: "POST",
-    headers: { cookie: `${SUPABASE_ACCESS_COOKIE}=valid` }
+    headers: {
+      cookie: `${SUPABASE_ACCESS_COOKIE}=valid`,
+      ...(body ? { "content-type": "application/json" } : {})
+    },
+    ...(body ? { body: JSON.stringify(body) } : {})
   });
 }
 
@@ -245,7 +249,7 @@ describe("image generation runtime route and UI", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    const response = await sendToGenerationPost(authedPost(`/api/studio/design-briefs/${briefId}/send-to-generation`), {
+    const response = await sendToGenerationPost(authedPost(`/api/studio/design-briefs/${briefId}/send-to-generation`, { variantCount: 1 }), {
       params: Promise.resolve({ id: briefId })
     });
     const body = await response.json();

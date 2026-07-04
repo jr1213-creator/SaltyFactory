@@ -131,6 +131,8 @@ const loginRoute = readFileSync(join("apps", "studio", "app", "api", "studio", "
 if (!authText.includes("signInWithOtp") || !authText.includes("exchangeCodeForSession") || !authText.includes("getUser(accessToken)")) failures.push("Supabase Studio auth flow missing");
 if (/Boolean\(process\.env\.STUDIO_ADMIN_EMAIL\)/.test(proxyText) || /return process\.env\.STUDIO_ADMIN_EMAIL\s*\?/.test(authText) || /createStudioSessionValue|verifyStudioSessionValue|sf_studio_session/.test(authText)) failures.push("production Studio auth is env-only or custom signed-cookie based");
 if (/STUDIO_AUTH_SECRET|STUDIO_ADMIN_PASSWORD_HASH|PASSWORD_HASH|bcrypt|argon2/.test(env + authText)) failures.push("custom Studio auth secret/password workaround found");
+if (!authText.includes("PLAYWRIGHT_AUTH_BYPASS") || !authText.includes("test_auth_bypass_forbidden_in_production") || !authText.includes("test_auth_bypass_requires_test_runtime")) failures.push("Playwright auth bypass must remain test-only and production-blocked");
+if (process.env.APP_ENV === "production" && process.env.PLAYWRIGHT_AUTH_BYPASS === "true") failures.push("PLAYWRIGHT_AUTH_BYPASS is forbidden in production");
 if (/Set-Cookie/.test(loginRoute)) failures.push("Studio login route must not create sessions without Supabase callback");
 if (!/pathname === "\/api\/studio\/login"/.test(proxyText)) failures.push("Studio login API is not explicitly public in proxy");
 

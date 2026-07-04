@@ -197,6 +197,20 @@ async function getVerifiedSupabaseIdentity(input?: AuthInput): Promise<SupabaseI
   return identity;
 }
 
+function testAuthBypassUser(workspaceId: string): StudioUser | null {
+  if (process.env.PLAYWRIGHT_AUTH_BYPASS !== "true") return null;
+  if (isProduction()) throw authError("test_auth_bypass_forbidden_in_production", 403);
+  if (process.env.NODE_ENV !== "test" && process.env.APP_ENV !== "test") throw authError("test_auth_bypass_requires_test_runtime", 403);
+  return {
+    id: "playwright_auth_bypass_owner",
+    email: "playwright-auth-bypass@saltyfactory.local",
+    role: "owner",
+    workspaceId,
+    organizationId: "org_playwright_auth_bypass",
+    supabaseUserId: "playwright_auth_bypass_owner"
+  };
+}
+
 async function verifySupabaseSsrSession(input?: AuthInput): Promise<SupabaseIdentity | null> {
   const cookies = parseCookieHeader(input);
   if (!cookies.length) return null;
@@ -258,6 +272,8 @@ async function authorizeWorkspace(identity: SupabaseIdentity, workspaceId: strin
 }
 
 export async function getStudioUser(input?: AuthInput, workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default"): Promise<StudioUser | null> {
+  const bypass = testAuthBypassUser(workspaceId);
+  if (bypass) return bypass;
   const identity = await getVerifiedSupabaseIdentity(input);
   if (!identity) return null;
   return authorizeWorkspace(identity, workspaceId);
@@ -267,6 +283,8 @@ export async function requireStudioUser(input?: AuthInput, workspaceId = process
   if (process.env.NODE_ENV === "production" && process.env.STUDIO_AUTH_ENABLED === "false") {
     throw new Error("Production auth bypass forbidden");
   }
+  const bypass = testAuthBypassUser(workspaceId);
+  if (bypass) return bypass;
   const identity = await getVerifiedSupabaseIdentity(input);
   if (!identity) throw authError("unauthenticated", 401);
   const user = await authorizeWorkspace(identity, workspaceId);

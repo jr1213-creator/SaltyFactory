@@ -22,7 +22,11 @@ export function selectRepositoryAdapter(config: RepositoryRuntimeConfig = proces
     return { adapter: "drizzle", reason: "database_url_configured" };
   }
 
-  if (nodeEnv === "test") return { adapter: "memory", reason: "test_mode" };
+  if (nodeEnv === "test") {
+    if (requested === "drizzle" && hasDatabaseUrl) return { adapter: "drizzle", reason: "database_url_configured" };
+    if (requested === "memory" && config.PLAYWRIGHT_AUTH_BYPASS === "true") return { adapter: "memory", reason: "explicit_development_memory" };
+    return { adapter: "memory", reason: "test_mode" };
+  }
   if (requested === "memory") return { adapter: "memory", reason: "explicit_development_memory" };
   if (hasDatabaseUrl) return { adapter: "drizzle", reason: "database_url_configured" };
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -76,6 +77,22 @@ function localPrivatePath(kind: "assets" | "mockups", storageKey: string) {
   return path.resolve(process.cwd(), ".saltyfactory-private", kind, workspaceId, path.basename(storageKey));
 }
 
+function sha256(buffer: Buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+async function internalLightTeeBaseBuffer() {
+  const width = 1800;
+  const height = 2200;
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <rect width="100%" height="100%" fill="#f8fbfc"/>
+    <rect x="${Math.round(width * 0.19)}" y="${Math.round(height * 0.13)}" width="${Math.round(width * 0.62)}" height="${Math.round(height * 0.70)}" rx="${Math.round(width * 0.06)}" fill="#f4eadb" stroke="#0b1f33" stroke-width="10"/>
+    <rect x="${Math.round(width * 0.27)}" y="${Math.round(height * 0.06)}" width="${Math.round(width * 0.46)}" height="${Math.round(height * 0.11)}" rx="${Math.round(width * 0.05)}" fill="#ffffff" stroke="#dbe7ea" stroke-width="8"/>
+    <text x="${Math.round(width / 2)}" y="${Math.round(height * 0.91)}" text-anchor="middle" font-family="Inter, Arial" font-size="${Math.max(34, Math.round(width * 0.035))}" fill="#526475">tee front internal compositor preview</text>
+  </svg>`);
+  return sharp(svg).png().toBuffer();
+}
+
 async function writeLocalArtwork(assetId: string, color = "#0f766e") {
   const storageKey = `workspaces/${workspaceId}/private/assets/${assetId}.png`;
   const filePath = localPrivatePath("assets", storageKey);
@@ -149,6 +166,98 @@ async function seedApprovedAsset(repos: RepositoryBundle, suffix: string) {
     updated_by: actorId
   } as WorkspaceRow);
   return assetId;
+}
+
+async function seedApprovedAssetWithColor(repos: RepositoryBundle, suffix: string, color: string) {
+  const assetId = `asset_golden_${suffix}`;
+  const { storageKey, buffer } = await writeLocalArtwork(assetId, color);
+  await repos.asset.create({
+    id: assetId,
+    workspace_id: workspaceId,
+    brief_id: `brief_${suffix}`,
+    asset_type: "generated_source_art",
+    storage_bucket: "local-dev-private-assets",
+    file_path: storageKey,
+    file_size_bytes: buffer.byteLength,
+    width: 3000,
+    height: 3000,
+    dpi: 300,
+    transparent_background: true,
+    generator: "huggingface",
+    model: "black-forest-labs/FLUX.1-schnell",
+    qa_status: "passed",
+    risk_status: "pending",
+    approved_for_mockup: true,
+    mime_type: "image/png",
+    extension: "png",
+    visibility: "private",
+    created_by: actorId,
+    updated_by: actorId
+  } as WorkspaceRow);
+  const derivativeKey = `workspaces/${workspaceId}/private/assets/${assetId}-print_png.png`;
+  const derivativePath = localPrivatePath("assets", derivativeKey);
+  await mkdir(path.dirname(derivativePath), { recursive: true });
+  await writeFile(derivativePath, buffer);
+  await repos.asset.create({
+    id: `${assetId}_print_png`,
+    workspace_id: workspaceId,
+    brief_id: `brief_${suffix}`,
+    asset_type: "print_png",
+    storage_bucket: "local-dev-private-assets",
+    file_path: derivativeKey,
+    file_size_bytes: buffer.byteLength,
+    width: 3000,
+    height: 3000,
+    dpi: 300,
+    transparent_background: true,
+    generator: "huggingface",
+    model: "black-forest-labs/FLUX.1-schnell",
+    qa_status: "passed",
+    risk_status: "pending",
+    approved_for_mockup: false,
+    mime_type: "image/png",
+    extension: "png",
+    visibility: "private",
+    metadata: { derivative_package: true, derivative_kind: "print_png", source_asset_id: assetId, parent_asset_id: assetId },
+    created_by: actorId,
+    updated_by: actorId
+  } as WorkspaceRow);
+  await repos.qa.create({
+    id: `qa_golden_${suffix}`,
+    workspace_id: workspaceId,
+    asset_id: assetId,
+    status: "passed",
+    approved_for_product_draft: true,
+    created_by: actorId,
+    updated_by: actorId
+  } as WorkspaceRow);
+  return assetId;
+}
+
+async function imageRegionContainsRgb(
+  imagePath: string,
+  region: { left: number; top: number; width: number; height: number },
+  expected: { r: number; g: number; b: number },
+  tolerance = 8
+) {
+  const { data } = await sharp(imagePath)
+    .extract(region)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let index = 0; index < data.length; index += 3) {
+    const r = data[index] ?? 0;
+    const g = data[index + 1] ?? 0;
+    const b = data[index + 2] ?? 0;
+    if (
+      Math.abs(r - expected.r) <= tolerance
+      && Math.abs(g - expected.g) <= tolerance
+      && Math.abs(b - expected.b) <= tolerance
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function seedPrintifyProvider(repos: RepositoryBundle, token = "printify_golden_secret") {
@@ -441,7 +550,7 @@ describe("POD golden path execution", () => {
     authorizeAsOwner();
     setMemoryRuntime();
     const repos = createRepositories();
-    const assetId = await seedApprovedAsset(repos, `mockup_${Date.now()}`);
+    const assetId = await seedApprovedAssetWithColor(repos, `mockup_${Date.now()}`, "#ff00ff");
 
     const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
     const body = await response.json();
@@ -459,7 +568,13 @@ describe("POD golden path execution", () => {
       params: Promise.resolve({ id: mockupId })
     });
     const mockupPath = localPrivatePath("mockups", `workspaces/${workspaceId}/private/mockups/${mockupId}.png`);
-    const sampled = await sharp(mockupPath).extract({ left: 900, top: 970, width: 1, height: 1 }).raw().toBuffer();
+    const mockupBytes = await sharp(mockupPath).png().toBuffer();
+    const baseTemplateBytes = await internalLightTeeBaseBuffer();
+    const containsSourceMarker = await imageRegionContainsRgb(
+      mockupPath,
+      { left: 850, top: 920, width: 120, height: 120 },
+      { r: 255, g: 0, b: 255 }
+    );
     const html = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
 
     expect(response.status).toBe(200);
@@ -470,7 +585,8 @@ describe("POD golden path execution", () => {
     expect(heroResponse.status).toBe(200);
     expect(heroBody.mockup.metadata).toMatchObject({ is_hero: true });
     expect(preview.status).toBe(200);
-    expect(sampled[1]).toBeGreaterThan(80);
+    expect(sha256(mockupBytes)).not.toEqual(sha256(baseTemplateBytes));
+    expect(containsSourceMarker).toBe(true);
     expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(html).toContain("Use in product draft");
   });

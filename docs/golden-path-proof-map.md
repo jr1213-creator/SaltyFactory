@@ -39,7 +39,9 @@ Provider proof now visible in `/studio/publish-review`:
 
 ## Known Verification Gaps
 
-- Live external provider smoke was not run by automated tests; tests use mocked provider responses or local demo image bytes for deterministic CI.
+- Live external provider smoke is not yet passing locally. On 2026-07-04, `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true corepack pnpm smoke:image-mockup-live` blocked while inserting the smoke brief through Drizzle, before Hugging Face execution. It did not print secrets and did not prove live Hugging Face success.
+- Focused authenticated browser proof exists as `corepack pnpm frontend:qa:image-mockup`. On 2026-07-04 it passed with the guarded local proof provider: browser-created brief, four generated variants, protected asset previews, derivative proof, QA/approval, recommended internal mockups, protected mockup preview, and hero selection.
 - Live image/mockup smoke exists as `corepack pnpm smoke:image-mockup-live` and is skipped unless `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true`.
+- Worker queued generation currently persists one generated output plus derivatives. Browser route supports up to four variants; worker multi-variant support remains partial.
 - Shopify currently uses the REST Admin adapter in the repo. GraphQL is a future migration, not required for the current verified draft path.
 - Publish Review provider proof rows are derived from persisted refs and asset metadata. The core domain gate schema still uses the legacy compact gate set.

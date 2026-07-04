@@ -254,6 +254,7 @@ export type RepositoryRuntimeConfig = {
   SUPABASE_URL?: string;
   NEXT_PUBLIC_SUPABASE_URL?: string;
   REPOSITORY_ADAPTER?: string;
+  PLAYWRIGHT_AUTH_BYPASS?: string;
 };
 
 export const now = () => new Date().toISOString();

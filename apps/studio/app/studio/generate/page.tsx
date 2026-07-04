@@ -5,6 +5,8 @@ import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 import { assetPreviewPath } from "../_private-preview-paths";
 import { GenerationStudioClient } from "./GenerationStudioClient";
 
+export const dynamic = "force-dynamic";
+
 type RecommendedModel = { model: string; label: string };
 
 function ownerLabel(value: unknown, fallback = "pending") {

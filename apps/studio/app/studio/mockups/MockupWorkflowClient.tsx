@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 import { assetPreviewPath, mockupPreviewPath } from "../_private-preview-paths";
 
@@ -60,7 +60,7 @@ function ResultPanel({ result }: { result: unknown }) {
         <p className="text-muted">{message}</p>
       </div>
     </div>
-    {mockup ? <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Composited mockup preview" aspectRatio="4 / 5" maxHeight={360} /> : null}
+    {mockup ? <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Rendered mockup preview" aspectRatio="4 / 5" maxHeight={360} /> : null}
     {!mockup && mockups.length ? <div className="layout-grid layout-grid-3">{mockups.map((item) => <article key={String(item.id)} className="surface-card" style={{ display: "grid", gap: 8 }}>
       <PrivateImagePreview src={String(item.previewUrl ?? mockupPreviewPath(item))} alt="Rendered mockup preview" aspectRatio="4 / 5" maxHeight={260} />
       <strong>{item.id}</strong>
@@ -87,8 +87,9 @@ function ResultPanel({ result }: { result: unknown }) {
 }
 
 export function MockupWorkflowClient({ initialAssets, initialMockups, initialAssetId }: { initialAssets: Row[]; initialMockups: Row[]; initialAssetId?: string | undefined }) {
-  const approvedAssets = initialAssets.filter((asset) => asset.approved_for_mockup || asset.approvedForMockup);
-  const initialApprovedAssetId = approvedAssets.some((asset) => asset.id === initialAssetId) ? initialAssetId : approvedAssets[0]?.id;
+  const [assets, setAssets] = useState(initialAssets);
+  const approvedAssets = useMemo(() => assets.filter((asset) => asset.approved_for_mockup || asset.approvedForMockup), [assets]);
+  const initialApprovedAssetId = initialAssets.some((asset) => asset.id === initialAssetId) ? initialAssetId : approvedAssets[0]?.id;
   const [assetId, setAssetId] = useState(initialApprovedAssetId ?? "");
   const [productType, setProductType] = useState("tee_front");
   const [templateId, setTemplateId] = useState("tmpl_internal_apparel_light_tee");
@@ -101,6 +102,25 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
   const selectedAsset = useMemo(() => approvedAssets.find((asset) => asset.id === assetId), [approvedAssets, assetId]);
   const selectedApproved = Boolean(selected?.approved_for_product || selected?.approvedForProduct);
 
+  async function refreshAssets() {
+    const data = await fetch("/api/studio/assets/upload", { cache: "no-store" }).then((res) => res.json());
+    if (Array.isArray(data.assets)) {
+      const nextAssets = data.assets.filter((asset: Row) => {
+        const metadata = asset.metadata && typeof asset.metadata === "object" && !Array.isArray(asset.metadata) ? asset.metadata as Row : {};
+        const kind = String(metadata.derivative_kind ?? metadata.derivativeKind ?? asset.asset_type ?? asset.assetType ?? "");
+        return !["thumbnail", "web_preview", "print_png"].includes(kind);
+      });
+      setAssets(nextAssets);
+      const nextApproved = nextAssets.filter((asset: Row) => asset.approved_for_mockup || asset.approvedForMockup);
+      const preferredAssetId =
+        (initialAssetId && nextApproved.some((asset: Row) => asset.id === initialAssetId) ? initialAssetId : "")
+        || (assetId && nextApproved.some((asset: Row) => asset.id === assetId) ? assetId : "")
+        || nextApproved[0]?.id
+        || "";
+      if (preferredAssetId !== assetId) setAssetId(preferredAssetId);
+    }
+  }
+
   async function refresh() {
     const data = await fetch("/api/studio/mockups/generate").then((res) => res.json());
     if (Array.isArray(data.mockups)) {
@@ -108,6 +128,12 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
       if (!selectedMockupId && data.mockups[0]) setSelectedMockupId(data.mockups[0].id);
     }
   }
+
+  useEffect(() => {
+    refreshAssets().catch(() => {
+      // Keep server-rendered assets if the authenticated refresh is unavailable.
+    });
+  }, []);
 
   async function generate(mode: "single" | "recommended" = "single") {
     setBusy(true);
@@ -204,7 +230,7 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
     </div> : <p className="text-muted">Run QA and approve a generated asset before creating a mockup.</p>}
     <label>Mockup<select value={selectedMockupId} onChange={(event) => setSelectedMockupId(event.target.value)}>{mockups.map((mockup) => <option key={mockup.id} value={mockup.id}>{mockup.file_path ?? mockup.id}</option>)}</select></label>
     {selected ? <div className="surface-card" style={{ display: "grid", gap: 10 }}>
-      <PrivateImagePreview src={mockupPreviewPath(selected)} alt="Selected composited mockup preview" aspectRatio="4 / 5" maxHeight={360} />
+      <PrivateImagePreview src={mockupPreviewPath(selected)} alt="Rendered mockup preview" aspectRatio="4 / 5" maxHeight={360} />
       <p className="text-muted">{ownerLabel(selected.status)} - approved for product {String(selectedApproved)} - internal preview only</p>
       {(selected.metadata?.is_hero || selected.metadata?.isHero) ? <StatusLine label="Hero mockup" value="Selected" /> : null}
     </div> : <p className="text-muted">Generate a mockup from an approved asset first.</p>}

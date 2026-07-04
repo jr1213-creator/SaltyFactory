@@ -2,6 +2,8 @@ import { DataTable, EmptyState, PageHeader, StatusBadge } from "@saltyfactory/ui
 import { getStudioLists } from "../data";
 import { BriefWorkflowClient } from "./BriefWorkflowClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   const { briefs } = await getStudioLists();
   return <>

@@ -20,6 +20,24 @@ describe("repository factory selection", () => {
     expect(createRuntimeRepositories({ NODE_ENV: "test", APP_ENV: "test" }).adapter).toBe("memory");
   });
 
+  it("repository factory allows explicit Drizzle in test for browser/live proof runs", () => {
+    expect(selectRepositoryAdapter({
+      NODE_ENV: "test",
+      APP_ENV: "test",
+      REPOSITORY_ADAPTER: "drizzle",
+      DATABASE_URL: "postgres://user:pass@localhost:5432/saltyfactory"
+    })).toEqual({ adapter: "drizzle", reason: "database_url_configured" });
+  });
+
+  it("repository factory can share memory state for guarded Playwright proof runs", () => {
+    expect(selectRepositoryAdapter({
+      NODE_ENV: "test",
+      APP_ENV: "test",
+      REPOSITORY_ADAPTER: "memory",
+      PLAYWRIGHT_AUTH_BYPASS: "true"
+    }).reason).toBe("explicit_development_memory");
+  });
+
   it("repository factory returns Drizzle repos when DATABASE_URL exists", () => {
     expect(createRuntimeRepositories({ NODE_ENV: "development", APP_ENV: "development", DATABASE_URL: "postgres://user:pass@localhost:5432/saltyfactory" }).adapter).toBe("drizzle");
   });

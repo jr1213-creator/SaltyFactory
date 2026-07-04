@@ -103,6 +103,34 @@ describe("studio auth", () => {
     await expect(requireStudioUser()).rejects.toThrow("Production auth bypass forbidden");
   });
 
+  it("allows Playwright auth bypass only in NODE_ENV=test", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("APP_ENV", "test");
+    vi.stubEnv("PLAYWRIGHT_AUTH_BYPASS", "true");
+    await expect(requireStudioUser(undefined, "wks_browser_proof")).resolves.toMatchObject({
+      id: "playwright_auth_bypass_owner",
+      role: "owner",
+      workspaceId: "wks_browser_proof"
+    });
+
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("APP_ENV", "development");
+    await expect(requireStudioUser(undefined, "wks_browser_proof")).rejects.toMatchObject({
+      message: "test_auth_bypass_requires_test_runtime",
+      status: 403
+    });
+  });
+
+  it("forbids Playwright auth bypass in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_ENV", "production");
+    vi.stubEnv("PLAYWRIGHT_AUTH_BYPASS", "true");
+    await expect(requireStudioUser(undefined, "wks_browser_proof")).rejects.toMatchObject({
+      message: "test_auth_bypass_forbidden_in_production",
+      status: 403
+    });
+  });
+
   it("audit actor is required for approval and publish actions", async () => {
     await expect(requireAuditActor()).rejects.toThrow("audit_actor_required");
   });

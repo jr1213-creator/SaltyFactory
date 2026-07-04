@@ -1,6 +1,6 @@
 # Image Generation Workflow v1
 
-Status: functional for approved brief to private generated asset package.
+Status: API/route-tested and browser-proven locally for approved brief to private generated asset package using the guarded local proof provider. Live Hugging Face smoke is still not proven because the live smoke blocks at local Drizzle smoke brief insertion before provider execution.
 
 ## What Is Real
 
@@ -11,7 +11,7 @@ Status: functional for approved brief to private generated asset package.
 - Preview: `GET /api/studio/assets/[assetId]/preview`.
 - Derivative previews: `GET /api/studio/assets/[assetId]/derivatives/[kind]/preview`.
 
-Approved briefs can generate up to four artwork variants. Each variant persists:
+Approved briefs can generate up to four artwork variants from the browser. Each variant persists:
 
 - generated master asset
 - seed
@@ -55,7 +55,11 @@ The print PNG is the downstream mockup source. If the model output has no alpha 
 
 ## Worker Path
 
-The worker path also persists a generated master and derivative package before marking the job completed. This keeps queued generation consistent with the browser-triggered route.
+The worker path persists one generated master and derivative package before marking a job completed. It does not yet support `requestedVariantCount` the same way the browser route does.
+
+Status: `PARTIAL`.
+
+Required follow-up: teach the worker to iterate requested variants, persist per-variant seeds/assets/derivatives, and only mark complete after at least one variant asset exists. The browser route already has multi-variant proof.
 
 ## Blocked States
 
@@ -95,3 +99,15 @@ RUN_LIVE_IMAGE_MOCKUP_SMOKE=true corepack pnpm smoke:image-mockup-live
 ```
 
 The script creates one approved brief, generates one variant, runs QA, approves the asset, renders internal mockups, verifies previews, and prints IDs only.
+
+Latest local result on 2026-07-04: live smoke did not pass. It blocked on local Drizzle persistence while inserting the smoke brief, before any Hugging Face provider call. No provider token or storage secret was printed. Treat live Hugging Face proof as not complete until this script prints an `ok: true` report.
+
+## Browser Proof
+
+Focused runner:
+
+```txt
+corepack pnpm frontend:qa:image-mockup
+```
+
+This starts Studio with `APP_ENV=test`, `REPOSITORY_ADAPTER=memory`, `PLAYWRIGHT_AUTH_BYPASS=true`, and local demo image generation. Latest local result on 2026-07-04: passing. The browser proof creates and approves a brief, generates four local proof variants, verifies protected asset and derivative previews, runs QA against the print PNG package, approves the asset, renders recommended internal mockups, verifies the protected mockup preview, and sets a hero mockup.

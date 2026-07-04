@@ -1,6 +1,6 @@
 # Mockup Automation Workflow v1
 
-Status: functional for internal automated mockups from approved generated assets.
+Status: API/route-tested and browser-proven locally for internal automated mockups from approved generated assets using the guarded local proof provider.
 
 ## What Is Real
 
@@ -43,6 +43,8 @@ Each mockup render stores:
 
 The owner UI shows the selected asset, template controls, placement controls, rendered mockup preview, and hero selection.
 
+Pixel-level regression proof now verifies that a synthetic magenta source artwork changes the rendered mockup output, that the output checksum differs from the base template, and that source-art pixels are detectable inside the expected art zone.
+
 ## Blocked States
 
 Mockup rendering blocks with safe messages when:
@@ -69,3 +71,11 @@ corepack pnpm test -- tests/pod-golden-path-execution.test.ts
 ```
 
 The focused tests assert missing derivative blocking, source-art pixel composition, different checksum after placement change, persisted mockup records, protected preview bytes, recommended multi-renders, and hero selection.
+
+Focused browser runner:
+
+```txt
+corepack pnpm frontend:qa:image-mockup
+```
+
+Latest local result on 2026-07-04: passing. The browser runner authenticates through a guarded test bypass, loads the approved generated asset, renders recommended internal mockups through the real backend route, verifies a protected rendered preview, and persists hero selection.

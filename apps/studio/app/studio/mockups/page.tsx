@@ -4,6 +4,8 @@ import { PrivateImagePreview } from "../_components/PrivateImagePreview";
 import { mockupPreviewPath } from "../_private-preview-paths";
 import { MockupWorkflowClient } from "./MockupWorkflowClient";
 
+export const dynamic = "force-dynamic";
+
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
 }

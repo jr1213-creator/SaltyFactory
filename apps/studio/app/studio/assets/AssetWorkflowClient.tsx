@@ -1,13 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PrivateImagePreview } from "../_components/PrivateImagePreview";
-import { assetPreviewPath } from "../_private-preview-paths";
+import { assetDerivativePreviewPath, assetPreviewPath } from "../_private-preview-paths";
 
 type Asset = Record<string, any>;
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
+}
+
+function assetMetadata(asset: Asset) {
+  return asset.metadata && typeof asset.metadata === "object" && !Array.isArray(asset.metadata)
+    ? asset.metadata as Record<string, unknown>
+    : {};
+}
+
+function derivativeKind(asset: Asset) {
+  const metadata = assetMetadata(asset);
+  return String(metadata.derivative_kind ?? metadata.derivativeKind ?? asset.asset_type ?? asset.assetType ?? "");
+}
+
+function isGeneratedDerivativeAsset(asset: Asset) {
+  const kind = derivativeKind(asset);
+  return ["thumbnail", "web_preview", "print_png"].includes(kind)
+    || assetMetadata(asset).derivative_package === true
+    || assetMetadata(asset).derivativePackage === true;
+}
+
+function sourceAssetIdForDerivative(asset: Asset) {
+  const metadata = assetMetadata(asset);
+  return String(metadata.source_asset_id ?? metadata.sourceAssetId ?? metadata.parent_asset_id ?? metadata.parentAssetId ?? "");
 }
 
 function sanitizeDeveloperDetails(value: unknown) {
@@ -37,7 +60,8 @@ function ResultPanel({ result }: { result: any }) {
     <dl className="result-detail-grid">
       {asset ? <div><dt>Asset</dt><dd>{asset.id}</dd></div> : null}
       {asset ? <div><dt>QA status</dt><dd>{ownerLabel(asset.qa_status ?? asset.qaStatus)}</dd></div> : null}
-      {qa ? <div><dt>QA evidence</dt><dd>{ownerLabel(qa.status)}</dd></div> : null}
+      {qa ? <div><dt>QA status</dt><dd>{ownerLabel(qa.status)}</dd></div> : null}
+      {qa ? <div><dt>QA evidence</dt><dd>{Array.isArray(qa.warnings) && qa.warnings.length ? `${qa.warnings.length} warning(s)` : "checks stored"}</dd></div> : null}
       {asset ? <div><dt>Visibility</dt><dd>{ownerLabel(asset.visibility, "private")}</dd></div> : null}
     </dl>
     {blockers.length ? <div><strong>Blockers</strong><ul>{blockers.map((blocker: string) => <li key={blocker}>{blocker}</li>)}</ul></div> : null}
@@ -62,22 +86,49 @@ async function postJson(url: string, body?: Record<string, unknown>) {
   return response.json();
 }
 
-export function AssetWorkflowClient({ initialAssets, initialAssetId }: { initialAssets: Asset[]; initialAssetId?: string | undefined }) {
+export function AssetWorkflowClient({
+  initialAssets,
+  initialDerivatives,
+  initialAssetId
+}: {
+  initialAssets: Asset[];
+  initialDerivatives?: Asset[];
+  initialAssetId?: string | undefined;
+}) {
   const [assets, setAssets] = useState(initialAssets);
-  const [selectedAssetId, setSelectedAssetId] = useState(initialAssets.some((asset) => asset.id === initialAssetId) ? String(initialAssetId) : initialAssets[0]?.id ?? "");
+  const [derivatives, setDerivatives] = useState(initialDerivatives ?? []);
+  const [selectedAssetId, setSelectedAssetId] = useState(initialAssetId ?? initialAssets[0]?.id ?? "");
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const selected = useMemo(() => assets.find((asset) => asset.id === selectedAssetId), [assets, selectedAssetId]);
+  const selectedDerivatives = useMemo(
+    () => derivatives.filter((asset) => sourceAssetIdForDerivative(asset) === selectedAssetId),
+    [derivatives, selectedAssetId]
+  );
   const selectedApprovedForMockup = Boolean(selected?.approved_for_mockup || selected?.approvedForMockup);
   const selectedPreview = assetPreviewPath(selected);
 
   async function refreshAssets() {
     const data = await fetch("/api/studio/assets/upload").then((res) => res.json());
     if (Array.isArray(data.assets)) {
-      setAssets(data.assets);
-      if (!selectedAssetId && data.assets[0]) setSelectedAssetId(data.assets[0].id);
+      const nextAssets = data.assets.filter((asset: Asset) => !isGeneratedDerivativeAsset(asset));
+      const nextDerivatives = data.assets.filter((asset: Asset) => isGeneratedDerivativeAsset(asset));
+      setAssets(nextAssets);
+      setDerivatives(nextDerivatives);
+      const preferredAssetId =
+        (initialAssetId && nextAssets.some((asset: Asset) => asset.id === initialAssetId) ? initialAssetId : "")
+        || (selectedAssetId && nextAssets.some((asset: Asset) => asset.id === selectedAssetId) ? selectedAssetId : "")
+        || nextAssets[0]?.id
+        || "";
+      if (preferredAssetId !== selectedAssetId) setSelectedAssetId(preferredAssetId);
     }
   }
+
+  useEffect(() => {
+    refreshAssets().catch(() => {
+      // Keep server-rendered assets if the authenticated refresh is unavailable.
+    });
+  }, []);
 
   async function upload(formData: FormData) {
     setBusy(true);
@@ -138,6 +189,26 @@ export function AssetWorkflowClient({ initialAssets, initialAssetId }: { initial
         <div><dt>Approval</dt><dd>{ownerLabel(selected.approval_status ?? selected.approvalStatus)}</dd></div>
         <div><dt>Visibility</dt><dd>{ownerLabel(selected.visibility, "private")}</dd></div>
       </dl>
+    </div> : null}
+    {selected ? <div className="surface-card" style={{ display: "grid", gap: 12 }}>
+      <div>
+        <p className="eyebrow-label">Asset package</p>
+        <h3>Private derivative proof</h3>
+        <p className="text-muted">Protected previews prove this asset has a thumbnail, web preview, and print-ready PNG stored privately.</p>
+      </div>
+      {selectedDerivatives.length ? <div className="layout-grid layout-grid-3">
+        {selectedDerivatives.map((derivative) => {
+          const kind = derivativeKind(derivative);
+          return <article key={derivative.id} className="surface-card" style={{ display: "grid", gap: 8 }}>
+            <PrivateImagePreview src={assetDerivativePreviewPath(selected, kind)} alt={`${ownerLabel(kind)} private derivative preview`} maxHeight={220} />
+            <strong>{ownerLabel(kind)}</strong>
+            <dl className="result-detail-grid">
+              <div><dt>Size</dt><dd>{derivative.width && derivative.height ? `${derivative.width} x ${derivative.height}` : "stored"}</dd></div>
+              <div><dt>Type</dt><dd>{derivative.mime_type ?? derivative.mimeType ?? "image"}</dd></div>
+            </dl>
+          </article>;
+        })}
+      </div> : <p className="text-muted">Derivative package pending. Generate artwork through the Image Generation Studio to create the private proof package.</p>}
     </div> : null}
     {selected && !selectedApprovedForMockup ? <p className="text-muted">Run QA and approve this asset before creating a mockup.</p> : null}
     <ResultPanel result={result} />

@@ -1,15 +1,59 @@
+import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAuthorizerForTests } from "@saltyfactory/auth";
+import {
+  SUPABASE_ACCESS_COOKIE,
+  requireProviderMutationPermission,
+  setSupabaseUserVerifierForTests,
+  setWorkspaceAuthorizerForTests
+} from "@saltyfactory/auth";
 import { createRepositories, type WorkspaceRow } from "@saltyfactory/db";
-import { POST as sendToGenerationPost } from "../apps/studio/app/api/studio/design-briefs/[id]/send-to-generation/route";
-import { GET as assetPreviewGet } from "../apps/studio/app/api/studio/assets/[id]/preview/route";
-import { POST as runQaPost } from "../apps/studio/app/api/studio/assets/[id]/run-qa/route";
-import { POST as approveAssetPost } from "../apps/studio/app/api/studio/assets/[id]/approve/route";
-import { POST as mockupGeneratePost } from "../apps/studio/app/api/studio/mockups/generate/route";
-import { GET as mockupPreviewGet } from "../apps/studio/app/api/studio/mockups/[id]/preview/route";
 
-const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
+function loadEnvFile(filePath: string) {
+  try {
+    const text = readFileSync(filePath, "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+      const [rawKey, ...rawValue] = trimmed.split("=");
+      const key = rawKey?.trim();
+      if (!key || process.env[key] !== undefined) continue;
+      process.env[key] = rawValue.join("=").trim().replace(/^['"]|['"]$/g, "");
+    }
+  } catch {
+    // Local env files are optional. Explicit process env always wins.
+  }
+}
+
+function loadLocalEnv() {
+  loadEnvFile(path.resolve(process.cwd(), ".env.local"));
+  loadEnvFile(path.resolve(process.cwd(), "apps/studio/.env.local"));
+  loadEnvFile(path.resolve(process.cwd(), ".env"));
+}
+
+function requireLiveRuntimeConfig() {
+  if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") {
+    throw new Error("live_smoke_refuses_production_runtime");
+  }
+  const missing = [
+    !process.env.DATABASE_URL && "DATABASE_URL",
+    !process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL && "SUPABASE_URL",
+    !process.env.SUPABASE_SERVICE_ROLE_KEY && "SUPABASE_SERVICE_ROLE_KEY",
+    !process.env.SUPABASE_PRIVATE_ASSETS_BUCKET && "SUPABASE_PRIVATE_ASSETS_BUCKET"
+  ].filter(Boolean);
+  if (missing.length) {
+    throw new Error(`live_smoke_missing_required_runtime:${missing.join(",")}`);
+  }
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  mutableEnv.NODE_ENV = "test";
+  mutableEnv.APP_ENV = mutableEnv.APP_ENV || "test";
+  mutableEnv.REPOSITORY_ADAPTER = "drizzle";
+}
+
+function workspaceId() {
+  return process.env.STUDIO_WORKSPACE_ID || "wks_default";
+}
+
 const actorId = "image_mockup_smoke_owner";
 
 function authedRequest(pathname: string, init: RequestInit = {}) {
@@ -34,6 +78,9 @@ async function main() {
     console.log("smoke:image-mockup-live skipped; set RUN_LIVE_IMAGE_MOCKUP_SMOKE=true to run.");
     return;
   }
+  loadLocalEnv();
+  requireLiveRuntimeConfig();
+  (process.env as Record<string, string | undefined>).PLAYWRIGHT_AUTH_BYPASS = "true";
 
   setSupabaseUserVerifierForTests(async (token) => token === "smoke" ? { id: actorId, email: "smoke@saltyfactory.local", emailVerified: true } : null);
   setWorkspaceAuthorizerForTests(async (user, authorizedWorkspaceId) => ({
@@ -43,12 +90,31 @@ async function main() {
     workspaceId: authorizedWorkspaceId,
     supabaseUserId: user.id
   }));
+  await requireProviderMutationPermission(authedRequest("/api/studio/smoke-auth-check"), workspaceId());
+
+  const [
+    { POST: sendToGenerationPost },
+    { GET: assetPreviewGet },
+    { GET: assetDerivativePreviewGet },
+    { POST: runQaPost },
+    { POST: approveAssetPost },
+    { POST: mockupGeneratePost },
+    { GET: mockupPreviewGet }
+  ] = await Promise.all([
+    import("../apps/studio/app/api/studio/design-briefs/[id]/send-to-generation/route"),
+    import("../apps/studio/app/api/studio/assets/[id]/preview/route"),
+    import("../apps/studio/app/api/studio/assets/[id]/derivatives/[kind]/preview/route"),
+    import("../apps/studio/app/api/studio/assets/[id]/run-qa/route"),
+    import("../apps/studio/app/api/studio/assets/[id]/approve/route"),
+    import("../apps/studio/app/api/studio/mockups/generate/route"),
+    import("../apps/studio/app/api/studio/mockups/[id]/preview/route")
+  ]);
 
   const repos = createRepositories();
   const briefId = `brief_smoke_${Date.now()}`;
   await repos.brief.create({
     id: briefId,
-    workspace_id: workspaceId,
+    workspace_id: workspaceId(),
     status: "approved",
     approved_for_generation: true,
     collection: "Smoke Test",
@@ -60,15 +126,36 @@ async function main() {
     updated_by: actorId
   } as WorkspaceRow);
 
-  const generationResponse = await sendToGenerationPost(authedPost(`/api/studio/design-briefs/${briefId}/send-to-generation`, { variantCount: 1 }), {
+  const generationResponse = await sendToGenerationPost(authedPost(`/api/studio/design-briefs/${briefId}/send-to-generation`, {
+    variantCount: 1,
+    width: 512,
+    height: 512,
+    numInferenceSteps: 1,
+    seed: 140704
+  }), {
     params: Promise.resolve({ id: briefId })
   });
   const generation = await generationResponse.json();
-  if (!generation.ok) throw new Error(`generation_failed:${generation.status}`);
+  if (!generation.ok) {
+    throw new Error(JSON.stringify({
+      status: "generation_failed",
+      httpStatus: generationResponse.status,
+      errorStatus: generation.errorStatus ?? generation.status,
+      safeMessage: generation.safeMessage ?? generation.message ?? "Generation failed before an image was stored.",
+      blockingReasons: generation.blockingReasons ?? generation.setupRequired ?? []
+    }));
+  }
+  if (generation.provider?.credentialSource === "local_demo" || generation.provider?.provider === "local_dev_mock") {
+    throw new Error("generation_used_local_demo_not_live_provider");
+  }
   const assetId = String(generation.asset.id);
 
   const preview = await assetPreviewGet(authedRequest(`/api/studio/assets/${assetId}/preview`), { params: Promise.resolve({ id: assetId }) });
   if (preview.status !== 200 || !String(preview.headers.get("content-type") ?? "").startsWith("image/")) throw new Error("asset_preview_failed");
+  const derivativePreview = await assetDerivativePreviewGet(authedRequest(`/api/studio/assets/${assetId}/derivatives/print_png/preview`), {
+    params: Promise.resolve({ id: assetId, kind: "print_png" })
+  });
+  if (derivativePreview.status !== 200 || !String(derivativePreview.headers.get("content-type") ?? "").startsWith("image/")) throw new Error("asset_derivative_preview_failed");
 
   await runQaPost(authedPost(`/api/studio/assets/${assetId}/run-qa`), { params: Promise.resolve({ id: assetId }) });
   await approveAssetPost(authedPost(`/api/studio/assets/${assetId}/approve`), { params: Promise.resolve({ id: assetId }) });
@@ -89,9 +176,21 @@ async function main() {
     derivativeKinds: generation.derivativeKinds,
     mockupId,
     assetPreviewPath: `/api/studio/assets/${assetId}/preview`,
+    derivativePreviewPath: `/api/studio/assets/${assetId}/derivatives/print_png/preview`,
     mockupPreviewPath: `/api/studio/mockups/${mockupId}/preview`
   }, null, 2));
-  console.log(JSON.stringify({ ok: true, briefId, generationJobId: generation.job.id, assetId, mockupId, reportPath }));
+  console.log(JSON.stringify({
+    ok: true,
+    briefId,
+    generationJobId: generation.job.id,
+    assetId,
+    derivativeKinds: generation.derivativeKinds,
+    mockupId,
+    assetPreviewPath: `/api/studio/assets/${assetId}/preview`,
+    derivativePreviewPath: `/api/studio/assets/${assetId}/derivatives/print_png/preview`,
+    mockupPreviewPath: `/api/studio/mockups/${mockupId}/preview`,
+    reportPath
+  }));
 }
 
 main().catch((error) => {
