@@ -78,7 +78,7 @@ export const STUDIO_TOP_NAV_AREAS: readonly StudioTopNavArea[] = [
           { label: "Briefs", href: "/studio/briefs", description: "Approve prompts and send briefs to generation." },
           { label: "Image Generation", href: "/studio/image-generation", description: "Generated artwork jobs using the connected provider." },
           { label: "Assets", href: "/studio/assets", description: "Protected generated asset previews and QA actions." },
-          { label: "Mockups", href: "/studio/mockups", description: "Composed internal mockups from approved artwork." }
+          { label: "Mockups", href: "/studio/mockups", description: "Printify product mockups from approved artwork." }
         ]
       },
       {

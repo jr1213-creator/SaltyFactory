@@ -1852,6 +1852,16 @@
     @apply text-xl font-black text-navy;
   }
 
+  .mockup-provider-preview {
+    @apply block max-h-[560px] w-full rounded-lg border border-border bg-muted object-contain;
+    aspect-ratio: 4 / 5;
+  }
+
+  .mockup-provider-card-image {
+    @apply block w-full rounded-md border border-border bg-muted object-contain;
+    aspect-ratio: 4 / 5;
+  }
+
   .mockup-action-panel {
     @apply rounded-lg border border-coral/20 bg-blush p-4;
   }

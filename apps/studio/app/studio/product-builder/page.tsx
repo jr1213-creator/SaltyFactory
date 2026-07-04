@@ -60,7 +60,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
           ownerLabel(metadata.provider_target, "internal only"),
           variantCount ? "Open publish review" : "Browse Printify catalog"
         ];
-      })} /> : <EmptyState title="No product drafts yet" description="Create a draft after generated artwork passes QA and an internal mockup is approved." action={<a className="btn btn-primary" href="/studio/mockups">Open mockups</a>} />}
+      })} /> : <EmptyState title="No product drafts yet" description="Create a draft after generated artwork passes QA and a real Printify mockup is selected." action={<a className="btn btn-primary" href="/studio/mockups">Open mockups</a>} />}
     </section>
   </>;
 }

@@ -6,6 +6,7 @@ import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../_auth";
 import { printifySetupRequiredResponse, resolvePrintifyRuntime } from "../../integrations/printify/_runtime";
+import { extractPrintifyMockupImages, persistPrintifyMockupImages } from "../../integrations/printify/_mockup-workflow";
 import {
   defaultPrintAreas,
   extractProviderProductId,
@@ -150,6 +151,17 @@ export async function POST(req: Request) {
       if (mockupSync.ok) {
         mockupUrls = mockupSync.mockupUrls;
         const productData = mockupSync.product && typeof mockupSync.product === "object" ? mockupSync.product as Record<string, unknown> : {};
+        const printifyImages = extractPrintifyMockupImages(productData);
+        const importedMockups = printifyImages.length
+          ? await persistPrintifyMockupImages({
+            repos,
+            actorId: user.id,
+            productDraftId,
+            assetId: artwork.asset.id,
+            printifyProductId,
+            images: printifyImages
+          })
+          : [];
         reference = await repos.printify.update(saved.id, {
           mockup_urls: mockupUrls,
           printify_status: String(productData.status ?? saved.printify_status ?? "draft"),
@@ -176,7 +188,7 @@ export async function POST(req: Request) {
           entityId: saved.id,
           action: mockupUrls.length ? "mockups_synced" : "mockups_pending",
           status: mockupSyncStatus,
-          details: { productDraftId, mockupCount: mockupUrls.length, attempts: mockupSync.attempts }
+          details: { productDraftId, mockupCount: mockupUrls.length, persistedMockupCount: importedMockups.length, attempts: mockupSync.attempts }
         });
       } else {
         reference = await repos.printify.update(saved.id, {

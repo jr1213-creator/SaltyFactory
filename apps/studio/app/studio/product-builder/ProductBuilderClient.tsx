@@ -17,6 +17,21 @@ function sanitizeDeveloperDetails(value: unknown) {
   }));
 }
 
+function metadataOf(row: Row | null | undefined): Row {
+  const metadata = row?.metadata;
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+}
+
+function isPrintifyMockup(row: Row | null | undefined) {
+  const metadata = metadataOf(row);
+  return metadata.provider_source === "printify" || metadata.providerSource === "printify" || Boolean(metadata.provider_mockup_url ?? metadata.providerMockupUrl);
+}
+
+function printifyMockupUrl(row: Row | null | undefined) {
+  const metadata = metadataOf(row);
+  return String(metadata.provider_mockup_url ?? metadata.providerMockupUrl ?? metadata.public_url ?? metadata.publicUrl ?? row?.file_path ?? row?.filePath ?? "");
+}
+
 async function postJson(url: string, body: Record<string, unknown>) {
   const response = await fetch(url, {
     method: "POST",
@@ -73,13 +88,13 @@ export function ProductBuilderClient({
   initialDraftId?: string | undefined;
 }) {
   const approvedAssets = assets.filter((asset) => asset.approved_for_mockup || asset.approvedForMockup);
-  const approvedMockups = mockups.filter((mockup) => mockup.approved_for_product || mockup.approvedForProduct);
+  const approvedMockups = mockups.filter((mockup) => isPrintifyMockup(mockup) && (mockup.approved_for_product || mockup.approvedForProduct || metadataOf(mockup).printify_is_default === true || metadataOf(mockup).is_hero === true));
   const initialDraft = drafts.find((draft) => draft.id === initialDraftId) ?? drafts[0];
   const [assetId, setAssetId] = useState(String(initialDraft?.asset_id ?? initialDraft?.assetId ?? approvedAssets[0]?.id ?? ""));
   const mockupsForAsset = useMemo(() => approvedMockups.filter((mockup) => String(mockup.asset_id ?? mockup.assetId ?? "") === assetId), [approvedMockups, assetId]);
   const [mockupId, setMockupId] = useState(String((initialDraft?.mockup_ids ?? initialDraft?.mockupIds ?? [])[0] ?? mockupsForAsset[0]?.id ?? ""));
   const [title, setTitle] = useState(String(initialDraft?.title ?? "Coastal Rodeo Social Club Tee"));
-  const [productIdea, setProductIdea] = useState(String((initialDraft?.metadata as Row | undefined)?.product_idea ?? "One generated artwork, one internal mockup, and a guarded POD draft for catalog selection."));
+  const [productIdea, setProductIdea] = useState(String((initialDraft?.metadata as Row | undefined)?.product_idea ?? "One generated artwork, one Printify provider mockup, and a guarded POD draft for catalog selection."));
   const [productType, setProductType] = useState(String(initialDraft?.product_type ?? initialDraft?.productType ?? "tee"));
   const [collection, setCollection] = useState(String(initialDraft?.collection ?? "Studio Drafts"));
   const [price, setPrice] = useState(String((initialDraft?.metadata as Row | undefined)?.price ?? "32"));
@@ -141,10 +156,12 @@ export function ProductBuilderClient({
         <p className="text-muted" style={{ margin: 0 }}>QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)} - approved for mockup</p>
       </article> : <article className="surface-card"><h3>Approved artwork required</h3><p className="text-muted">Generate artwork, run QA, and approve the asset before creating a product draft.</p><a className="btn btn-primary" href="/studio/assets">Open assets</a></article>}
       {selectedMockup ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
-        <PrivateImagePreview src={mockupPreviewPath(selectedMockup)} alt="Selected product mockup" aspectRatio="4 / 5" />
+        {isPrintifyMockup(selectedMockup)
+          ? <img src={printifyMockupUrl(selectedMockup)} alt="Selected Printify product mockup" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "contain", borderRadius: 8, border: "1px solid var(--border)", background: "var(--muted)" }} />
+          : <PrivateImagePreview src={mockupPreviewPath(selectedMockup)} alt="Selected product mockup" aspectRatio="4 / 5" />}
         <strong>Mockup {selectedMockup.id}</strong>
-        <p className="text-muted" style={{ margin: 0 }}>Approved for product draft</p>
-      </article> : <article className="surface-card"><h3>Approved mockup required</h3><p className="text-muted">Create and approve an internal mockup from the generated asset.</p><a className="btn btn-primary" href={assetId ? `/studio/mockups?asset_id=${encodeURIComponent(assetId)}` : "/studio/mockups"}>Open mockups</a></article>}
+        <p className="text-muted" style={{ margin: 0 }}>Printify mockup evidence for product draft</p>
+      </article> : <article className="surface-card"><h3>Printify mockup required</h3><p className="text-muted">Create a real Printify product and import provider mockups from the generated asset.</p><a className="btn btn-primary" href={assetId ? `/studio/mockups?asset_id=${encodeURIComponent(assetId)}` : "/studio/mockups"}>Open mockups</a></article>}
     </div>
     <div className="action-bar">
       <button className="btn btn-primary" type="button" disabled={busy || !assetId || !mockupId || !title.trim()} onClick={createDraft}>Create Product Draft</button>

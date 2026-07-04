@@ -83,17 +83,16 @@ test.describe("image generation and mockup browser proof", () => {
 
     await page.goto(`/studio/mockups?asset_id=${encodeURIComponent(assetId!)}`);
     await expect(page.getByRole("heading", { name: /Mockup Studio/i })).toBeVisible();
-    await expect(page.getByText(/Internal Mockup Workflow/i)).toBeVisible();
+    await expect(page.getByText(/Printify Mockup Workflow/i)).toBeVisible();
     await expectLoadedImage(page.getByAltText(/Approved source artwork preview/i).first());
-    await expect(page.getByLabel(/Internal template/i)).toBeVisible();
-    await page.getByRole("button", { name: /Generate recommended mockups/i }).click();
-    await expect(page.getByText(/recommended mockups created/i)).toBeVisible({ timeout: 90_000 });
-    await expectLoadedImage(page.getByAltText(/Rendered mockup preview/i).first());
+    await expect(page.getByRole("heading", { name: /Create a Printify product to generate real mockups/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open Printify Catalog/i }).first()).toBeVisible();
+    await expect(page.getByTestId("template-picker")).toHaveCount(0);
+    await expect(page.getByText(/Light Tee|Dark Tee|Sand Tee/i)).toHaveCount(0);
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: screenshotName("mockup-gallery"), fullPage: true, animations: "disabled" });
 
-    await page.getByRole("button", { name: /Set as hero mockup|Set hero mockup/i }).click();
-    await expect(page.getByText(/hero mockup selected/i)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("create-product-draft-button")).toBeDisabled();
     await page.screenshot({ path: screenshotName("hero-selected"), fullPage: true, animations: "disabled" });
 
     const bodyText = await page.locator("body").innerText();

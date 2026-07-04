@@ -19,6 +19,25 @@ function timestampOf(row: any) {
   return String(row?.updated_at ?? row?.updatedAt ?? row?.created_at ?? row?.createdAt ?? row?.reviewed_at ?? row?.reviewedAt ?? "");
 }
 
+function metadataOf(row: any): Record<string, unknown> {
+  const metadata = row?.metadata;
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Record<string, unknown> : {};
+}
+
+function isPrintifyProviderMockup(row: any) {
+  const metadata = metadataOf(row);
+  return metadata.provider_source === "printify"
+    || metadata.providerSource === "printify"
+    || metadata.source === "printify"
+    || row?.storage_bucket === "printify-provider-url"
+    || row?.storageBucket === "printify-provider-url";
+}
+
+function printifyMockupUrl(row: any) {
+  const metadata = metadataOf(row);
+  return String(metadata.provider_mockup_url ?? metadata.providerMockupUrl ?? metadata.public_url ?? metadata.publicUrl ?? row?.file_path ?? row?.filePath ?? "");
+}
+
 export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
   const { publishReviews, drafts, assets, mockups, listingDraftsV1, marginChecks, products, printifyProducts, setupMessage } = await getStudioLists();
   const params = searchParams ? await searchParams : {};
@@ -46,6 +65,8 @@ export default async function Page({ searchParams }: { searchParams?: Promise<Re
   const selectedAssetMetadata = selectedAsset?.metadata && typeof selectedAsset.metadata === "object" ? selectedAsset.metadata as Record<string, unknown> : {};
   const selectedMockupIds = asArray(selectedDraft?.mockup_ids ?? selectedDraft?.mockupIds).map(String);
   const selectedMockups = mockups.filter((mockup: any) => selectedMockupIds.includes(String(mockup.id)));
+  const selectedMockup = selectedMockups[0] as any;
+  const selectedMockupProviderUrl = isPrintifyProviderMockup(selectedMockup) ? printifyMockupUrl(selectedMockup) : "";
   const selectedVariantIds = asArray(selectedDraft?.variant_ids ?? selectedDraft?.variantIds).map(String);
   const selectedCollectionId = String(selectedMetadata.shopify_collection_id ?? selectedMetadata.shopifyCollectionId ?? shopifyProvider.providerMetadata?.selectedCollectionId ?? "");
   const selectedPrintifyRefs = printifyProducts.filter((ref: any) => String(ref.product_draft_id ?? ref.productDraftId ?? "") === selectedDraftId).sort((a: any, b: any) => timestampOf(b).localeCompare(timestampOf(a)));
@@ -126,10 +147,12 @@ export default async function Page({ searchParams }: { searchParams?: Promise<Re
           <strong>Generated asset {selectedAsset.id}</strong>
           <p className="text-muted" style={{ margin: 0 }}>QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)}</p>
         </article> : null}
-        {selectedMockups[0] ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
-          <PrivateImagePreview src={mockupPreviewPath(selectedMockups[0])} alt="Selected product mockup preview" aspectRatio="4 / 5" />
-          <strong>Mockup {selectedMockups[0].id}</strong>
-          <p className="text-muted" style={{ margin: 0 }}>Approved for product {String(Boolean(selectedMockups[0].approved_for_product ?? selectedMockups[0].approvedForProduct))}</p>
+        {selectedMockup ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
+          {selectedMockupProviderUrl
+            ? <img className="mockup-provider-preview" src={selectedMockupProviderUrl} alt="Selected Printify product mockup preview" />
+            : <PrivateImagePreview src={mockupPreviewPath(selectedMockup)} alt="Selected product mockup preview" aspectRatio="4 / 5" />}
+          <strong>Mockup {selectedMockup.id}</strong>
+          <p className="text-muted" style={{ margin: 0 }}>Approved for product {String(Boolean(selectedMockup.approved_for_product ?? selectedMockup.approvedForProduct))}</p>
         </article> : null}
       </div> : null}
       <DataTable columns={["Requirement", "Ready", "Evidence / next action"]} rows={readinessRows.map(([label, ready, detail]) => [

@@ -587,58 +587,94 @@ describe("POD golden path execution", () => {
     expect(preview.status).toBe(200);
     expect(sha256(mockupBytes)).not.toEqual(sha256(baseTemplateBytes));
     expect(containsSourceMarker).toBe(true);
-    expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(html).toContain("Mockup Studio");
-    expect(html).toContain("Hero selected");
-    expect(html).toContain("Create Product Draft");
-    expect(html).toContain("Proof details");
+    expect(html).toContain("Printify Mockup Workflow");
+    expect(html).toContain("Create a Printify product to generate real mockups");
+    expect(html).not.toContain(`/api/studio/mockups/${mockupId}/preview`);
+    expect(html).not.toContain("Internal template");
   });
 
-  it("presents the mockup studio as a responsive production gallery with safe proof details", async () => {
+  it("presents the mockup studio as a Printify-only production gallery with safe proof details", async () => {
     authorizeAsOwner();
     setMemoryRuntime();
     const repos = createRepositories();
     const assetId = await seedApprovedAsset(repos, `studio_gallery_${Date.now()}`);
-
-    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, mode: "recommended" }));
-    const body = await response.json();
-    const mockupId = String(body.mockups[0]?.id ?? body.mockup?.id ?? "");
-    await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
-      params: Promise.resolve({ id: mockupId })
-    });
-    await mockupHeroPost(authedPost(`/api/studio/mockups/${mockupId}/hero`), {
-      params: Promise.resolve({ id: mockupId })
-    });
+    const draftId = `draft_printify_gallery_${Date.now()}`;
+    const mockupId = `mockup_printify_gallery_${Date.now()}`;
+    await repos.draft.create({
+      id: draftId,
+      workspace_id: workspaceId,
+      title: "Printify Gallery Tee",
+      description: "Draft shell for real Printify mockups.",
+      product_type: "tee",
+      collection: "Studio Drafts",
+      tags: ["printify"],
+      asset_id: assetId,
+      status: "draft"
+    } as WorkspaceRow);
+    await repos.printify.create({
+      id: `ptyref_gallery_${Date.now()}`,
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      printify_product_id: "printify_gallery_product",
+      printify_shop_id: "shop_golden_123",
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      printify_upload_id: "upload_gallery_1",
+      printify_variant_ids: ["17390"],
+      mockup_urls: ["https://images.printify.com/gallery-front.png"],
+      sync_status: "draft_created_mockups_synced",
+      printify_published: false
+    } as WorkspaceRow);
+    await repos.mockup.create({
+      id: mockupId,
+      workspace_id: workspaceId,
+      asset_id: assetId,
+      product_draft_id: draftId,
+      template_id: "tmpl_printify_provider_mockup",
+      color_variant: "front",
+      storage_bucket: "printify-provider-url",
+      file_path: "https://images.printify.com/gallery-front.png",
+      width: 1200,
+      height: 1500,
+      status: "printify_mockup_imported",
+      approved_for_product: true,
+      metadata: {
+        provider_source: "printify",
+        provider_mockup_url: "https://images.printify.com/gallery-front.png",
+        public_url: "https://images.printify.com/gallery-front.png",
+        printify_product_id: "printify_gallery_product",
+        printify_variant_ids: ["17390"],
+        printify_position: "front",
+        printify_is_default: true,
+        is_hero: true
+      },
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
 
     const html = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
     const proofDetailsTag = html.match(/<details[^>]+data-testid="mockup-proof-details"[^>]*>/)?.[0] ?? "";
     const draftButtonTag = html.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
 
-    expect(response.status).toBe(200);
     expect(html).toContain("Source asset proof");
-    expect(html).toContain("Rendered mockup variants");
-    expect(html).toContain("Light Tee");
-    expect(html).toContain("Dark Tee");
-    expect(html).toContain("Sand Tee");
-    expect(html).toContain("Tote");
-    expect(html).toContain("Sticker Sheet");
-    expect(html).toContain("Mug");
-    expect(html).toContain("Square Product Card");
+    expect(html).toContain("Provider-generated mockup images");
+    expect(html).toContain("Printify Mockup");
+    expect(html).toContain("https://images.printify.com/gallery-front.png");
     expect(html).toContain("mockup-gallery-grid");
     expect(html).toContain("mockup-card");
-    expect(html).toContain(`/api/studio/mockups/${mockupId}/preview`);
-    expect(html).toContain("Renderer version");
-    expect(html).toContain("internal-sharp-v1");
     expect(html).toContain("print_png");
     expect(proofDetailsTag).not.toContain("open");
     expect(draftButtonTag).not.toContain("disabled");
+    expect(html).not.toContain("Internal template");
+    expect(html).not.toContain("Light Tee");
     expect(html).not.toMatch(/<a[^>]+href="\/api\//);
     expect(html).not.toMatch(/\{[\s\S]*"ok"[\s\S]*\}/);
     expect(html).not.toMatch(/generated_composited_preview|mockup_approved_for_product|mockup_render_job_failed|asset_not_approved_for_mockup/);
     expect(html).not.toMatch(/service_role|SUPABASE_SERVICE_ROLE_KEY|token|secret/i);
   });
 
-  it("gates product draft creation until the selected asset has an approved or hero mockup", async () => {
+  it("gates product draft creation until a Printify product and hero/default mockup exist", async () => {
     authorizeAsOwner();
     setMemoryRuntime();
     const repos = createRepositories();
@@ -646,27 +682,62 @@ describe("POD golden path execution", () => {
 
     const emptyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
     const emptyDraftButton = emptyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
-    expect(emptyHtml).toContain("Generate mockups before creating product draft.");
+    expect(emptyHtml).toContain("Choose a Printify product shell first.");
     expect(emptyDraftButton).toContain("disabled");
 
-    const response = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
-    const body = await response.json();
-    const mockupId = String(body.mockup?.id ?? "");
-    await mockupHeroPost(authedPost(`/api/studio/mockups/${mockupId}/hero`), {
-      params: Promise.resolve({ id: mockupId })
-    });
-    const heroOnlyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
-    const heroOnlyDraftButton = heroOnlyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
-    expect(heroOnlyHtml).toContain("Approve the hero mockup before creating product draft.");
-    expect(heroOnlyDraftButton).toContain("disabled");
-
-    await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
-      params: Promise.resolve({ id: mockupId })
-    });
+    const draftId = `draft_printify_gate_${Date.now()}`;
+    const mockupId = `mockup_printify_gate_${Date.now()}`;
+    await repos.draft.create({
+      id: draftId,
+      workspace_id: workspaceId,
+      title: "Printify Gate Tee",
+      description: "Draft shell for gate proof.",
+      product_type: "tee",
+      collection: "Studio Drafts",
+      tags: ["printify"],
+      asset_id: assetId,
+      status: "draft"
+    } as WorkspaceRow);
+    await repos.printify.create({
+      id: `ptyref_gate_${Date.now()}`,
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      printify_product_id: "printify_gate_product",
+      printify_shop_id: "shop_golden_123",
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      printify_upload_id: "upload_gate_1",
+      printify_variant_ids: ["17390"],
+      mockup_urls: ["https://images.printify.com/gate-front.png"],
+      sync_status: "draft_created_mockups_synced",
+      printify_published: false
+    } as WorkspaceRow);
+    await repos.mockup.create({
+      id: mockupId,
+      workspace_id: workspaceId,
+      asset_id: assetId,
+      product_draft_id: draftId,
+      template_id: "tmpl_printify_provider_mockup",
+      color_variant: "front",
+      storage_bucket: "printify-provider-url",
+      file_path: "https://images.printify.com/gate-front.png",
+      width: 1200,
+      height: 1500,
+      status: "printify_mockup_imported",
+      approved_for_product: false,
+      metadata: {
+        provider_source: "printify",
+        provider_mockup_url: "https://images.printify.com/gate-front.png",
+        public_url: "https://images.printify.com/gate-front.png",
+        printify_product_id: "printify_gate_product",
+        printify_is_default: true
+      },
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
     const readyHtml = renderToStaticMarkup(await MockupsPage({ searchParams: Promise.resolve({ asset_id: assetId }) }));
     const readyDraftButton = readyHtml.match(/<button[^>]+data-testid="create-product-draft-button"[^>]*>/)?.[0] ?? "";
-    expect(response.status).toBe(200);
-    expect(readyHtml).toContain("Ready to create a guarded product draft from the approved hero mockup.");
+    expect(readyHtml).toContain("Ready. The selected product draft has real Printify mockup evidence.");
     expect(readyDraftButton).not.toContain("disabled");
   });
 
@@ -747,7 +818,7 @@ describe("POD golden path execution", () => {
     expect(response.status).toBe(200);
     expect(body.blueprints[0]).toMatchObject({ id: "5", title: "Unisex Jersey Tee" });
     expect(html).toContain("Catalog Browser");
-    expect(html).toContain("Product draft required to save variants");
+    expect(html).toContain("Variant Matrix");
     expect(html).not.toContain(token);
     expect(JSON.stringify(body)).not.toContain(token);
     expect(String((calls[0]?.init.headers as Record<string, string>).authorization)).toContain("Bearer");
@@ -760,12 +831,30 @@ describe("POD golden path execution", () => {
     await seedPrintifyProvider(repos);
     await seedShopifyProvider(repos);
     const assetId = await seedApprovedAsset(repos, `draft_${Date.now()}`);
-    const mockupResponse = await mockupGeneratePost(authedPost("/api/studio/mockups/generate", { asset_id: assetId, product_type: "tee_front" }));
-    const mockupBody = await mockupResponse.json();
-    const mockupId = String(mockupBody.mockup.id);
-    await mockupApprovePost(authedPost(`/api/studio/mockups/${mockupId}/approve`), {
-      params: Promise.resolve({ id: mockupId })
-    });
+    const mockupId = `mockup_printify_draft_${Date.now()}`;
+    await repos.mockup.create({
+      id: mockupId,
+      workspace_id: workspaceId,
+      asset_id: assetId,
+      template_id: "tmpl_printify_provider_mockup",
+      color_variant: "front",
+      storage_bucket: "printify-provider-url",
+      file_path: "https://images.printify.com/golden-draft-front.png",
+      width: 1200,
+      height: 1500,
+      status: "printify_mockup_imported",
+      approved_for_product: true,
+      metadata: {
+        provider_source: "printify",
+        provider_mockup_url: "https://images.printify.com/golden-draft-front.png",
+        public_url: "https://images.printify.com/golden-draft-front.png",
+        printify_product_id: "printify_fixture_product",
+        printify_is_default: true,
+        is_hero: true
+      },
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
 
     const draftResponse = await draftFromAssetsPost(authedPost("/api/studio/drafts/create-from-assets", {
       asset_id: assetId,
@@ -808,10 +897,10 @@ describe("POD golden path execution", () => {
     expect(reviewResponse.status).toBe(200);
     expect(productBuilderHtml).toContain("Golden Path Product Draft");
     expect(productBuilderHtml).toContain(`/api/studio/assets/${assetId}/preview`);
-    expect(productBuilderHtml).toContain(`/api/studio/mockups/${mockupId}/preview`);
+    expect(productBuilderHtml).toContain("https://images.printify.com/golden-draft-front.png");
     expect(publishHtml).toContain("Selected Product Readiness");
     expect(publishHtml).toContain(`/api/studio/assets/${assetId}/preview`);
-    expect(publishHtml).toContain(`/api/studio/mockups/${mockupId}/preview`);
+    expect(publishHtml).toContain("https://images.printify.com/golden-draft-front.png");
     expect(publishHtml).toContain("Generated asset present");
     expect(publishHtml).toContain("Variants selected");
     expect(publishHtml).toContain("Owner approval required");
@@ -967,6 +1056,7 @@ describe("POD golden path execution", () => {
       "apps/studio/app/studio/briefs/BriefWorkflowClient.tsx",
       "apps/studio/app/studio/assets/AssetWorkflowClient.tsx",
       "apps/studio/app/studio/mockups/MockupWorkflowClient.tsx",
+      "apps/studio/app/studio/mockups/[id]/page.tsx",
       "apps/studio/app/studio/printify-catalog/PrintifyCatalogClient.tsx",
       "apps/studio/app/studio/product-builder/ProductBuilderClient.tsx",
       "apps/studio/app/studio/publish/PublishWorkflowClient.tsx",

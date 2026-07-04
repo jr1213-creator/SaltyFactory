@@ -15,6 +15,8 @@ import { createMemoryRepositories } from "../packages/db/src/repositories/memory
 import { allTrueGates } from "./helpers";
 import { GET as blueprintsGet } from "../apps/studio/app/api/studio/integrations/printify/catalog/blueprints/route";
 import { POST as uploadsPost } from "../apps/studio/app/api/studio/integrations/printify/uploads/route";
+import { POST as productCreatePost } from "../apps/studio/app/api/studio/integrations/printify/products/create/route";
+import { POST as mockupImportPost } from "../apps/studio/app/api/studio/integrations/printify/mockups/import/route";
 import { POST as printifyPublishPost } from "../apps/studio/app/api/studio/publish/printify/route";
 import { getAccountCenterReadiness } from "../apps/studio/app/studio/account-center/readiness";
 import PrintifyCatalogPage from "../apps/studio/app/studio/printify-catalog/page";
@@ -126,6 +128,25 @@ async function seedApprovedPrintifyDraft(repos: RepositoryBundle, suffix: string
     generator: "huggingface",
     metadata: { public_url: `https://cdn.example/${assetId}.png` }
   } as WorkspaceRow);
+  await repos.asset.create({
+    id: `${assetId}_print_png`,
+    workspace_id: workspaceId,
+    brief_id: `brief_${suffix}`,
+    asset_type: "print_png",
+    storage_bucket: "private-assets",
+    file_path: `generated/${assetId}-print.png`,
+    original_filename: `${assetId}-print.png`,
+    qa_status: "passed",
+    approved_for_mockup: false,
+    generator: "huggingface",
+    metadata: {
+      derivative_package: true,
+      derivative_kind: "print_png",
+      source_asset_id: assetId,
+      parent_asset_id: assetId,
+      public_url: `https://cdn.example/${assetId}-print.png`
+    }
+  } as WorkspaceRow);
   await repos.draft.create({
     id: draftId,
     workspace_id: workspaceId,
@@ -181,7 +202,7 @@ function printifyFetch(calls: Array<{ url: string; init: RequestInit }>) {
       return jsonResponse({
         id: "printify_product_runtime",
         status: "draft",
-        images: [{ src: "https://images.printify.com/runtime-front.png" }]
+        images: [{ src: "https://images.printify.com/runtime-front.png", variant_ids: [17390], position: "front", is_default: true }]
       });
     }
     if (text.includes(`/shops/${shopId}/products.json`)) return jsonResponse({ id: "printify_product_runtime", status: "draft" });
@@ -384,6 +405,127 @@ describe("Printify runtime routes", () => {
     expect(JSON.stringify(body)).not.toContain(token);
     expect(JSON.stringify(body)).not.toContain("private-assets");
     expect((await repos.asset.getById(assetId, workspaceId))?.metadata).toMatchObject({ printify_upload_id: "upload_runtime_1" });
+    const uploadPayload = JSON.parse(String(uploadCall?.init.body ?? "{}"));
+    expect(uploadPayload.url).toContain(`${assetId}-print.png`);
+  });
+
+  it("mockup product route creates a Printify product with print areas and persists provider mockup rows", async () => {
+    authorizeAsOwner();
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("REPOSITORY_ADAPTER", "memory");
+    vi.stubEnv("CREDENTIAL_STORAGE_ENABLED", "true");
+    vi.stubEnv("CREDENTIAL_ENCRYPTION_KEY", encryptionKey);
+    const repos = createRepositories();
+    const token = "printify_mockup_product_secret";
+    await seedConnectedPrintifyProvider(repos, token);
+    const { draftId, assetId } = await seedApprovedPrintifyDraft(repos, `mockup_product_${Date.now()}`);
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal("fetch", printifyFetch(calls));
+
+    const response = await productCreatePost(authedPost("/api/studio/integrations/printify/products/create", { productDraftId: draftId }));
+    const body = await response.json();
+    const createCall = calls.find((call) => call.url.endsWith(`/shops/${shopId}/products.json`));
+    const createPayload = JSON.parse(String(createCall?.init.body ?? "{}"));
+    const refs = await repos.printify.listByWorkspace(workspaceId);
+    const ref = refs.find((row) => row.product_draft_id === draftId || row.productDraftId === draftId)!;
+    const mockups = (await repos.mockup.listByWorkspace(workspaceId)).filter((row) => row.product_draft_id === draftId || row.productDraftId === draftId);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, provider: "printify", uploadId: "upload_runtime_1" });
+    expect(createPayload.print_areas[0].placeholders[0].images[0].id).toBe("upload_runtime_1");
+    expect(createPayload.blueprint_id).toBe("5");
+    expect(createPayload.print_provider_id).toBe("99");
+    expect(ref).toMatchObject({ product_draft_id: draftId, printify_product_id: "printify_product_runtime", printify_upload_id: "upload_runtime_1" });
+    expect(JSON.stringify(ref.print_areas ?? ref.printAreas)).toContain("upload_runtime_1");
+    expect(mockups[0]).toMatchObject({ asset_id: assetId, product_draft_id: draftId, storage_bucket: "printify-provider-url" });
+    expect(mockups[0]?.metadata).toMatchObject({ provider_source: "printify", provider_mockup_url: "https://images.printify.com/runtime-front.png", printify_is_default: true });
+    expect(JSON.stringify(body)).not.toContain(token);
+  });
+
+  it("imports Printify product images as provider mockups", async () => {
+    authorizeAsOwner();
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("REPOSITORY_ADAPTER", "memory");
+    vi.stubEnv("CREDENTIAL_STORAGE_ENABLED", "true");
+    vi.stubEnv("CREDENTIAL_ENCRYPTION_KEY", encryptionKey);
+    const repos = createRepositories();
+    await seedConnectedPrintifyProvider(repos, "printify_import_secret");
+    const { draftId, assetId } = await seedApprovedPrintifyDraft(repos, `import_${Date.now()}`);
+    await repos.printify.create({
+      id: "ptyref_import_runtime",
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      printify_product_id: "printify_product_runtime",
+      printify_shop_id: shopId,
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      printify_upload_id: "upload_runtime_1",
+      printify_variant_ids: ["17390"],
+      print_areas: [],
+      printify_published: false,
+      sync_status: "draft_created_mockups_pending"
+    } as WorkspaceRow);
+    vi.stubGlobal("fetch", printifyFetch([]));
+
+    const response = await mockupImportPost(authedPost("/api/studio/integrations/printify/mockups/import", { productDraftId: draftId }));
+    const body = await response.json();
+    const mockups = (await repos.mockup.listByWorkspace(workspaceId)).filter((row) => row.product_draft_id === draftId || row.productDraftId === draftId);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, status: "printify_mockups_imported", importedCount: 1 });
+    expect(mockups[0]).toMatchObject({ asset_id: assetId, product_draft_id: draftId, storage_bucket: "printify-provider-url" });
+    expect(mockups[0]?.metadata).toMatchObject({ provider_source: "printify", printify_product_id: "printify_product_runtime" });
+  });
+
+  it("reports Printify mockups as retryable when product images are not ready", async () => {
+    authorizeAsOwner();
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("REPOSITORY_ADAPTER", "memory");
+    vi.stubEnv("CREDENTIAL_STORAGE_ENABLED", "true");
+    vi.stubEnv("CREDENTIAL_ENCRYPTION_KEY", encryptionKey);
+    const repos = createRepositories();
+    await seedConnectedPrintifyProvider(repos, "printify_pending_secret");
+    const { draftId } = await seedApprovedPrintifyDraft(repos, `pending_${Date.now()}`);
+    await repos.printify.create({
+      id: "ptyref_pending_runtime",
+      workspace_id: workspaceId,
+      product_draft_id: draftId,
+      printify_product_id: "printify_product_runtime",
+      printify_shop_id: shopId,
+      printify_blueprint_id: "5",
+      printify_print_provider_id: "99",
+      sync_status: "draft_created_mockups_pending"
+    } as WorkspaceRow);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ id: "printify_product_runtime", images: [] })));
+
+    const response = await mockupImportPost(authedPost("/api/studio/integrations/printify/mockups/import", { productDraftId: draftId }));
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({ ok: false, status: "mockups_not_ready", retryable: true });
+    expect(body.message).toContain("Try importing again");
+  });
+
+  it("maps Printify 429 responses to retryable rate limited errors", async () => {
+    authorizeAsOwner();
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("REPOSITORY_ADAPTER", "memory");
+    vi.stubEnv("CREDENTIAL_STORAGE_ENABLED", "true");
+    vi.stubEnv("CREDENTIAL_ENCRYPTION_KEY", encryptionKey);
+    const repos = createRepositories();
+    await seedConnectedPrintifyProvider(repos, "printify_rate_secret");
+    const { draftId } = await seedApprovedPrintifyDraft(repos, `rate_${Date.now()}`);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: "too many requests" }, 429)));
+
+    const response = await productCreatePost(authedPost("/api/studio/integrations/printify/products/create", { productDraftId: draftId }));
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body).toMatchObject({ ok: false, status: "rate_limited", retryable: true, rateLimited: true });
   });
 
   it("product creation route uses credential-store token and remains draft-only", async () => {
@@ -404,7 +546,7 @@ describe("Printify runtime routes", () => {
     const body = await response.json();
     const providerCalls = calls.filter((call) => call.url.includes("api.printify.com"));
     const refs = await repos.printify.listByWorkspace(workspaceId);
-    const ref = refs[0]!;
+    const ref = refs.find((row) => row.product_draft_id === draftId || row.productDraftId === draftId)!;
     const sourceRecords = await repos.shared.sourceRecords.listByWorkspace(workspaceId);
     const updatedDraft = await repos.draft.getById(draftId, workspaceId);
     const publishHtml = renderToStaticMarkup(await PublishReviewPage({ searchParams: Promise.resolve({ product_draft_id: draftId }) } as any));

@@ -1,47 +1,50 @@
 # Mockup Automation Workflow v1
 
-Status: API/route-tested, browser-proven locally, and live-smoke proven for internal automated mockups from approved generated assets. The latest live smoke rendered a Sharp internal mockup from a real Hugging Face-generated `print_png` derivative.
+Status: owner production workflow now uses real Printify product mockup images. Internal Sharp mockups remain available as a development/proof utility, but they are no longer presented as the owner-facing product mockup path.
 
 ## What Is Real
 
 - Browser path: `/studio/mockups`.
-- API path: `POST /api/studio/mockups/generate`.
-- Preview path: `GET /api/studio/mockups/[mockupId]/preview`.
-- Hero selection path: `POST /api/studio/mockups/[mockupId]/hero`.
-- Renderer: internal Sharp compositor.
-- Persistence: `mockup_templates` and `mockup_assets`.
+- Printify upload path: `POST /api/studio/integrations/printify/uploads`.
+- Printify product create path: `POST /api/studio/integrations/printify/products/create`.
+- Printify mockup import path: `POST /api/studio/integrations/printify/mockups/import`.
+- Provider source: Printify product `images` returned after product creation/fetch.
+- Persistence: `printify_product_refs`, generated asset metadata for `printify_upload_id`, and `mockup_assets` rows with `provider_source=printify`.
 
-Internal mockups are rendered only from an approved asset with passing QA and an existing `print_png` derivative. The renderer does not use placeholder success when source art or the print derivative is missing.
+The owner workflow does not show internal Light Tee, Dark Tee, Sand Tee, Tote, Mug, Sticker Sheet, or Square Product Card templates as production mockups. Real production mockups require a Printify product shell, print provider, selected variants, uploaded `print_png`, and a created Printify draft product.
 
-## Internal Template Pack
+## Owner Workflow
 
-Current internal preview templates:
+The `/studio/mockups` page moves through these states:
 
-- Apparel Front - Light Tee
-- Apparel Front - Dark Tee
-- Apparel Front - Sand Tee
-- Tote Front - Natural Canvas
-- Sticker Sheet - Cream Background
-- Mug Front - White Mug
-- Square Product Card - Boutique Flatlay
+- Select approved artwork.
+- Confirm the `print_png` derivative exists.
+- Choose a real Printify product shell in `/studio/printify-catalog`.
+- Choose a real Printify print provider and variants.
+- Upload the print-ready file to Printify.
+- Create a Printify draft product.
+- Import Printify product images.
+- Select/approve a hero Printify mockup.
 
-These are labeled `internal_preview`. They are real composited internal mockups, not Printify provider-generated mockups.
+If no Printify product exists, the owner-facing blocked state says: “Create a Printify product to generate real mockups.” The primary action is “Open Printify Catalog.”
 
-## Renderer Proof
+## Persisted Proof
 
-Each mockup render stores:
+The Printify mockup workflow stores:
 
 - source asset ID
-- print derivative asset ID
-- template ID
-- placement JSON
-- renderer version: `internal-sharp-v1`
-- checksum
-- private storage path server-side only
-- preview route
-- hero flag metadata
+- derivative kind: `print_png`
+- Printify upload ID on generated asset metadata
+- Printify product ID/shop/blueprint/provider/variant IDs in `printify_product_refs`
+- Printify product image URLs in `mockup_assets`
+- `template_id=tmpl_printify_provider_mockup`
+- `storage_bucket=printify-provider-url`
+- `provider_source=printify`
+- hero/default metadata for the selected provider image
 
-The owner UI shows the selected asset, template controls, placement controls, rendered mockup preview, and hero selection.
+Provider image URLs are displayed as Printify-sourced mockups. Raw provider tokens, storage paths, service-role keys, and raw JSON are not shown.
+
+## Internal Renderer Status
 
 Pixel-level regression proof now verifies that a synthetic magenta source artwork changes the rendered mockup output, that the output checksum differs from the base template, and that source-art pixels are detectable inside the expected art zone.
 
@@ -53,22 +56,34 @@ Latest live smoke proof on 2026-07-04:
 - preview: `/api/studio/mockups/mockup_1783179063831_tmpl_internal_apparel_light_tee_73d3f8/preview`
 - pixel proof: passed with 2,000 sampled pixels, source-like ratio `1`, changed ratio `0.915`
 
+That internal proof remains useful for renderer tests and local diagnostics. It is not the owner production workflow.
+
 ## Blocked States
 
-Mockup rendering blocks with safe messages when:
+The owner mockup workflow blocks with safe messages when:
 
 - asset is missing
-- asset QA has not passed
-- asset is not approved for mockups
 - `print_png` derivative is missing
-- template is missing
-- renderer/storage write fails
+- Printify is not connected
+- Printify product shell is missing
+- print provider is missing
+- variants are missing
+- Printify upload has not completed
+- Printify product has not been created
+- Printify has not returned mockup images yet
+- the provider is rate-limited
 
 No token or service-role value is returned.
 
-## Printify Mockups
+## Printify Live Smoke
 
-Printify product mockup import is not part of this pass. Provider-generated mockups remain separate and require a persisted Printify product reference before they can be imported.
+Guarded live smoke command:
+
+```txt
+RUN_LIVE_PRINTIFY_MOCKUP_SMOKE=true PRINTIFY_SMOKE_CONFIRMATION="CREATE TEST PRINTIFY PRODUCT" corepack pnpm smoke:printify-mockups-live
+```
+
+The smoke requires a prepared product draft with an approved generated asset, `print_png` derivative, Printify blueprint, provider, and variants. It creates a test Printify draft product and imports product images only when explicitly confirmed. It prints safe IDs and counts only. It was added but not run in this session.
 
 ## Tests
 
@@ -78,7 +93,7 @@ Run:
 corepack pnpm test -- tests/pod-golden-path-execution.test.ts
 ```
 
-The focused tests assert missing derivative blocking, source-art pixel composition, different checksum after placement change, persisted mockup records, protected preview bytes, recommended multi-renders, and hero selection.
+The focused tests assert the owner workflow hides internal templates, requires Printify provider mockups for product drafts, uploads the `print_png` derivative, creates Printify products with `print_areas`, imports `product.images`, handles `mockups_not_ready` and `rate_limited`, and keeps internal renderer proof as dev/test-only coverage.
 
 Focused browser runner:
 
@@ -86,4 +101,4 @@ Focused browser runner:
 corepack pnpm frontend:qa:image-mockup
 ```
 
-Latest local result on 2026-07-04: passing. The browser runner authenticates through a guarded test bypass, loads the approved generated asset, renders recommended internal mockups through the real backend route, verifies a protected rendered preview, and persists hero selection.
+Latest local result on 2026-07-04 before this Printify pivot: passing for the image-generation proof path. The updated mockup owner page now shows the Printify blocked/product workflow instead of internal templates.

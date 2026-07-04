@@ -89,16 +89,17 @@ export function GenerationPartialFailure() {
 
 export function MockupTemplatePickerState() {
   return <section className="surface-card" style={{ maxWidth: 960, display: "grid", gap: 14 }}>
-    <h2>Internal Mockup Workflow</h2>
-    <div className="form-grid"><label>Internal template<select><option>Apparel Front - Light Tee</option><option>Tote Front - Natural Canvas</option><option>Mug Front - White Mug</option></select></label><label>Scale<input type="number" value="1" readOnly /></label><button className="btn btn-primary">Render selected template</button></div>
+    <h2>Printify product shell</h2>
+    <p className="text-muted">Choose a real Printify blueprint, print provider, and variants before provider mockups can exist.</p>
+    <div className="form-grid"><label>Blueprint<select><option>Unisex Jersey Tee</option><option>Canvas Tote</option></select></label><label>Print provider<select><option>Printify Choice</option></select></label><button className="btn btn-primary">Open Printify Catalog</button></div>
   </section>;
 }
 
 export function MockupGalleryHeroSelected() {
   return <section className="layout-grid layout-grid-3" style={{ maxWidth: 1100 }}>
-    {["Light Tee", "Sand Tee", "Tote"].map((label, index) => <article className="surface-card" key={label} style={{ display: "grid", gap: 10 }}>
+    {["Front view", "Back view", "Detail view"].map((label, index) => <article className="surface-card" key={label} style={{ display: "grid", gap: 10 }}>
       <div style={{ aspectRatio: "4 / 5", borderRadius: 8, border: "1px solid rgba(15,23,42,0.12)", background: index === 0 ? "#cae8de" : "#f6ede0", display: "grid", placeItems: "center" }}><strong>{label}</strong></div>
-      <strong>{label}</strong><p className="text-muted">{index === 0 ? "Hero mockup selected" : "Internal renderer proof stored"}</p>
+      <strong>{label}</strong><p className="text-muted">{index === 0 ? "Hero Printify mockup selected" : "Provider image imported"}</p>
       <div className="action-bar"><button className="btn btn-secondary">Set hero mockup</button></div>
     </article>)}
   </section>;
@@ -108,7 +109,57 @@ export function PrintifyMockupsUnavailable() {
   return <SetupRequiredPanel items={["Create a Printify product before importing provider-generated mockups."]} />;
 }
 
-function StoryMockupPreview({ label = "Light Tee", tone = "ready" }: { label?: string; tone?: "ready" | "rendering" | "rejected" }) {
+export function PrintifyMockupAssetReadyNoProduct() {
+  return <section className="mockup-studio" style={{ maxWidth: 1100 }}>
+    <div className="mockup-empty-preview"><strong>Create a Printify product to generate real mockups</strong><p className="text-muted">Mockups shown here come from Printify after SaltyFactory uploads approved artwork to a selected product shell.</p><div className="action-bar"><button className="btn btn-primary">Open Printify Catalog</button><button className="btn btn-secondary">Open Product Builder</button></div></div>
+  </section>;
+}
+
+export function PrintifyMockupUploadNeeded() {
+  return <section className="mockup-action-panel" style={{ maxWidth: 760 }}>
+    <div><strong>Upload print-ready file to Printify</strong><p className="text-muted">The generated asset has a print PNG derivative, but Printify does not have an upload ID yet.</p></div><button className="btn btn-primary">Upload to Printify</button>
+  </section>;
+}
+
+export function PrintifyMockupUploadComplete() {
+  return <section className="mockup-action-panel" style={{ maxWidth: 760 }}>
+    <div><strong>Printify upload complete</strong><p className="text-muted">Upload proof upload_01 is ready for product creation.</p></div><button className="btn btn-primary">Create Printify Product</button>
+  </section>;
+}
+
+export function PrintifyProductCreatedMockupsNotReady() {
+  return <section className="provider-result-panel provider-result-panel-warning" style={{ maxWidth: 880 }}>
+    <p className="eyebrow-label">Printify result</p><h3>Mockups not ready</h3><p className="text-muted">Printify has not returned mockup images yet. Try importing again in a minute.</p><button className="btn btn-secondary">Import again</button>
+  </section>;
+}
+
+export function PrintifyMockupsImported() {
+  return <section className="mockup-gallery-grid" style={{ maxWidth: 1180 }}>
+    {["Front", "Back", "Detail"].map((label) => <article className="mockup-card" key={label}><StoryMockupPreview label={label} /><div className="mockup-card-copy"><strong>{label}</strong><p className="text-muted">Provider image from Printify</p><span className="mockup-status-chip tone-info">Printify Mockup</span></div><button className="btn btn-secondary">Set hero</button></article>)}
+  </section>;
+}
+
+export function PrintifyHeroMockupSelected() {
+  return <section className="surface-card mockup-hero-panel" style={{ maxWidth: 760 }}>
+    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Hero Printify mockup</p><h2>Provider mockup selected</h2><p className="text-muted">Real Printify image for asset_hf...e32d80.</p></div><span className="mockup-status-chip tone-success">Hero/default</span></div>
+    <StoryMockupPreview label="Hero" /><button className="btn btn-primary">Open Product Draft</button>
+  </section>;
+}
+
+export function PrintifyMockupRateLimited() {
+  return <section className="provider-result-panel provider-result-panel-warning" style={{ maxWidth: 880 }}>
+    <p className="eyebrow-label">Printify result</p><h3>Provider rate limited</h3><p className="text-muted">Printify is rate-limited. Wait a minute and retry the import.</p><button className="btn btn-secondary">Retry import</button>
+  </section>;
+}
+
+export function PrintifyMockupNoInternalTemplates() {
+  return <section className="surface-card" style={{ maxWidth: 760 }}>
+    <h2>No internal templates in owner workflow</h2>
+    <p className="text-muted">Production mockups are real Printify product images. Local proof rows stay hidden from owner actions.</p>
+  </section>;
+}
+
+function StoryMockupPreview({ label = "Printify", tone = "ready" }: { label?: string; tone?: "ready" | "rendering" | "rejected" }) {
   const background = tone === "rejected" ? "#ffecec" : tone === "rendering" ? "#fff7e6" : "#e6f6f7";
   return <div style={{ aspectRatio: "4 / 5", borderRadius: 10, border: "1px solid #dbe7ea", background, display: "grid", placeItems: "center", overflow: "hidden" }}>
     <div style={{ width: "62%", aspectRatio: "0.78", borderRadius: 18, background: "#ffffff", border: "3px solid #0b1f33", display: "grid", placeItems: "center", color: "#007c89", fontWeight: 900 }}>{label}</div>
@@ -117,39 +168,39 @@ function StoryMockupPreview({ label = "Light Tee", tone = "ready" }: { label?: s
 
 export function MockupStudioEmptyState() {
   return <section className="mockup-studio" style={{ maxWidth: 1120 }}>
-    <div className="pod-empty-state"><strong>No generated artwork yet</strong><p className="text-muted">Generate artwork, run QA, and approve it before rendering internal mockups.</p><button className="btn btn-primary">Open image generation</button></div>
+    <div className="pod-empty-state"><strong>Select approved artwork first</strong><p className="text-muted">Generate artwork, run QA, and approve it before creating real Printify mockups.</p><button className="btn btn-primary">Open image generation</button></div>
   </section>;
 }
 
 export function MockupStudioAssetReadyNoMockups() {
   return <section className="mockup-studio" style={{ maxWidth: 1180 }}>
     <div className="mockup-studio-summary"><div><span>Selected asset</span><strong>asset_hf...e32d80</strong></div><div><span>Source</span><strong>Hugging Face</strong></div><div><span>QA status</span><strong>QA passed</strong></div><div><span>Derivative status</span><strong>print PNG ready</strong></div></div>
-    <div className="mockup-studio-main-grid"><article className="surface-card mockup-asset-panel"><div className="mockup-panel-heading"><h2>Source asset proof</h2><span className="mockup-status-chip tone-success">Ready for mockups</span></div><StoryMockupPreview label="Artwork" /></article><article className="surface-card mockup-hero-panel"><div className="mockup-empty-preview"><strong>No mockup rendered for this asset yet</strong><p className="text-muted">Use recommended mockups for a full preview set.</p><button className="btn btn-primary">Generate recommended mockups</button></div></article></div>
+    <div className="mockup-studio-main-grid"><article className="surface-card mockup-asset-panel"><div className="mockup-panel-heading"><h2>Source asset proof</h2><span className="mockup-status-chip tone-success">Ready for Printify</span></div><StoryMockupPreview label="Artwork" /></article><article className="surface-card mockup-hero-panel"><div className="mockup-empty-preview"><strong>Create a Printify product to generate real mockups</strong><p className="text-muted">Choose a product, provider, and variants first.</p><button className="btn btn-primary">Open Printify Catalog</button></div></article></div>
   </section>;
 }
 
 export function MockupStudioRenderingState() {
   return <section className="mockup-result-panel is-warning" style={{ maxWidth: 880 }}>
-    <p className="eyebrow-label">Mockup result</p><h3>Rendering mockups</h3><p className="text-muted">Internal Sharp is compositing the print-ready file into recommended product templates.</p>
+    <p className="eyebrow-label">Printify result</p><h3>Creating Printify product</h3><p className="text-muted">SaltyFactory is uploading the print-ready file and asking Printify for provider mockup images.</p>
   </section>;
 }
 
 export function MockupStudioGalleryMultiple() {
   return <section className="mockup-gallery-grid" style={{ maxWidth: 1180 }}>
-    {["Light Tee", "Dark Tee", "Sand Tee", "Tote"].map((label) => <article className="mockup-card" key={label}><StoryMockupPreview label={label} /><div className="mockup-card-copy"><strong>{label}</strong><p className="text-muted">Internal Sharp renderer</p><div className="mockup-chip-row"><span className="mockup-status-chip tone-info">Internal Sharp</span><span className="mockup-status-chip tone-warning">Needs approval</span></div></div><div className="mockup-card-actions"><button className="btn btn-secondary">Preview</button><button className="btn btn-secondary">Set hero</button></div></article>)}
+    {["Front view", "Back view", "Lifestyle crop"].map((label) => <article className="mockup-card" key={label}><StoryMockupPreview label={label} /><div className="mockup-card-copy"><strong>{label}</strong><p className="text-muted">Provider image from Printify</p><div className="mockup-chip-row"><span className="mockup-status-chip tone-info">Printify Mockup</span><span className="mockup-status-chip tone-warning">Needs approval</span></div></div><div className="mockup-card-actions"><button className="btn btn-secondary">Preview</button><button className="btn btn-secondary">Set hero</button></div></article>)}
   </section>;
 }
 
 export function MockupStudioHeroSelected() {
   return <section className="surface-card mockup-hero-panel" style={{ maxWidth: 760 }}>
-    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Hero mockup</p><h2>Apparel Front - Light Tee</h2><p className="text-muted">Internal Sharp renderer - source asset_hf...e32d80</p></div><div className="mockup-chip-row"><span className="mockup-status-chip tone-success">Hero selected</span><span className="mockup-status-chip tone-success">Approved</span></div></div>
+    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Hero mockup</p><h2>Printify front mockup</h2><p className="text-muted">Provider image from Printify - source asset_hf...e32d80</p></div><div className="mockup-chip-row"><span className="mockup-status-chip tone-success">Hero selected</span><span className="mockup-status-chip tone-success">Approved</span></div></div>
     <StoryMockupPreview label="Hero" /><button className="btn btn-primary" disabled>Hero selected</button>
   </section>;
 }
 
 export function MockupStudioRejectedMockup() {
   return <article className="mockup-card" style={{ maxWidth: 360 }}>
-    <StoryMockupPreview label="Rejected" tone="rejected" /><div className="mockup-card-copy"><strong>Dark Tee</strong><p className="text-muted">Rejected after owner review.</p><span className="mockup-status-chip tone-danger">Rejected</span></div><button className="btn btn-secondary">Re-render</button>
+    <StoryMockupPreview label="Rejected" tone="rejected" /><div className="mockup-card-copy"><strong>Printify side view</strong><p className="text-muted">Rejected after owner review.</p><span className="mockup-status-chip tone-danger">Rejected</span></div><button className="btn btn-secondary">Import again</button>
   </article>;
 }
 
@@ -161,16 +212,16 @@ export function MockupStudioMissingPrintPngBlocker() {
 
 export function MockupStudioPlacementControlsOpen() {
   return <section className="surface-card" style={{ maxWidth: 760 }}>
-    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Placement</p><h2>Light Tee controls</h2><p className="text-muted">Placement changes are rendered server-side with the internal compositor.</p></div></div>
-    <div className="mockup-placement-grid"><label>X<input value="450" readOnly /></label><label>Y<input value="520" readOnly /></label><label>Scale<input value="1" readOnly /></label><label>Rotation<input value="0" readOnly /></label><label>Fit<select><option>Contain</option></select></label><label>Opacity<input value="0.96" readOnly /></label></div>
-    <div className="action-bar"><button className="btn btn-secondary">Reset placement</button><button className="btn btn-primary">Render with placement</button></div>
+    <div className="mockup-panel-heading"><div><p className="eyebrow-label">Placement</p><h2>Printify placement proof</h2><p className="text-muted">Placement is stored in the Printify product payload and reflected in provider mockups.</p></div></div>
+    <div className="mockup-placement-grid"><label>X<input value="0.5" readOnly /></label><label>Y<input value="0.5" readOnly /></label><label>Scale<input value="1" readOnly /></label><label>Position<select><option>Front</option></select></label></div>
+    <div className="action-bar"><button className="btn btn-secondary">Open Catalog</button><button className="btn btn-primary">Create Printify Product</button></div>
   </section>;
 }
 
 export function MockupStudioProofDetailsExpanded() {
   return <details className="mockup-proof-details" open style={{ maxWidth: 880 }}>
     <summary>Proof details</summary>
-    <dl className="mockup-proof-grid"><div><dt>Mockup ID</dt><dd>mockup_1783179063831</dd></div><div><dt>Source asset ID</dt><dd>asset_hf_1783179053612</dd></div><div><dt>Derivative kind</dt><dd>print_png</dd></div><div><dt>Template ID</dt><dd>tmpl_internal_apparel_light_tee</dd></div><div><dt>Renderer version</dt><dd>internal-sharp-v1</dd></div><div><dt>Checksum</dt><dd>73d3f8...</dd></div><div><dt>Preview route</dt><dd>/api/studio/mockups/mockup_1783179063831/preview</dd></div></dl>
+    <dl className="mockup-proof-grid"><div><dt>Mockup ID</dt><dd>mockup_printify_1783179063831</dd></div><div><dt>Source asset ID</dt><dd>asset_hf_1783179053612</dd></div><div><dt>Derivative kind</dt><dd>print_png</dd></div><div><dt>Printify product</dt><dd>64f-printify-product</dd></div><div><dt>Source</dt><dd>Printify</dd></div><div><dt>Preview URL</dt><dd>Provider image URL stored</dd></div></dl>
   </details>;
 }
 
