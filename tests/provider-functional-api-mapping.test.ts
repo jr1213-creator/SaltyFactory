@@ -260,6 +260,7 @@ describe("provider-backed POD functional API mapping", () => {
     };
     const storage = {
       uploadPrivateAsset: async (path: string) => ({ ok: true as const, path }),
+      downloadPrivateAsset: async () => ({ ok: true as const, bytes, contentType: "image/png" }),
       createSignedPrivateUrl: async (path: string) => ({ ok: true as const, url: `https://signed.example/${encodeURIComponent(path)}` }),
       moveApprovedAssetToPublic: async (_privatePath: string, publicPath: string) => ({ ok: true as const, path: publicPath }),
       createPublicApprovedUrl: (path: string, approved: boolean) => approved ? { ok: true as const, url: `https://public.example/${path}` } : { ok: false as const, error: "asset_not_approved_for_public_url" },

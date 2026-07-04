@@ -26,6 +26,12 @@ function isProduction() {
   return process.env.APP_ENV === "production" || process.env.NODE_ENV === "production";
 }
 
+function extensionForContentType(contentType: string) {
+  if (/jpe?g/i.test(contentType)) return "jpg";
+  if (/webp/i.test(contentType)) return "webp";
+  return "png";
+}
+
 async function writeLocalDevImage(workspaceId: string, assetId: string) {
   const sharp = (await import("sharp")).default;
   const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="3000">
@@ -42,10 +48,10 @@ async function writeLocalDevImage(workspaceId: string, assetId: string) {
   return { buffer, storageKey: `workspaces/${safeSegment(workspaceId)}/private/assets/${assetId}.png` };
 }
 
-async function storeGeneratedImage(input: { buffer: Buffer; storageKey: string; providerKey: "local_dev_mock" | "huggingface"; config: ReturnType<typeof parseEnv> }) {
+async function storeGeneratedImage(input: { buffer: Buffer; storageKey: string; contentType: string; providerKey: "local_dev_mock" | "huggingface"; config: ReturnType<typeof parseEnv> }) {
   const storageConfig = resolveStorageRuntimeConfig(input.config);
   if (storageConfig.SUPABASE_URL && storageConfig.SUPABASE_SERVICE_ROLE_KEY && input.providerKey !== "local_dev_mock") {
-    const uploaded = await createStorageProvider(input.config).uploadPrivateAsset(input.storageKey, input.buffer, "image/png");
+    const uploaded = await createStorageProvider(input.config).uploadPrivateAsset(input.storageKey, input.buffer, input.contentType);
     if (!uploaded.ok) {
       return { ok: false as const, status: uploaded.error, blockingReasons: ["private_storage_upload_failed"] };
     }
@@ -86,7 +92,7 @@ async function fetchHuggingFaceImage(provider: ImageGenerationProviderResolution
   }
   if (!result.bytes) return { ok: false as const, status: "failed", error: "unknown_provider_error", message: "Image provider returned no image bytes.", setupRequired: ["Validate image provider again"], retryable: true };
   if (result.bytes.byteLength > maxBytes) return { ok: false as const, status: "failed", error: "image_generation_output_too_large", message: "Image provider returned an output larger than SaltyFactory allows.", setupRequired: ["Use a smaller output size"], retryable: false };
-  return { ok: true as const, buffer: Buffer.from(result.bytes), model };
+  return { ok: true as const, buffer: Buffer.from(result.bytes), model, contentType: result.contentType };
 }
 
 function safeJob(job: any) {
@@ -111,6 +117,7 @@ function safeAsset(asset: any) {
     approvedForMockup: Boolean(asset.approved_for_mockup ?? asset.approvedForMockup),
     storageBucket: asset.storage_bucket ?? asset.storageBucket ?? null,
     filePath: asset.file_path ?? asset.filePath ?? null,
+    mimeType: asset.mime_type ?? asset.mimeType ?? null,
     width: asset.width ?? null,
     height: asset.height ?? null,
     generator: asset.generator ?? null,
@@ -129,9 +136,12 @@ async function createPrivateAssetFromBuffer(input: {
   generator: string;
   actorId: string;
   storageBucket: string;
+  contentType: string;
 }) {
   const sharp = (await import("sharp")).default;
   const metadata = await sharp(input.buffer).metadata();
+  const contentType = input.contentType.startsWith("image/") ? input.contentType : `image/${metadata.format ?? "png"}`;
+  const extension = extensionForContentType(contentType);
   const checksum = crypto.createHash("sha256").update(input.buffer).digest("hex");
   const repos = createRepositories();
   return repos.asset.create({
@@ -153,8 +163,8 @@ async function createPrivateAssetFromBuffer(input: {
     risk_status: "pending",
     approved_for_mockup: false,
     checksum,
-    mime_type: "image/png",
-    extension: "png",
+    mime_type: contentType,
+    extension,
     visibility: "private",
     created_by: input.actorId,
     updated_by: input.actorId
@@ -217,7 +227,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (provider.status === "local_demo") {
       const assetId = `asset_local_dev_${Date.now()}`;
       const image = await writeLocalDevImage(studioWorkspaceId, assetId);
-      const asset = await createPrivateAssetFromBuffer({ buffer: image.buffer, storageKey: image.storageKey, storageBucket: "local-dev-private-assets", jobId: job.id, briefId: id, model: provider.model ?? "local-dev-fixture", generator: "local_dev_mock", actorId: user.id });
+      const asset = await createPrivateAssetFromBuffer({ buffer: image.buffer, storageKey: image.storageKey, storageBucket: "local-dev-private-assets", jobId: job.id, briefId: id, model: provider.model ?? "local-dev-fixture", generator: "local_dev_mock", actorId: user.id, contentType: "image/png" });
       const completed = await repos.job.markCompleted(job.id, asset.id);
       await repos.brief.update(id, { status: "generation_completed", updated_by: user.id });
       return NextResponse.json({ ok: true, status: "succeeded", safeMessage: "Local demo image generated for development/test preview only.", job: safeJob(completed), asset: safeAsset(asset), provider: publicImageGenerationProviderResolution(provider), warning: "Local dev image generation is a non-production test fixture." });
@@ -254,13 +264,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }, { status: hf.retryable ? 503 : 400 });
     }
     const assetId = `asset_hf_${Date.now()}`;
-    const storageKey = `workspaces/${safeSegment(studioWorkspaceId)}/private/assets/${assetId}.png`;
-    const stored = await storeGeneratedImage({ buffer: hf.buffer, storageKey, providerKey: "huggingface", config });
+    const extension = extensionForContentType(hf.contentType);
+    const storageKey = `workspaces/${safeSegment(studioWorkspaceId)}/private/assets/${assetId}.${extension}`;
+    const stored = await storeGeneratedImage({ buffer: hf.buffer, storageKey, contentType: hf.contentType, providerKey: "huggingface", config });
     if (!stored.ok) {
       const failed = await repos.job.markFailed(job.id, stored.status, false);
       return NextResponse.json({ ok: false, status: "setup_required", errorStatus: stored.status, safeMessage: "Private generated-asset storage could not store this provider output.", message: "Private generated-asset storage could not store this provider output.", blockingReasons: stored.blockingReasons, setupRequired: stored.blockingReasons, setupAction: "/studio/onboarding/providers/image-generation#storage-readiness", provider: publicImageGenerationProviderResolution(provider), job: safeJob(failed) }, { status: 503 });
     }
-    const asset = await createPrivateAssetFromBuffer({ buffer: hf.buffer, storageKey: stored.storageKey, storageBucket: stored.storageBucket, jobId: job.id, briefId: id, model: hf.model, generator: "huggingface", actorId: user.id });
+    const asset = await createPrivateAssetFromBuffer({ buffer: hf.buffer, storageKey: stored.storageKey, storageBucket: stored.storageBucket, jobId: job.id, briefId: id, model: hf.model, generator: "huggingface", actorId: user.id, contentType: hf.contentType });
     const completed = await repos.job.markCompleted(job.id, asset.id);
     await repos.brief.update(id, { status: "generation_completed", updated_by: user.id });
     return NextResponse.json({ ok: true, status: "succeeded", safeMessage: "Image generation job completed and a private source-art asset was created.", job: safeJob(completed), asset: safeAsset(asset), provider: publicImageGenerationProviderResolution(provider) });

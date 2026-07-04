@@ -2,6 +2,8 @@ import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, ProviderReadinessCard, RecommendationCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { getWorkspaceProviderReadiness, isProviderReady } from "../_provider-readiness";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath, mockupPreviewPath } from "../_private-preview-paths";
 import { PublishWorkflowClient } from "./PublishWorkflowClient";
 import { ProviderPublishActionsClient } from "./ProviderPublishActionsClient";
 
@@ -93,6 +95,18 @@ export default async function Page() {
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Selected Product Readiness</h2>
       {selectedDraft ? <p className="text-muted">Draft: {selectedDraft.title ?? selectedDraft.id}. Actions stay disabled or blocked until the persisted gates below are true.</p> : <p className="text-muted">Create a product draft from approved generated artwork and a mockup first.</p>}
+      {selectedAsset || selectedMockups.length ? <div className="layout-grid layout-grid-2" style={{ marginBottom: 14 }}>
+        {selectedAsset ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
+          <PrivateImagePreview src={assetPreviewPath(selectedAsset)} alt="Selected generated asset preview" />
+          <strong>Generated asset {selectedAsset.id}</strong>
+          <p className="text-muted" style={{ margin: 0 }}>QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)}</p>
+        </article> : null}
+        {selectedMockups[0] ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
+          <PrivateImagePreview src={mockupPreviewPath(selectedMockups[0])} alt="Selected product mockup preview" aspectRatio="4 / 5" />
+          <strong>Mockup {selectedMockups[0].id}</strong>
+          <p className="text-muted" style={{ margin: 0 }}>Approved for product {String(Boolean(selectedMockups[0].approved_for_product ?? selectedMockups[0].approvedForProduct))}</p>
+        </article> : null}
+      </div> : null}
       <DataTable columns={["Requirement", "Ready", "Evidence / next action"]} rows={readinessRows.map(([label, ready, detail]) => [
         label,
         <StatusBadge key={label} status={ready ? "ready" : "blocked"} tone={ready ? "success" : "warning"} />,

@@ -40,6 +40,12 @@ function bufferFromGenerationResult(result: any) {
   return null;
 }
 
+function extensionForContentType(contentType: string) {
+  if (/jpe?g/i.test(contentType)) return "jpg";
+  if (/webp/i.test(contentType)) return "webp";
+  return "png";
+}
+
 async function persistGeneratedBuffer(input: {
   repos: RepositoryBundle;
   storage: StorageProvider;
@@ -48,6 +54,7 @@ async function persistGeneratedBuffer(input: {
   model: string;
   generator: string;
   actorId: string;
+  contentType: string;
 }) {
   const sharp = (await import("sharp")).default;
   const metadata = await sharp(input.buffer).metadata();
@@ -56,8 +63,9 @@ async function persistGeneratedBuffer(input: {
   if (!briefId) throw Object.assign(new Error("generation_job_brief_id_required"), { retryable: false });
 
   const assetId = `asset_worker_${Date.now()}_${checksum.slice(0, 10)}`;
-  const storageKey = `workspaces/${safeSegment(workspaceId)}/private/assets/${assetId}.png`;
-  const contentType = "image/png";
+  const contentType = input.contentType.startsWith("image/") ? input.contentType : `image/${metadata.format ?? "png"}`;
+  const extension = extensionForContentType(contentType);
+  const storageKey = `workspaces/${safeSegment(workspaceId)}/private/assets/${assetId}.${extension}`;
   const upload = await input.storage.uploadPrivateAsset(storageKey, input.buffer, contentType);
   let storageBucket = resolveStorageRuntimeConfig({
     SUPABASE_URL: process.env.SUPABASE_URL,
@@ -71,7 +79,7 @@ async function persistGeneratedBuffer(input: {
     if (process.env.APP_ENV === "production") throw Object.assign(new Error(upload.error), { retryable: false });
     const localRoot = path.resolve(process.cwd(), ".saltyfactory-private", "assets", safeSegment(workspaceId));
     await mkdir(localRoot, { recursive: true });
-    await writeFile(path.resolve(localRoot, `${assetId}.png`), input.buffer);
+    await writeFile(path.resolve(localRoot, `${assetId}.${extension}`), input.buffer);
     storageBucket = "local-dev-private-assets";
   }
 
@@ -95,7 +103,7 @@ async function persistGeneratedBuffer(input: {
     approved_for_mockup: false,
     checksum,
     mime_type: contentType,
-    extension: "png",
+      extension,
     visibility: "private",
     created_by: input.actorId,
     updated_by: input.actorId,
@@ -181,7 +189,8 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
         job,
         model: String(result.modelUsed ?? imageResolution?.model ?? "unknown"),
         generator: String(imageResolution?.provider ?? image.providerId ?? "image_provider"),
-        actorId
+        actorId,
+        contentType: String(result.data?.contentType ?? "image/png")
       });
       await markCompleted(queue, repos, job.id, asset.id);
       return { ok: true, processed: 1, outputAssetId: asset.id, textProvider: text.enabled, storefront: !!commerce.storefront };

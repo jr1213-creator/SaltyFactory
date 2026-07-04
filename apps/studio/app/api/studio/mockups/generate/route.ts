@@ -64,13 +64,22 @@ function isProduction() {
   return process.env.APP_ENV === "production" || process.env.NODE_ENV === "production";
 }
 
+function configForStoredBucket(asset: Record<string, any>) {
+  const config = parseEnv();
+  const storedBucket = String(asset.storage_bucket ?? asset.storageBucket ?? "").trim();
+  if (storedBucket && storedBucket !== "local-dev-private-assets") {
+    return { ...config, SUPABASE_PRIVATE_ASSETS_BUCKET: storedBucket };
+  }
+  return config;
+}
+
 async function readApprovedAssetBuffer(asset: Record<string, any>) {
   const storageKey = String(asset.file_path ?? asset.filePath ?? asset.storage_key ?? asset.storageKey ?? "");
   const localPath = localPrivatePathFor(storageKey, "assets");
   try {
     return { ok: true as const, buffer: await readFile(localPath) };
   } catch {
-    const config = parseEnv();
+    const config = configForStoredBucket(asset);
     if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY || !storageKey) {
       return {
         ok: false as const,
@@ -79,20 +88,16 @@ async function readApprovedAssetBuffer(asset: Record<string, any>) {
         setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"]
       };
     }
-    const signed = await createStorageProvider(config).createSignedPrivateUrl(storageKey, 600);
-    if (!signed.ok || !signed.url) {
+    const source = await createStorageProvider(config).downloadPrivateAsset(storageKey);
+    if (!source.ok) {
       return {
         ok: false as const,
         status: "not_configured",
-        blockingReasons: ["source_art_signed_url_required"],
+        blockingReasons: ["source_art_private_storage_read_required"],
         setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET"]
       };
     }
-    const response = await fetch(signed.url);
-    if (!response.ok) {
-      return { ok: false as const, status: "failed", blockingReasons: ["source_art_read_failed"] };
-    }
-    return { ok: true as const, buffer: Buffer.from(await response.arrayBuffer()) };
+    return { ok: true as const, buffer: Buffer.from(source.bytes) };
   }
 }
 

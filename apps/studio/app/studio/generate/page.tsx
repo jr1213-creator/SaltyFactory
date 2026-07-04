@@ -1,15 +1,13 @@
 import { DataTable, EmptyState, ImageGenerationJobCard, MetricCard, PageHeader, ProviderStatusCard, StatusBadge, WorkflowStepHeader } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
 import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourceLabel } from "../_provider-readiness";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath } from "../_private-preview-paths";
 
 type RecommendedModel = { model: string; label: string };
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
-}
-
-function assetPreviewHref(asset: any) {
-  return `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview`;
 }
 
 export default async function Page() {
@@ -90,7 +88,7 @@ export default async function Page() {
       {assets.length ? <div className="layout-grid layout-grid-3">{assets.slice(0, 9).map((asset: any) => {
         const approved = Boolean(asset.approved_for_mockup || asset.approvedForMockup);
         return <article key={asset.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
-          <img src={assetPreviewHref(asset)} alt="Generated private artwork preview" style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+          <PrivateImagePreview src={assetPreviewPath(asset)} alt="Generated private artwork preview" />
           <strong>{asset.id}</strong>
           <dl className="result-detail-grid">
             <div><dt>Provider</dt><dd>{asset.generator === "huggingface" ? "Hugging Face" : ownerLabel(asset.generator, "manual")}</dd></div>

@@ -1,19 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath, mockupPreviewPath } from "../_private-preview-paths";
 
 type Row = Record<string, any>;
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
-}
-
-function assetPreviewHref(asset: Row | undefined | null) {
-  return asset?.id ? `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview` : "";
-}
-
-function mockupPreviewHref(mockup: Row | undefined | null) {
-  return mockup?.id ? `/api/studio/mockups/${encodeURIComponent(String(mockup.id))}/preview` : "";
 }
 
 function sanitizeDeveloperDetails(value: unknown) {
@@ -51,7 +45,7 @@ function ResultPanel({ result }: { result: unknown }) {
         <p className="text-muted">{message}</p>
       </div>
     </div>
-    {mockup ? <img src={mockupPreviewHref(mockup)} alt="Composited mockup preview" style={{ width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} /> : null}
+    {mockup ? <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Composited mockup preview" aspectRatio="4 / 5" maxHeight={360} /> : null}
     <dl className="result-detail-grid">
       {mockup ? <div><dt>Mockup</dt><dd>{mockup.id}</dd></div> : null}
       {mockup ? <div><dt>Status</dt><dd>{ownerLabel(mockup.status)}</dd></div> : null}
@@ -154,12 +148,12 @@ export function MockupWorkflowClient({ initialAssets, initialMockups, initialAss
       <button className="btn btn-primary" disabled={busy || !assetId} onClick={generate}>Generate Internal Mockup</button>
     </div>
     {selectedAsset ? <div className="surface-card" style={{ display: "grid", gap: 10 }}>
-      <img src={assetPreviewHref(selectedAsset)} alt="Approved source artwork preview" style={{ width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+      <PrivateImagePreview src={assetPreviewPath(selectedAsset)} alt="Approved source artwork preview" maxHeight={260} />
       <p className="text-muted">Source asset {selectedAsset.id} - QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)} - approved for mockup</p>
     </div> : <p className="text-muted">Run QA and approve a generated asset before creating a mockup.</p>}
     <label>Mockup<select value={selectedMockupId} onChange={(event) => setSelectedMockupId(event.target.value)}>{mockups.map((mockup) => <option key={mockup.id} value={mockup.id}>{mockup.file_path ?? mockup.id}</option>)}</select></label>
     {selected ? <div className="surface-card" style={{ display: "grid", gap: 10 }}>
-      <img src={mockupPreviewHref(selected)} alt="Selected composited mockup preview" style={{ width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+      <PrivateImagePreview src={mockupPreviewPath(selected)} alt="Selected composited mockup preview" aspectRatio="4 / 5" maxHeight={360} />
       <p className="text-muted">{ownerLabel(selected.status)} - approved for product {String(selectedApproved)} - internal preview only</p>
     </div> : <p className="text-muted">Generate a mockup from an approved asset first.</p>}
     <div className="action-bar">

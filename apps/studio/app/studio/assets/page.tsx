@@ -1,13 +1,11 @@
 import { ApprovalGateList, Card, EmptyState, FilterBar, MetricCard, PageHeader, ProductGrid, ProgressRing, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath } from "../_private-preview-paths";
 import { AssetWorkflowClient } from "./AssetWorkflowClient";
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
-}
-
-function assetPreviewHref(asset: any) {
-  return `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview`;
 }
 
 export default async function Page({ searchParams }: { searchParams?: Promise<{ asset_id?: string }> } = {}) {
@@ -38,7 +36,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
         {assets.length ? <ProductGrid>{assets.slice(0, 9).map((asset: any) => {
           const approved = Boolean(asset.approved_for_mockup || asset.approvedForMockup);
           return <article key={asset.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
-            <img src={assetPreviewHref(asset)} alt="Generated private asset preview" style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+            <PrivateImagePreview src={assetPreviewPath(asset)} alt="Generated private asset preview" />
             <div>
               <strong>{asset.original_filename ?? asset.id}</strong>
               <p className="text-muted" style={{ margin: "4px 0 0" }}>Asset {asset.id}</p>

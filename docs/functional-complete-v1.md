@@ -33,7 +33,7 @@ Every setup blocker must include a plain-English explanation, next action, setup
 | AI Employees | Fully functional v1 | Owner-triggered runs persist AI run/output records, create shared approval records, support approve/reject/needs-edits/convert-to-task, and materialize supported outputs into internal POD records. No provider action is executed by approval. |
 | Product Builder | Fully functional v1 | `/studio/product-builder` creates a focused POD product draft from approved generated artwork and an approved composed mockup, captures product idea, price/cost fields, Printify target, and Shopify collection metadata, and links to Printify Catalog and Publish Review. `/studio/pod-migration` remains a separate compatibility page. |
 | Designs | Provider-backed when configured | Deterministic design suggestions and persisted AI design concept outputs are visible for owner review. Image generation is core workflow and blocks with exact setup requirements until an allowed image provider is configured. |
-| Assets | Fully functional v1 | Generated image bytes from the worker persist as private design assets, protected previews render in `/studio/briefs`, `/studio/image-generation`, and `/studio/assets`, QA can run, and approve/reject/mockup handoff is persisted. Manual references are not the core production path. |
+| Assets | Fully functional v1 | Generated image bytes from the worker persist as private design assets with bucket/path/MIME metadata, protected previews render through authenticated Studio byte-proxy routes in `/studio/briefs`, `/studio/image-generation`, `/studio/assets`, `/studio/mockups`, `/studio/product-builder`, and `/studio/publish-review`, QA can run, and approve/reject/mockup handoff is persisted. Manual references are not the core production path. |
 | Mockups | Fully functional v1 | Internal Sharp compositing creates visible private mockup images from approved generated artwork and template art zones, persists mockup records, links them to source assets, and stores composed previews in private storage when configured. Provider mockup retrieval remains future integration. |
 | Listing Drafts | Fully functional v1 | Create/edit listing drafts, validation blockers, owner approval status, and export payloads persist. No Shopify/Etsy/Printify sync is implied. |
 | Pricing & Margins | Fully functional v1 | Manual cost/shipping/price inputs calculate margin and can persist price-margin checks against product drafts. No fake Printify cost is imported. |
@@ -193,7 +193,7 @@ SUPABASE_PRIVATE_ASSETS_BUCKET=saltyfactory-private-assets
 SUPABASE_PUBLIC_ASSETS_BUCKET=saltyfactory-public-assets
 ```
 
-Private generated assets must use signed URLs. Public URLs are only created for approved assets.
+Private generated assets must stay in the private bucket. Studio preview routes verify workspace access and then read private object bytes server-side with the service role key; the browser receives only image bytes and cache headers, not the service role key or permanent public URLs. Short-lived signed URLs may still be used internally for provider handoff when needed. Public URLs are only created for approved assets.
 
 ## Shopify Setup
 

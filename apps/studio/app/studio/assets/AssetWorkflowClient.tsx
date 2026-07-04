@@ -1,15 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath } from "../_private-preview-paths";
 
 type Asset = Record<string, any>;
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
-}
-
-function assetPreviewHref(asset: Asset | undefined | null) {
-  return asset?.id ? `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview` : "";
 }
 
 function sanitizeDeveloperDetails(value: unknown) {
@@ -71,7 +69,7 @@ export function AssetWorkflowClient({ initialAssets, initialAssetId }: { initial
   const [busy, setBusy] = useState(false);
   const selected = useMemo(() => assets.find((asset) => asset.id === selectedAssetId), [assets, selectedAssetId]);
   const selectedApprovedForMockup = Boolean(selected?.approved_for_mockup || selected?.approvedForMockup);
-  const selectedPreview = assetPreviewHref(selected);
+  const selectedPreview = assetPreviewPath(selected);
 
   async function refreshAssets() {
     const data = await fetch("/api/studio/assets/upload").then((res) => res.json());
@@ -133,7 +131,7 @@ export function AssetWorkflowClient({ initialAssets, initialAssetId }: { initial
       </div>
     </div>
     {selected ? <div className="surface-card" style={{ display: "grid", gap: 12 }}>
-      {selectedPreview ? <img src={selectedPreview} alt="Selected private asset preview" style={{ width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} /> : null}
+      {selectedPreview ? <PrivateImagePreview src={selectedPreview} alt="Selected private asset preview" maxHeight={360} /> : null}
       <dl className="result-detail-grid">
         <div><dt>Asset ID</dt><dd>{selected.id}</dd></div>
         <div><dt>QA</dt><dd>{ownerLabel(selected.qa_status ?? selected.qaStatus)}</dd></div>

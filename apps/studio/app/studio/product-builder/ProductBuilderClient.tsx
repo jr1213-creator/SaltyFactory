@@ -1,19 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { assetPreviewPath, mockupPreviewPath } from "../_private-preview-paths";
 
 type Row = Record<string, any>;
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
-}
-
-function assetPreviewHref(asset: Row | undefined | null) {
-  return asset?.id ? `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview` : "";
-}
-
-function mockupPreviewHref(mockup: Row | undefined | null) {
-  return mockup?.id ? `/api/studio/mockups/${encodeURIComponent(String(mockup.id))}/preview` : "";
 }
 
 function sanitizeDeveloperDetails(value: unknown) {
@@ -142,12 +136,12 @@ export function ProductBuilderClient({
     </div>
     <div className="layout-grid layout-grid-2">
       {selectedAsset ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
-        <img src={assetPreviewHref(selectedAsset)} alt="Selected generated source artwork" style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+        <PrivateImagePreview src={assetPreviewPath(selectedAsset)} alt="Selected generated source artwork" />
         <strong>Source asset {selectedAsset.id}</strong>
         <p className="text-muted" style={{ margin: 0 }}>QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)} - approved for mockup</p>
       </article> : <article className="surface-card"><h3>Approved artwork required</h3><p className="text-muted">Generate artwork, run QA, and approve the asset before creating a product draft.</p><a className="btn btn-primary" href="/studio/assets">Open assets</a></article>}
       {selectedMockup ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
-        <img src={mockupPreviewHref(selectedMockup)} alt="Selected product mockup" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+        <PrivateImagePreview src={mockupPreviewPath(selectedMockup)} alt="Selected product mockup" aspectRatio="4 / 5" />
         <strong>Mockup {selectedMockup.id}</strong>
         <p className="text-muted" style={{ margin: 0 }}>Approved for product draft</p>
       </article> : <article className="surface-card"><h3>Approved mockup required</h3><p className="text-muted">Create and approve an internal mockup from the generated asset.</p><a className="btn btn-primary" href={assetId ? `/studio/mockups?asset_id=${encodeURIComponent(assetId)}` : "/studio/mockups"}>Open mockups</a></article>}

@@ -23,6 +23,7 @@ import { GET as printifyBlueprintsGet } from "../apps/studio/app/api/studio/inte
 import { POST as publishReviewPost } from "../apps/studio/app/api/studio/publish-reviews/route";
 import { POST as publishPrintifyPost } from "../apps/studio/app/api/studio/publish/printify/route";
 import { POST as publishShopifyPost } from "../apps/studio/app/api/studio/publish/shopify/route";
+import { runWorkerOnce } from "../apps/worker/src/index";
 
 const originalEnv = { ...process.env };
 const workspaceId = "wks_default";
@@ -246,6 +247,116 @@ describe("POD golden path execution", () => {
     expect(generateHtml).toContain(`/api/studio/assets/${assetId}/preview`);
   });
 
+  it("serves Supabase-backed private asset previews as protected image bytes", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service_role_should_not_leak");
+    vi.stubEnv("SUPABASE_PRIVATE_ASSETS_BUCKET", "private-assets");
+    const repos = createRepositories();
+    const assetId = `asset_supabase_preview_${Date.now()}`;
+    const storageKey = `workspaces/${workspaceId}/private/assets/${assetId}.png`;
+    const bytes = await sharp({ create: { width: 64, height: 64, channels: 4, background: "#0f766e" } }).png().toBuffer();
+    await repos.asset.create({
+      id: assetId,
+      workspace_id: workspaceId,
+      brief_id: `brief_${assetId}`,
+      asset_type: "generated_source_art",
+      storage_bucket: "private-assets",
+      file_path: storageKey,
+      file_size_bytes: bytes.byteLength,
+      mime_type: "image/png",
+      extension: "png",
+      visibility: "private",
+      width: 64,
+      height: 64,
+      dpi: 300,
+      transparent_background: true,
+      generator: "huggingface",
+      model: "black-forest-labs/FLUX.1-schnell",
+      qa_status: "pending",
+      risk_status: "pending",
+      approved_for_mockup: false,
+      created_by: actorId,
+      updated_by: actorId
+    } as WorkspaceRow);
+    vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
+      expect(String(url)).toContain(`/storage/v1/object/private-assets/${storageKey}`);
+      expect(String((init.headers as Record<string, string>).authorization)).toContain("Bearer");
+      return new Response(bytes, { status: 200, headers: { "content-type": "application/octet-stream" } });
+    });
+
+    const missing = await assetPreviewGet(authedRequest("/api/studio/assets/missing_asset/preview"), {
+      params: Promise.resolve({ id: "missing_asset" })
+    });
+    const otherWorkspaceId = `asset_other_workspace_${Date.now()}`;
+    await repos.asset.create({ id: otherWorkspaceId, workspace_id: "wks_other", brief_id: "brief_other", asset_type: "generated_source_art", storage_bucket: "private-assets", file_path: `workspaces/wks_other/private/assets/${otherWorkspaceId}.png`, file_size_bytes: 1, width: 1, height: 1, dpi: 72, transparent_background: false, generator: "huggingface", model: "model", qa_status: "pending", risk_status: "pending", approved_for_mockup: false, created_by: actorId, updated_by: actorId } as WorkspaceRow);
+    const otherWorkspace = await assetPreviewGet(authedRequest(`/api/studio/assets/${otherWorkspaceId}/preview`), {
+      params: Promise.resolve({ id: otherWorkspaceId })
+    });
+    const preview = await assetPreviewGet(authedRequest(`/api/studio/assets/${assetId}/preview`), {
+      params: Promise.resolve({ id: assetId })
+    });
+    const body = Buffer.from(await preview.arrayBuffer());
+
+    expect(missing.status).toBe(404);
+    expect(otherWorkspace.status).toBe(404);
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("content-type")).toContain("image/png");
+    expect(preview.headers.get("location")).toBeNull();
+    expect(body.subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    expect(body.toString("utf8")).not.toContain("service_role_should_not_leak");
+  });
+
+  it("worker generation stores binary image bytes with bucket, path, and MIME metadata", async () => {
+    authorizeAsOwner();
+    setMemoryRuntime();
+    const repos = createRepositories();
+    const bytes = await sharp({ create: { width: 128, height: 128, channels: 4, background: "#2563eb" } }).png().toBuffer();
+    let uploaded: { path?: string; data?: unknown; contentType?: string } = {};
+    await repos.job.create({
+      id: `job_worker_preview_${Date.now()}`,
+      workspace_id: workspaceId,
+      brief_id: "brief_worker_preview",
+      provider: "huggingface",
+      model: "black-forest-labs/FLUX.1-schnell",
+      prompt: "coastal western badge",
+      negative_prompt: "logos",
+      parameters: {},
+      status: "queued",
+      retry_count: 0,
+      max_retries: 3,
+      created_by: actorId
+    } as WorkspaceRow);
+    const imageProvider = {
+      enabled: true,
+      providerId: "huggingface",
+      generateImage: async () => ({ ok: true as const, data: { bytes, contentType: "image/png" }, modelUsed: "black-forest-labs/FLUX.1-schnell", sourceLabel: "model_generated" as const }),
+      getJobStatus: async () => ({ ok: true as const, data: { status: "completed" }, sourceLabel: "model_generated" as const }),
+      isHealthy: async () => true
+    };
+    const storage = {
+      uploadPrivateAsset: async (path: string, data: Uint8Array | Buffer, contentType: string) => {
+        uploaded = { path, data, contentType };
+        return { ok: true as const, path };
+      },
+      downloadPrivateAsset: async () => ({ ok: true as const, bytes, contentType: "image/png" }),
+      createSignedPrivateUrl: async (path: string) => ({ ok: true as const, url: `https://signed.example/${encodeURIComponent(path)}` }),
+      moveApprovedAssetToPublic: async (_privatePath: string, publicPath: string) => ({ ok: true as const, path: publicPath }),
+      createPublicApprovedUrl: (path: string, approved: boolean) => approved ? { ok: true as const, url: `https://public.example/${path}` } : { ok: false as const, error: "asset_not_approved_for_public_url" },
+      deletePrivateTemporaryAsset: async (path: string) => ({ ok: true as const, path })
+    };
+
+    const result = await runWorkerOnce(undefined, { repos, imageProvider: imageProvider as any, storage: storage as any, actorId });
+    const asset = await repos.asset.getById(String((result as any).outputAssetId), workspaceId);
+
+    expect(result).toMatchObject({ ok: true, processed: 1 });
+    expect(asset).toMatchObject({ storage_bucket: "saltyfactory-private-assets", mime_type: "image/png", visibility: "private" });
+    expect(String(asset?.file_path)).toMatch(/^workspaces\/wks_default\/private\/assets\/asset_worker_.+\.png$/);
+    expect(uploaded.contentType).toBe("image/png");
+    expect(uploaded.data).toBeInstanceOf(Buffer);
+  });
+
   it("creates and displays a composed mockup from source artwork pixels", async () => {
     authorizeAsOwner();
     setMemoryRuntime();
@@ -354,6 +465,8 @@ describe("POD golden path execution", () => {
     expect(productBuilderHtml).toContain(`/api/studio/assets/${assetId}/preview`);
     expect(productBuilderHtml).toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(publishHtml).toContain("Selected Product Readiness");
+    expect(publishHtml).toContain(`/api/studio/assets/${assetId}/preview`);
+    expect(publishHtml).toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(publishHtml).toContain("Generated asset present");
     expect(publishHtml).toContain("Variants selected");
     expect(publishHtml).toContain("Owner approval required");
@@ -371,7 +484,8 @@ describe("POD golden path execution", () => {
       "apps/studio/app/studio/printify-catalog/PrintifyCatalogClient.tsx",
       "apps/studio/app/studio/product-builder/ProductBuilderClient.tsx",
       "apps/studio/app/studio/publish/PublishWorkflowClient.tsx",
-      "apps/studio/app/studio/publish/ProviderPublishActionsClient.tsx"
+      "apps/studio/app/studio/publish/ProviderPublishActionsClient.tsx",
+      "apps/studio/app/studio/_components/PrivateImagePreview.tsx"
     ];
     const { readFileSync } = await import("node:fs");
     const combined = sources.map((file) => readFileSync(path.resolve(process.cwd(), file), "utf8")).join("\n");
@@ -381,5 +495,7 @@ describe("POD golden path execution", () => {
     expect(combined).not.toContain("JSON.stringify(result");
     expect(combined).not.toMatch(/href=.+\/api\/studio/);
     expect(combined).toContain("Developer details");
+    expect(combined).toContain("PrivateImagePreview");
+    expect(combined).toContain("Private preview could not load");
   });
 });

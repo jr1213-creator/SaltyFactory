@@ -41,6 +41,27 @@ function contentTypeFor(storageKey: string, fallback = "image/png") {
   return imageContentTypes[path.extname(storageKey).toLowerCase()] ?? fallback;
 }
 
+function storedMimeType(row: WorkspaceRow) {
+  const value = String(row.mime_type ?? row.mimeType ?? "");
+  return value.startsWith("image/") ? value : "";
+}
+
+function detectImageContentType(bytes: Uint8Array, fallback = "image/png") {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "image/webp";
+  return fallback.startsWith("image/") ? fallback : "image/png";
+}
+
+function configForStoredBucket(row: WorkspaceRow) {
+  const config = parseEnv();
+  const storedBucket = String(row.storage_bucket ?? row.storageBucket ?? "").trim();
+  if (storedBucket && storedBucket !== "local-dev-private-assets") {
+    return { ...config, SUPABASE_PRIVATE_ASSETS_BUCKET: storedBucket };
+  }
+  return config;
+}
+
 export async function privatePreviewResponse(input: {
   row: WorkspaceRow;
   workspaceId: string;
@@ -54,19 +75,20 @@ export async function privatePreviewResponse(input: {
 
   try {
     const bytes = await readFile(localPrivatePath(input.workspaceId, storageKey, input.fallbackKind));
+    const contentType = detectImageContentType(bytes, contentTypeFor(storageKey, storedMimeType(input.row) || "image/png"));
     return new NextResponse(bytes, {
       status: 200,
       headers: {
-        "content-type": contentTypeFor(storageKey, String(input.row.mime_type ?? input.row.mimeType ?? "image/png")),
+        "content-type": contentType,
         "cache-control": "private, max-age=60",
         "x-saltyfactory-private-preview": "local"
       }
     });
   } catch {
-    // Supabase-backed assets are read through short-lived signed URLs. The service-role key stays server-side.
+    // Supabase-backed assets are proxied server-side. The service-role key stays server-side.
   }
 
-  const config = parseEnv();
+  const config = configForStoredBucket(input.row);
   if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({
       ok: false,
@@ -75,14 +97,25 @@ export async function privatePreviewResponse(input: {
     }, { status: 404 });
   }
 
-  const signed = await createStorageProvider(config).createSignedPrivateUrl(storageKey, input.maxAgeSeconds ?? 300);
-  if (!signed.ok || !signed.url) {
+  const downloaded = await createStorageProvider(config).downloadPrivateAsset(storageKey);
+  if (!downloaded.ok) {
     return NextResponse.json({
       ok: false,
       status: "preview_unavailable",
-      message: "Private preview signed URL could not be created."
+      message: "Private preview bytes could not be read from storage."
     }, { status: 404 });
   }
 
-  return NextResponse.redirect(signed.url, { status: 307 });
+  const contentType = detectImageContentType(
+    downloaded.bytes,
+    contentTypeFor(storageKey, storedMimeType(input.row) || downloaded.contentType || "image/png")
+  );
+  return new NextResponse(Buffer.from(downloaded.bytes), {
+    status: 200,
+    headers: {
+      "content-type": contentType,
+      "cache-control": `private, max-age=${Math.min(input.maxAgeSeconds ?? 300, 300)}`,
+      "x-saltyfactory-private-preview": "storage"
+    }
+  });
 }

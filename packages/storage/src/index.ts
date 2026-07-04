@@ -1,4 +1,7 @@
 export type StorageResult = { ok: true; url?: string; path?: string; metadata?: Record<string, unknown> } | { ok: false; error: string; setupRequired?: string[] };
+export type PrivateAssetDownloadResult =
+  | { ok: true; bytes: Uint8Array; contentType: string; metadata?: Record<string, unknown> }
+  | { ok: false; error: string; setupRequired?: string[] };
 
 export type SupabaseStorageRuntimeConfig = {
   SUPABASE_URL?: string | undefined;
@@ -38,6 +41,7 @@ export type StorageReadinessDiagnostic = {
 
 export interface StorageProvider {
   uploadPrivateAsset(path: string, data: Blob | Buffer | Uint8Array, contentType: string): Promise<StorageResult>;
+  downloadPrivateAsset(path: string): Promise<PrivateAssetDownloadResult>;
   createSignedPrivateUrl(path: string, expiresInSeconds?: number): Promise<StorageResult>;
   moveApprovedAssetToPublic(privatePath: string, publicPath: string): Promise<StorageResult>;
   createPublicApprovedUrl(path: string, approved: boolean): StorageResult;
@@ -47,6 +51,7 @@ export interface StorageProvider {
 
 export class StorageProviderDisabled implements StorageProvider {
   async uploadPrivateAsset(_path?: string, _data?: Blob | Buffer | Uint8Array, _contentType?: string): Promise<StorageResult> { return { ok: false, error: "storage_provider_disabled", setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] }; }
+  async downloadPrivateAsset(_path?: string): Promise<PrivateAssetDownloadResult> { return { ok: false, error: "storage_provider_disabled", setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] }; }
   async createSignedPrivateUrl(_path?: string, _expiresInSeconds?: number): Promise<StorageResult> { return { ok: false, error: "storage_provider_disabled", setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] }; }
   async moveApprovedAssetToPublic(_privatePath?: string, _publicPath?: string): Promise<StorageResult> { return { ok: false, error: "storage_provider_disabled", setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] }; }
   createPublicApprovedUrl(_path?: string, _approved?: boolean): StorageResult { return { ok: false, error: "storage_provider_disabled", setupRequired: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] }; }
@@ -70,6 +75,14 @@ export class SupabaseStorageProvider extends StorageProviderDisabled {
 
   private endpoint(path: string) {
     return `${this.url.replace(/\/$/, "")}/storage/v1/${path.replace(/^\//, "")}`;
+  }
+
+  private storageUrl(path: string) {
+    const cleanPath = path.trim();
+    if (/^https?:\/\//i.test(cleanPath)) return cleanPath;
+    if (cleanPath.startsWith("/storage/v1/")) return `${this.url.replace(/\/$/, "")}${cleanPath}`;
+    if (cleanPath.startsWith("/object/")) return this.endpoint(cleanPath);
+    return this.endpoint(cleanPath);
   }
 
   private headers(contentType?: string) {
@@ -115,6 +128,25 @@ export class SupabaseStorageProvider extends StorageProviderDisabled {
     return { ok: true, path, metadata: { bucket: this.privateBucket, visibility: "private" } };
   }
 
+  async downloadPrivateAsset(path = ""): Promise<PrivateAssetDownloadResult> {
+    if (!path) return { ok: false, error: "private_asset_path_required" };
+    try {
+      const response = await this.fetcher(this.endpoint(`object/${this.privateBucket}/${path}`), {
+        method: "GET",
+        headers: this.headers()
+      });
+      if (!response.ok) return { ok: false, error: `private_asset_read_failed_${response.status}` };
+      return {
+        ok: true,
+        bytes: new Uint8Array(await response.arrayBuffer()),
+        contentType: response.headers.get("content-type") ?? "application/octet-stream",
+        metadata: { bucket: this.privateBucket, visibility: "private" }
+      };
+    } catch {
+      return { ok: false, error: "private_asset_read_network_error" };
+    }
+  }
+
   async deletePrivateTemporaryAsset(path = ""): Promise<StorageResult> {
     if (!path) return { ok: false, error: "private_asset_path_required" };
     const response = await this.fetcher(this.endpoint(`object/${this.privateBucket}`), {
@@ -136,17 +168,14 @@ export class SupabaseStorageProvider extends StorageProviderDisabled {
     if (!response.ok) return { ok: false, error: `signed_url_failed_${response.status}` };
     const body = await response.json().catch(() => ({}));
     const signedURL = String(body.signedURL ?? body.signedUrl ?? "");
-    return signedURL ? { ok: true, url: `${this.url.replace(/\/$/, "")}${signedURL}`.replace(this.serviceRoleKey, "[redacted]") } : { ok: false, error: "signed_url_missing" };
+    return signedURL ? { ok: true, url: this.storageUrl(signedURL).replace(this.serviceRoleKey, "[redacted]") } : { ok: false, error: "signed_url_missing" };
   }
 
   async moveApprovedAssetToPublic(privatePath = "", publicPath = ""): Promise<StorageResult> {
     if (!privatePath || !publicPath) return { ok: false, error: "private_and_public_paths_required" };
-    const signed = await this.createSignedPrivateUrl(privatePath, 60);
-    if (!signed.ok || !signed.url) return signed;
-    const source = await this.fetcher(signed.url);
-    if (!source.ok) return { ok: false, error: `private_asset_read_failed_${source.status}` };
-    const bytes = new Uint8Array(await source.arrayBuffer());
-    const upload = await this.fetcher(this.endpoint(`object/${this.publicBucket}/${publicPath}`), { method: "POST", headers: this.headers(source.headers.get("content-type") ?? "application/octet-stream"), body: bytes });
+    const source = await this.downloadPrivateAsset(privatePath);
+    if (!source.ok) return source;
+    const upload = await this.fetcher(this.endpoint(`object/${this.publicBucket}/${publicPath}`), { method: "POST", headers: this.headers(source.contentType), body: Buffer.from(source.bytes) as BodyInit });
     if (!upload.ok) return { ok: false, error: `public_asset_upload_failed_${upload.status}` };
     return { ok: true, path: publicPath, metadata: { source: privatePath, bucket: this.publicBucket, visibility: "public_approved" } };
   }
@@ -162,6 +191,7 @@ export class LocalDevStorageProvider extends StorageProviderDisabled {
     if (process.env.APP_ENV === "production") throw new Error("LocalDevStorageProvider is forbidden in production");
   }
   async uploadPrivateAsset(path = ""): Promise<StorageResult> { return path ? { ok: true, path, metadata: { visibility: "private_dev" } } : { ok: false, error: "private_asset_path_required" }; }
+  async downloadPrivateAsset(path = ""): Promise<PrivateAssetDownloadResult> { return path ? { ok: false, error: "local_dev_private_asset_requires_studio_preview_route" } : { ok: false, error: "private_asset_path_required" }; }
   async createSignedPrivateUrl(path = ""): Promise<StorageResult> { return path ? { ok: true, url: `${this.baseUrl}/private/${encodeURIComponent(path)}?signed=dev` } : { ok: false, error: "private_asset_path_required" }; }
   async moveApprovedAssetToPublic(_: string = "", publicPath = ""): Promise<StorageResult> { return publicPath ? { ok: true, path: publicPath } : { ok: false, error: "public_asset_path_required" }; }
   createPublicApprovedUrl(path = "", approved = false): StorageResult { return approved ? { ok: true, url: `${this.baseUrl}/public/${encodeURIComponent(path)}` } : { ok: false, error: "asset_not_approved_for_public_url" }; }

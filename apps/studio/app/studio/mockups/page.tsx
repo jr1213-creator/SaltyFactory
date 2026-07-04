@@ -1,10 +1,8 @@
 import { DataTable, EmptyState, PageHeader, StatusBadge } from "@saltyfactory/ui";
 import { getStudioLists } from "../data";
+import { PrivateImagePreview } from "../_components/PrivateImagePreview";
+import { mockupPreviewPath } from "../_private-preview-paths";
 import { MockupWorkflowClient } from "./MockupWorkflowClient";
-
-function mockupPreviewHref(mockup: any) {
-  return `/api/studio/mockups/${encodeURIComponent(String(mockup.id))}/preview`;
-}
 
 function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
@@ -22,7 +20,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Mockup Records</h2>
       {mockups.length ? <div className="layout-grid layout-grid-3" style={{ marginBottom: 18 }}>{mockups.slice(0, 9).map((mockup: any) => <article key={mockup.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
-        <img src={mockupPreviewHref(mockup)} alt="Composited mockup preview" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+        <PrivateImagePreview src={mockupPreviewPath(mockup)} alt="Composited mockup preview" aspectRatio="4 / 5" />
         <strong>{mockup.id}</strong>
         <p className="text-muted" style={{ margin: 0 }}>Source asset {mockup.asset_id ?? mockup.assetId}</p>
         <div className="action-bar">
