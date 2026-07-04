@@ -27,7 +27,13 @@ export function redactSecret(value: string) {
 }
 
 export function sanitizeProviderError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "provider_error");
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : error && typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error || "provider_error");
   const redacted = message
     .replace(/(access_token|refresh_token|api[_-]?token|client[_-]?secret|clientSecret|authorization|password|secret)=?[^&\s]+/gi, "$1=[redacted]")
     .replace(/\b(access_token|refresh_token|api[_-]?token|client[_-]?secret|clientSecret|token|secret|password|authorization)\s+[A-Za-z0-9._~+/=-]{6,}/gi, "$1 [redacted]")

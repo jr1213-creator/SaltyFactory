@@ -119,7 +119,7 @@ describe("provider-backed POD functional API mapping", () => {
     const createCall = calls.find((call) => call.url.endsWith("/shops/shop_123/products.json"));
     expect(createCall).toBeTruthy();
     const productPayload = JSON.parse(String(createCall?.init.body));
-    expect(productPayload).toMatchObject({ title: "Coastal Cowhide Tee", blueprint_id: "5", print_provider_id: "99" });
+    expect(productPayload).toMatchObject({ title: "Coastal Cowhide Tee", blueprint_id: 5, print_provider_id: 99 });
     expect(productPayload.variants[0]).toMatchObject({ id: 17390, price: 3200, is_enabled: true });
     expect(productPayload.print_areas[0].placeholders[0].images[0]).toMatchObject({ id: "upload_real_1", x: 0.5, y: 0.5, scale: 1, angle: 0 });
     expect(JSON.stringify(created)).not.toContain("printify_token");

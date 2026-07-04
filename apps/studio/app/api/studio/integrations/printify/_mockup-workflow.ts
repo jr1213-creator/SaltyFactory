@@ -198,13 +198,17 @@ export async function uploadPrintReadyAssetToPrintify(input: {
     entity_type: "design_asset",
     entity_id: artwork.asset.id,
     event_type: "printify_image_uploaded",
-    title: "Print-ready artwork uploaded to Printify",
-    body: "Printify returned a real upload ID for the print-ready PNG derivative.",
-    status: "completed",
+    event_label: "Print-ready artwork uploaded to Printify",
     source_label: "provider_api",
     created_by: input.actorId,
     updated_by: input.actorId,
-    metadata: { productDraftId: input.draft.id, printifyUploadId: uploadId, derivativeKind: "print_png" }
+    payload: {
+      status: "completed",
+      message: "Printify returned a real upload ID for the print-ready PNG derivative.",
+      productDraftId: input.draft.id,
+      printifyUploadId: uploadId,
+      derivativeKind: "print_png"
+    }
   });
   return { ok: true as const, uploadId, asset: updated, derivative: derivative.derivative };
 }
@@ -345,6 +349,13 @@ export async function createPrintifyProductForMockups(input: {
   productDraftId: string;
   actorId: string;
   placement?: Record<string, unknown>;
+  forceUpload?: boolean;
+  productOverride?: {
+    title?: string;
+    description?: string;
+    tags?: string[];
+    metadata?: Record<string, unknown>;
+  };
 }) {
   const repos = input.repos ?? createRepositories();
   const draft = await repos.draft.getById(input.productDraftId, workspaceId);
@@ -377,20 +388,26 @@ export async function createPrintifyProductForMockups(input: {
 
   const assetMetadata = metadataOf(artwork.asset);
   let uploadId = text(assetMetadata.printify_upload_id ?? assetMetadata.printifyUploadId);
-  if (!uploadId) {
+  if (!uploadId || input.forceUpload === true) {
     const upload = await uploadPrintReadyAssetToPrintify({ repos, draft, actorId: input.actorId });
     if (!upload.ok) return upload;
     uploadId = upload.uploadId;
   }
   const variantIds = variants.map((variant) => String(variant.id));
   const printAreas = defaultPrintAreas(input.placement ? { uploadId, variantIds, placement: input.placement } : { uploadId, variantIds });
+  const productTags = input.productOverride?.tags?.length
+    ? input.productOverride.tags
+    : Array.isArray(draft.tags)
+      ? draft.tags.map(String).filter(Boolean)
+      : [];
   const result = await runtime.printify.createProduct({
-    title: text(draft.title, "SaltyFactory Printify Draft"),
-    description: text(draft.description, "Owner-reviewed Printify product draft."),
+    title: text(input.productOverride?.title, text(draft.title, "SaltyFactory Printify Draft")),
+    description: text(input.productOverride?.description, text(draft.description, "Owner-reviewed Printify product draft.")),
     blueprintId,
     printProviderId,
     variants,
-    printAreas
+    printAreas,
+    tags: productTags
   });
   if (!result.ok) {
     return {
@@ -409,13 +426,17 @@ export async function createPrintifyProductForMockups(input: {
   const sourceRecord = await repos.shared.sourceRecords.create({
     id: `src_printify_mockup_${Date.now()}`,
     workspace_id: workspaceId,
+    origin: "provider_api",
+    source_name: "printify",
+    source_label: "Printify mockup product creation",
+    provider: "printify",
     provider_key: "printify",
     entity_type: "product_draft",
     entity_id: input.productDraftId,
-    source_label: "provider_api",
     status: "completed",
     raw_payload_ref: null,
-    metadata: { blueprintId, printProviderId, variantIds, uploadId, mockupWorkflow: true },
+    raw_payload: { blueprintId, printProviderId, variantIds, uploadId, mockupWorkflow: true, ...(input.productOverride?.metadata ?? {}) },
+    metadata: { blueprintId, printProviderId, variantIds, uploadId, mockupWorkflow: true, ...(input.productOverride?.metadata ?? {}) },
     created_by: input.actorId,
     updated_by: input.actorId
   });
@@ -437,7 +458,7 @@ export async function createPrintifyProductForMockups(input: {
     printify_published: false,
     sync_status: "draft_created_mockups_pending",
     source_record_id: sourceRecord.id,
-    metadata: { provider_response_id: printifyProductId, uploadId, variantIds, printAreas, asset_id: artwork.asset.id, mockupWorkflow: true },
+    metadata: { provider_response_id: printifyProductId, uploadId, variantIds, printAreas, asset_id: artwork.asset.id, mockupWorkflow: true, ...(input.productOverride?.metadata ?? {}) },
     synced_at: now(),
     updated_by: input.actorId
   };

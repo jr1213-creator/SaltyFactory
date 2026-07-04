@@ -434,8 +434,9 @@ describe("Printify runtime routes", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ ok: true, provider: "printify", uploadId: "upload_runtime_1" });
     expect(createPayload.print_areas[0].placeholders[0].images[0].id).toBe("upload_runtime_1");
-    expect(createPayload.blueprint_id).toBe("5");
-    expect(createPayload.print_provider_id).toBe("99");
+    expect(createPayload.blueprint_id).toBe(5);
+    expect(createPayload.print_provider_id).toBe(99);
+    expect(createPayload.tags).toEqual(["coastal", "western"]);
     expect(ref).toMatchObject({ product_draft_id: draftId, printify_product_id: "printify_product_runtime", printify_upload_id: "upload_runtime_1" });
     expect(JSON.stringify(ref.print_areas ?? ref.printAreas)).toContain("upload_runtime_1");
     expect(mockups[0]).toMatchObject({ asset_id: assetId, product_draft_id: draftId, storage_bucket: "printify-provider-url" });

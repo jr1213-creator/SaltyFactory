@@ -581,13 +581,17 @@ export class PrintifyProviderDisabled {
         is_enabled: variant.is_enabled ?? variant.isEnabled ?? true
       })).filter((variant: any) => Number.isFinite(variant.id) && variant.id > 0)
       : [];
+    const tags = Array.isArray(product.tags)
+      ? product.tags.map((tag: unknown) => String(tag).trim()).filter(Boolean)
+      : [];
     return {
       title: String(product.title ?? ""),
       description: String(product.description ?? ""),
-      blueprint_id: product.blueprintId ?? product.blueprint_id,
-      print_provider_id: product.printProviderId ?? product.print_provider_id,
+      blueprint_id: Number(product.blueprintId ?? product.blueprint_id),
+      print_provider_id: Number(product.printProviderId ?? product.print_provider_id),
       variants,
-      print_areas: product.printAreas ?? product.print_areas ?? []
+      print_areas: product.printAreas ?? product.print_areas ?? [],
+      ...(tags.length ? { tags } : {})
     };
   }
   async createProduct(_product?: any): Promise<CommerceResult<any>> { return disabled("printify_disabled"); }
@@ -611,38 +615,58 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
     return { authorization: `Bearer ${this.token}`, "content-type": "application/json" };
   }
 
+  private timeoutMs() {
+    const configured = Number(process.env.PRINTIFY_API_TIMEOUT_MS ?? 60000);
+    return Number.isFinite(configured) && configured > 0 ? configured : 60000;
+  }
+
+  private async request<T>(path: string, init: RequestInit = {}): Promise<CommerceResult<T>> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs());
+    try {
+      const response = await this.fetcher(this.endpoint(path), {
+        ...init,
+        headers: { ...this.headers(), ...(init.headers as Record<string, string> | undefined ?? {}) },
+        signal: init.signal ?? controller.signal
+      });
+      return resultFromResponse<T>(response, await readJson(response));
+    } catch (error) {
+      return {
+        ok: false,
+        error: sanitizeProviderError(error),
+        retryable: true
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async testConnection() {
     return this.getShops();
   }
 
   async getShops() {
-    const response = await this.fetcher(this.endpoint("shops.json"), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+    return this.request<Array<Record<string, unknown>>>("shops.json", { method: "GET" });
   }
 
   async getCatalog() {
-    const response = await this.fetcher(this.endpoint("catalog/blueprints.json"), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+    return this.request<Array<Record<string, unknown>>>("catalog/blueprints.json", { method: "GET" });
   }
 
   async getBlueprint(id = "") {
-    const response = await this.fetcher(this.endpoint(`catalog/blueprints/${encodeURIComponent(id)}.json`), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
+    return this.request<Record<string, unknown>>(`catalog/blueprints/${encodeURIComponent(id)}.json`, { method: "GET" });
   }
 
   async getPrintProviders(blueprintId = "") {
-    const response = await this.fetcher(this.endpoint(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers.json`), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+    return this.request<Array<Record<string, unknown>>>(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers.json`, { method: "GET" });
   }
 
   async getVariants(blueprintId = "", providerId = "") {
-    const response = await this.fetcher(this.endpoint(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers/${encodeURIComponent(providerId)}/variants.json`), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+    return this.request<Array<Record<string, unknown>>>(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers/${encodeURIComponent(providerId)}/variants.json`, { method: "GET" });
   }
 
   async getShipping(blueprintId = "", providerId = "") {
-    const response = await this.fetcher(this.endpoint(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers/${encodeURIComponent(providerId)}/shipping.json`), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Array<Record<string, unknown>>>(response, await readJson(response));
+    return this.request<Array<Record<string, unknown>>>(`catalog/blueprints/${encodeURIComponent(blueprintId)}/print_providers/${encodeURIComponent(providerId)}/shipping.json`, { method: "GET" });
   }
 
   async uploadImage(image: { fileName?: string; contents?: string; url?: string } = {}) {
@@ -651,8 +675,7 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
       ? { file_name: fileName, url: image.url }
       : { file_name: fileName, contents: image.contents };
     if (!body.url && !body.contents) return disabled("printify_image_upload_payload_incomplete", ["file_name", "contents_or_url"]);
-    const response = await this.fetcher(this.endpoint("uploads/images.json"), { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
-    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
+    return this.request<Record<string, unknown>>("uploads/images.json", { method: "POST", body: JSON.stringify(body) });
   }
 
   async createProduct(product: any = {}) {
@@ -660,8 +683,7 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
     if (!payload.title || !payload.description || !payload.blueprint_id || !payload.print_provider_id || !payload.variants.length || !payload.print_areas.length) {
       return disabled("printify_product_payload_incomplete", ["title", "description", "blueprint_id", "print_provider_id", "variants", "print_areas"]);
     }
-    const response = await this.fetcher(this.endpoint(`shops/${encodeURIComponent(this.shopId)}/products.json`), { method: "POST", headers: this.headers(), body: JSON.stringify(payload) });
-    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
+    return this.request<Record<string, unknown>>(`shops/${encodeURIComponent(this.shopId)}/products.json`, { method: "POST", body: JSON.stringify(payload) });
   }
 
   async publishProductGuarded(productId = "", review?: PublishReview, actor = "") {
@@ -673,8 +695,7 @@ export class PrintifyProviderLive extends PrintifyProviderDisabled {
 
   async getProduct(id = "") {
     if (!id) return disabled("printify_product_id_required", ["printify_product_id"]);
-    const response = await this.fetcher(this.endpoint(`shops/${encodeURIComponent(this.shopId)}/products/${encodeURIComponent(id)}.json`), { method: "GET", headers: this.headers() });
-    return resultFromResponse<Record<string, unknown>>(response, await readJson(response));
+    return this.request<Record<string, unknown>>(`shops/${encodeURIComponent(this.shopId)}/products/${encodeURIComponent(id)}.json`, { method: "GET" });
   }
 }
 

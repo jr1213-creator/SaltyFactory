@@ -68,4 +68,6 @@ The guarded live smoke command is:
 RUN_LIVE_PRINTIFY_MOCKUP_SMOKE=true PRINTIFY_SMOKE_CONFIRMATION="CREATE TEST PRINTIFY PRODUCT" corepack pnpm smoke:printify-mockups-live
 ```
 
-It requires a prepared draft with approved artwork, `print_png`, blueprint/provider/variants, and real Printify credentials. It is skipped unless both live flags are set.
+Latest live result on 2026-07-04: passed with guided credential-store credentials. The smoke uploaded `print_png`, received Printify upload ID `6a495803f2b0395d7831a573`, created test Printify product `6a495f94ea82e6b84903c9e6`, imported `3` product images, and persisted Printify mockup rows. The test product title used the `SALTYFACTORY SMOKE TEST - DELETE ME` prefix. Shopify publish and live sync were not called.
+
+The smoke is skipped unless both live flags are set. It may create a disposable smoke draft from approved generated artwork if no prepared product draft exists.

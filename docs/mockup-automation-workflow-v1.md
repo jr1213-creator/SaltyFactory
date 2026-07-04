@@ -83,7 +83,21 @@ Guarded live smoke command:
 RUN_LIVE_PRINTIFY_MOCKUP_SMOKE=true PRINTIFY_SMOKE_CONFIRMATION="CREATE TEST PRINTIFY PRODUCT" corepack pnpm smoke:printify-mockups-live
 ```
 
-The smoke requires a prepared product draft with an approved generated asset, `print_png` derivative, Printify blueprint, provider, and variants. It creates a test Printify draft product and imports product images only when explicitly confirmed. It prints safe IDs and counts only. It was added but not run in this session.
+Latest live Printify smoke proof on 2026-07-04:
+
+- command: `RUN_LIVE_PRINTIFY_MOCKUP_SMOKE=true PRINTIFY_SMOKE_CONFIRMATION="CREATE TEST PRINTIFY PRODUCT" corepack pnpm smoke:printify-mockups-live`
+- product title prefix: `SALTYFACTORY SMOKE TEST - DELETE ME`
+- workspace: `wks_default`
+- source asset: `asset_hf_1783177574961_0_4f15cb21`
+- derivative kind: `print_png`
+- Printify upload ID: `6a495803f2b0395d7831a573`
+- Printify product ID: `6a495f94ea82e6b84903c9e6`
+- imported mockup image count: `3`
+- hero/default mockup: `mockup_printify_6a495f94ea82e6b84903c9e6_1783193496107_0`
+- Shopify publish called: no
+- live sync called: no
+
+The smoke can create a disposable smoke product draft from an approved generated asset and real Printify catalog/provider/variant data when no prepared draft exists. It prints safe IDs and counts only.
 
 ## Tests
 

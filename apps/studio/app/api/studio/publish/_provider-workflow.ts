@@ -300,12 +300,17 @@ export async function writeProviderEvent(input: {
     entity_type: `${input.provider}_product_ref`,
     entity_id: input.entityId,
     event_type: input.action,
+    event_label: `${input.provider} ${input.action}`,
     title: `${input.provider} ${input.action}`,
     body: input.status,
     status: input.status,
     source_label: "provider_api",
     created_by: input.actorId,
     updated_by: input.actorId,
+    payload: {
+      status: input.status,
+      details: input.details ?? {}
+    },
     metadata: input.details ?? {}
   };
   await input.repos.shared.events.create(event);
