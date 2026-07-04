@@ -4,8 +4,16 @@ import { getWorkspaceProviderReadiness, isProviderReady, providerCredentialSourc
 
 type RecommendedModel = { model: string; label: string };
 
+function ownerLabel(value: unknown, fallback = "pending") {
+  return String(value ?? fallback).replace(/_/g, " ");
+}
+
+function assetPreviewHref(asset: any) {
+  return `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview`;
+}
+
 export default async function Page() {
-  const { jobs } = await getStudioLists();
+  const { jobs, assets } = await getStudioLists();
   const readiness = await getWorkspaceProviderReadiness();
   const resolvedProvider = readiness.providers.image_generation;
   const storage = readiness.providers.storage;
@@ -77,5 +85,25 @@ export default async function Page() {
     {jobs.length ? <div className="layout-grid layout-grid-3" style={{ marginTop: 18 }}>
       {jobs.slice(0, 6).map((job: any) => <ImageGenerationJobCard key={job.id} title={job.title ?? job.id} status={job.status ?? "queued"} prompt={job.prompt ?? job.prompt_text ?? "Prompt stored in private job metadata."} />)}
     </div> : null}
+    <section className="surface-card" style={{ marginTop: 18 }}>
+      <h2>Generated Artwork</h2>
+      {assets.length ? <div className="layout-grid layout-grid-3">{assets.slice(0, 9).map((asset: any) => {
+        const approved = Boolean(asset.approved_for_mockup || asset.approvedForMockup);
+        return <article key={asset.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
+          <img src={assetPreviewHref(asset)} alt="Generated private artwork preview" style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+          <strong>{asset.id}</strong>
+          <dl className="result-detail-grid">
+            <div><dt>Provider</dt><dd>{asset.generator === "huggingface" ? "Hugging Face" : ownerLabel(asset.generator, "manual")}</dd></div>
+            <div><dt>Model</dt><dd>{asset.model ?? model}</dd></div>
+            <div><dt>QA</dt><dd>{ownerLabel(asset.qa_status ?? asset.qaStatus)}</dd></div>
+            <div><dt>Created</dt><dd>{asset.created_at || asset.createdAt ? new Date(String(asset.created_at ?? asset.createdAt)).toLocaleDateString() : "saved"}</dd></div>
+          </dl>
+          <div className="action-bar">
+            <a className="btn btn-primary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Open asset</a>
+            {approved ? <a className="btn btn-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(asset.id))}`}>Create mockup</a> : <a className="btn btn-secondary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Review QA</a>}
+          </div>
+        </article>;
+      })}</div> : <EmptyState title="No generated artwork yet" description="Send an approved brief to generation and the resulting private asset preview appears here." action={<a className="btn btn-primary" href="/studio/briefs">Open briefs</a>} />}
+    </section>
   </>;
 }

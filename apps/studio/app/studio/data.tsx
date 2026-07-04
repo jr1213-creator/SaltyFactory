@@ -102,16 +102,17 @@ export function businessProfileSetupStateForError(error: unknown) {
 }
 
 function handleStudioDataError(error: unknown, source?: string) {
-  if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") throw error;
   const kind = classifyStudioDataError(error);
+  if ((process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") && kind === "data_unavailable") throw error;
   logStudioDataDiagnostic(kind, error, source);
   return setupState(kind);
 }
 
 function handleBusinessProfileDataError(error: unknown) {
-  if (process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") throw error;
   const state = businessProfileSetupStateForError(error);
-  logStudioDataDiagnostic(classifyStudioDataError(error), error, "business_profile_loader");
+  const kind = classifyStudioDataError(error);
+  if ((process.env.APP_ENV === "production" || process.env.NODE_ENV === "production") && kind === "data_unavailable") throw error;
+  logStudioDataDiagnostic(kind, error, "business_profile_loader");
   return state;
 }
 

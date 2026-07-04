@@ -31,10 +31,10 @@ Every setup blocker must include a plain-English explanation, next action, setup
 | Module | Status | Current truth |
 |---|---|---|
 | AI Employees | Fully functional v1 | Owner-triggered runs persist AI run/output records, create shared approval records, support approve/reject/needs-edits/convert-to-task, and materialize supported outputs into internal POD records. No provider action is executed by approval. |
-| Product Builder | Fully functional v1 | `/studio/product-builder` shows persisted POD product ideas from manual creation or approved AI product-idea outputs. `/studio/pod-migration` remains a compatibility alias. |
+| Product Builder | Fully functional v1 | `/studio/product-builder` creates a focused POD product draft from approved generated artwork and an approved composed mockup, captures product idea, price/cost fields, Printify target, and Shopify collection metadata, and links to Printify Catalog and Publish Review. `/studio/pod-migration` remains a separate compatibility page. |
 | Designs | Provider-backed when configured | Deterministic design suggestions and persisted AI design concept outputs are visible for owner review. Image generation is core workflow and blocks with exact setup requirements until an allowed image provider is configured. |
-| Assets | Fully functional v1 | Generated image bytes from the worker persist as private design assets, QA can run, and approve/reject/mockup handoff is persisted. Manual references are not the core production path. |
-| Mockups | Fully functional v1 | Internal Sharp compositing creates private mockup images from approved generated artwork and template art zones. Provider mockup retrieval remains future integration. |
+| Assets | Fully functional v1 | Generated image bytes from the worker persist as private design assets, protected previews render in `/studio/briefs`, `/studio/image-generation`, and `/studio/assets`, QA can run, and approve/reject/mockup handoff is persisted. Manual references are not the core production path. |
+| Mockups | Fully functional v1 | Internal Sharp compositing creates visible private mockup images from approved generated artwork and template art zones, persists mockup records, links them to source assets, and stores composed previews in private storage when configured. Provider mockup retrieval remains future integration. |
 | Listing Drafts | Fully functional v1 | Create/edit listing drafts, validation blockers, owner approval status, and export payloads persist. No Shopify/Etsy/Printify sync is implied. |
 | Pricing & Margins | Fully functional v1 | Manual cost/shipping/price inputs calculate margin and can persist price-margin checks against product drafts. No fake Printify cost is imported. |
 | Publish Review | Provider-backed draft actions | `/studio/publish-review` computes gates from persisted evidence, shows blockers/provider readiness, and exposes real "Send to Printify" and "Create Shopify Draft" actions. Approval alone does not publish or sync. |
@@ -251,7 +251,25 @@ Account Center state:
 
 The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. Once the guided provider record is connected, feature readiness, `/studio/printify-catalog`, catalog routes, artwork upload, and draft product creation use the encrypted workspace credential first. Env fallback is advanced/server-only and is used only when no connected provider record exists.
 
-The v1 adapter can fetch shops, catalog blueprints, print providers, variants, shipping snapshots, upload approved generated artwork to Printify media, build print areas, create draft products, and retrieve products only after approval gates pass. Draft creation does not publish live products; live publish remains a separate disabled/gated action.
+The v1 adapter can fetch shops, catalog blueprints, print providers, variants, shipping snapshots, upload approved generated artwork to Printify media, build print areas, create draft products, and retrieve products only after approval gates pass. Catalog browsing is available before a product draft exists; saving variants and uploading artwork require a draft. Variant selection persists product variant rows, draft catalog metadata, and price-margin evidence. Draft creation does not publish live products; live publish remains a separate disabled/gated action.
+
+## POD Golden Path Execution
+
+Functional completion now requires one visible product path:
+
+```txt
+approved brief
+-> Hugging Face image generation
+-> private generated asset preview
+-> QA and asset approval
+-> composed private mockup preview
+-> product draft
+-> real Printify catalog selection
+-> Publish Review readiness
+-> guarded Printify/Shopify draft actions
+```
+
+Provider connection alone is not enough. Publish Review must show the actual next blocker: generated asset, mockup, Printify connection, blueprint, provider, variant, pricing, Shopify connection, collection, risk evidence, or owner approval. Owner-facing workflow pages must not show raw JSON result dumps, secret values, or stale env-only setup blockers after a guided provider connection is ready.
 
 ## Domain, DNS, Email, and Merchant Feed Readiness
 

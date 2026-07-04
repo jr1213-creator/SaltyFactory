@@ -1,12 +1,20 @@
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { ApprovalGateList, AuditTimeline, Card, DataTable, MetricCard, PageHeader, ProductArt, ProviderReadinessCard, RecommendationCard, StatusBadge, WorkflowProgress } from "@saltyfactory/ui";
 import { getStudioLists, SchemaSetupState } from "../data";
+import { getWorkspaceProviderReadiness, isProviderReady } from "../_provider-readiness";
 import { PublishWorkflowClient } from "./PublishWorkflowClient";
 import { ProviderPublishActionsClient } from "./ProviderPublishActionsClient";
-import { getWorkspaceProviderReadiness, isProviderReady } from "../_provider-readiness";
+
+function ownerLabel(value: unknown, fallback = "pending") {
+  return String(value ?? fallback).replace(/_/g, " ");
+}
+
+function asArray(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
 
 export default async function Page() {
-  const { publishReviews, drafts, listingDraftsV1, marginChecks, setupMessage } = await getStudioLists();
+  const { publishReviews, drafts, assets, mockups, listingDraftsV1, marginChecks, setupMessage } = await getStudioLists();
   const readiness = await getWorkspaceProviderReadiness();
   const imageProvider = readiness.providers.image_generation;
   const printifyProvider = readiness.providers.printify;
@@ -19,6 +27,28 @@ export default async function Page() {
   const review = publishReviews[0] as any ?? { id: "empty", product_draft_id: "", gates: {}, all_gates_passed: false, shopify_publish_allowed: false, printify_sync_allowed: false, notes: ["No saved publish review exists yet."] };
   const gateResult = evaluatePublishReviewGates(review);
   const gates = Object.entries(review.gates ?? {}).map(([label, passed]) => ({ label: label.replaceAll("_", " "), passed: Boolean(passed), detail: passed ? "Passed" : "Blocks provider sync and public projection" }));
+  const selectedDraft = drafts.find((draft: any) => draft.id === (review.product_draft_id ?? review.productDraftId)) as any ?? drafts[0] as any;
+  const selectedMetadata = selectedDraft?.metadata && typeof selectedDraft.metadata === "object" ? selectedDraft.metadata as Record<string, unknown> : {};
+  const selectedAssetId = String(selectedDraft?.asset_id ?? selectedDraft?.assetId ?? "");
+  const selectedAsset = assets.find((asset: any) => asset.id === selectedAssetId);
+  const selectedMockupIds = asArray(selectedDraft?.mockup_ids ?? selectedDraft?.mockupIds).map(String);
+  const selectedMockups = mockups.filter((mockup: any) => selectedMockupIds.includes(String(mockup.id)));
+  const selectedVariantIds = asArray(selectedDraft?.variant_ids ?? selectedDraft?.variantIds).map(String);
+  const selectedCollectionId = String(selectedMetadata.shopify_collection_id ?? selectedMetadata.shopifyCollectionId ?? shopifyProvider.providerMetadata?.selectedCollectionId ?? "");
+  const marginEvidence = selectedDraft ? marginChecks.some((margin: any) => margin.product_draft_id === selectedDraft.id || margin.productDraftId === selectedDraft.id) : false;
+  const readinessRows = [
+    ["Generated asset present", Boolean(selectedAsset), selectedAssetId || "Create or approve generated artwork"],
+    ["Mockup present", selectedMockupIds.length > 0 && selectedMockups.length > 0, selectedMockupIds.length ? `${selectedMockupIds.length} attached` : "Create and approve a mockup"],
+    ["Printify connected", printifyReady, printifyReady ? "Connected through provider readiness" : "Connect Printify"],
+    ["Blueprint selected", Boolean(selectedMetadata.printify_blueprint_id ?? selectedMetadata.printifyBlueprintId), String(selectedMetadata.printify_blueprint_id ?? selectedMetadata.printifyBlueprintId ?? "Select in Printify Catalog")],
+    ["Provider selected", Boolean(selectedMetadata.printify_print_provider_id ?? selectedMetadata.printifyPrintProviderId), String(selectedMetadata.printify_print_provider_id ?? selectedMetadata.printifyPrintProviderId ?? "Select in Printify Catalog")],
+    ["Variants selected", selectedVariantIds.length > 0, selectedVariantIds.length ? `${selectedVariantIds.length} variant records` : "Save Printify variants"],
+    ["Pricing reviewed", Boolean(selectedMetadata.price) || marginEvidence, selectedMetadata.price ? `$${selectedMetadata.price}` : "Review pricing and margins"],
+    ["Shopify connected", shopifyReady, shopifyReady ? "Connected through provider readiness" : "Connect Shopify"],
+    ["Shopify collection selected", Boolean(selectedCollectionId), selectedCollectionId || "Select default collection"],
+    ["Owner approval", Boolean((review.gates ?? {}).human_approved), (review.gates ?? {}).human_approved ? "Approved" : "Owner approval required"]
+  ] as const;
+
   return <>
     <PageHeader title="Publish Review" description="Human-gated approval before products can move toward Shopify or Printify.">
       <StatusBadge status="Live publishing disabled by default" tone="warning" />
@@ -33,10 +63,10 @@ export default async function Page() {
       </form>
     </section>
     <div className="layout-grid layout-grid-4">
-      <MetricCard title="Awaiting review" value={String(publishReviews.length || drafts.length)} icon="○" />
-      <MetricCard title="Ready to publish" value={String(publishReviews.filter((r:any)=>r.all_gates_passed || r.allGatesPassed).length)} tone="success" icon="✓" />
+      <MetricCard title="Awaiting review" value={String(publishReviews.length || drafts.length)} />
+      <MetricCard title="Ready to publish" value={String(publishReviews.filter((item: any) => item.all_gates_passed || item.allGatesPassed).length)} tone="success" />
       <MetricCard title="Needs changes" value={String(gateResult.blockedReasons.length)} tone="warning" icon="!" />
-      <MetricCard title="Blocked by guardrails" value={gateResult.allowed ? "0" : "1"} tone="danger" icon="⛔" />
+      <MetricCard title="Blocked by guardrails" value={gateResult.allowed ? "0" : "1"} tone="danger" />
     </div>
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Provider Readiness</h2>
@@ -52,13 +82,28 @@ export default async function Page() {
       <WorkflowProgress steps={[
         { label: "Idea", status: drafts.length ? "draft exists" : "needed", complete: drafts.length > 0 },
         { label: "Prompt", status: "owner approved only", complete: true },
-        { label: "Image", status: imageReady ? "provider connected" : "setup needed", complete: imageReady },
-        { label: "QA", status: "asset QA required", complete: false },
-        { label: "Mockup", status: "approved composite required", complete: false },
-        { label: "Printify", status: "draft action available", complete: false },
-        { label: "Shopify Draft", status: "draft action available", complete: false },
+        { label: "Image", status: selectedAsset ? "generated asset attached" : imageReady ? "provider connected" : "setup needed", complete: Boolean(selectedAsset) },
+        { label: "QA", status: selectedAsset?.qa_status === "passed" || selectedAsset?.qaStatus === "passed" ? "passed" : "asset QA required", complete: selectedAsset?.qa_status === "passed" || selectedAsset?.qaStatus === "passed" },
+        { label: "Mockup", status: selectedMockupIds.length ? "mockup attached" : "approved composite required", complete: selectedMockupIds.length > 0 },
+        { label: "Printify", status: selectedVariantIds.length ? "variants selected" : "catalog selection required", complete: selectedVariantIds.length > 0 },
+        { label: "Shopify Draft", status: selectedCollectionId ? "collection selected" : "collection required", complete: Boolean(selectedCollectionId) },
         { label: "Publish Ready", status: gateResult.allowed ? "ready" : "blocked", complete: gateResult.allowed }
       ]} />
+    </section>
+    <section className="surface-card" style={{ marginTop: 18 }}>
+      <h2>Selected Product Readiness</h2>
+      {selectedDraft ? <p className="text-muted">Draft: {selectedDraft.title ?? selectedDraft.id}. Actions stay disabled or blocked until the persisted gates below are true.</p> : <p className="text-muted">Create a product draft from approved generated artwork and a mockup first.</p>}
+      <DataTable columns={["Requirement", "Ready", "Evidence / next action"]} rows={readinessRows.map(([label, ready, detail]) => [
+        label,
+        <StatusBadge key={label} status={ready ? "ready" : "blocked"} tone={ready ? "success" : "warning"} />,
+        detail
+      ])} />
+      <div className="action-bar" style={{ marginTop: 12 }}>
+        {!selectedAssetId ? <a className="btn btn-primary" href="/studio/briefs">Generate artwork</a> : null}
+        {selectedAssetId && !selectedMockupIds.length ? <a className="btn btn-primary" href={`/studio/mockups?asset_id=${encodeURIComponent(selectedAssetId)}`}>Create mockup</a> : null}
+        {selectedDraft && !selectedVariantIds.length ? <a className="btn btn-primary" href="/studio/printify-catalog">Browse Printify catalog</a> : null}
+        {selectedDraft ? <a className="btn btn-secondary" href={`/studio/product-builder?draft_id=${encodeURIComponent(String(selectedDraft.id))}`}>Open product draft</a> : null}
+      </div>
     </section>
     <div className="split-pane" style={{ marginTop: 18 }}>
       <div className="layout-grid">

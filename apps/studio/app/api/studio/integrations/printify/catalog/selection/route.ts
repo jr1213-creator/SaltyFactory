@@ -69,10 +69,40 @@ export async function POST(req: Request) {
     if (!created.length) {
       return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: ["valid_printify_variant_with_price_required"] }, { status: 409 });
     }
+    const minimumMarginPercent = Number(body.minimumMarginPercent ?? 35);
+    for (const [index, variant] of created.entries()) {
+      const price = Number(variant.price ?? body.price ?? 0);
+      const cost = Number(variant.cost ?? body.cost ?? 0);
+      const shopifyFeeEstimate = Number(body.shopifyFeeEstimate ?? body.shopify_fee_estimate ?? 0);
+      const printifyShippingEstimate = Number(body.printifyShippingEstimate ?? body.printify_shipping_estimate ?? 0);
+      const platformFeeEstimate = Number(body.platformFeeEstimate ?? body.platform_fee_estimate ?? 0);
+      const netRevenueEstimate = price - cost - shopifyFeeEstimate - printifyShippingEstimate - platformFeeEstimate;
+      const marginPercent = price > 0 ? (netRevenueEstimate / price) * 100 : 0;
+      await repos.margin.create({
+        id: `margin_printify_selection_${Date.now()}_${index}`,
+        workspace_id: workspaceId,
+        product_draft_id: productDraftId,
+        variant_id: variant.id,
+        cost,
+        price,
+        shopify_fee_estimate: shopifyFeeEstimate,
+        printify_shipping_estimate: printifyShippingEstimate,
+        platform_fee_estimate: platformFeeEstimate,
+        net_revenue_estimate: netRevenueEstimate,
+        margin_percent: marginPercent,
+        minimum_margin_threshold: minimumMarginPercent,
+        margin_ok: marginPercent >= minimumMarginPercent,
+        blocked: marginPercent < minimumMarginPercent,
+        status: marginPercent >= minimumMarginPercent ? "passed" : "blocked",
+        notes: "Created from owner-entered Printify catalog variant pricing.",
+        created_by: user.id,
+        updated_by: user.id
+      } as any);
+    }
     const existingIds = Array.isArray(draft.variant_ids ?? draft.variantIds) ? (draft.variant_ids ?? draft.variantIds) as unknown[] : [];
     await repos.draft.update(productDraftId, {
       variant_ids: [...new Set([...existingIds.map(String), ...created.map((variant) => variant.id)])],
-      metadata: { ...(draft.metadata as Record<string, unknown> | undefined), provider_target: "printify_draft", printify_blueprint_id: blueprintId, printify_print_provider_id: printProviderId },
+      metadata: { ...(draft.metadata as Record<string, unknown> | undefined), provider_target: "printify_draft", printify_blueprint_id: blueprintId, printify_print_provider_id: printProviderId, printify_variant_ids: created.map((variant) => variant.printify_variant_id) },
       updated_by: user.id
     } as any);
     await repos.shared.events.create({

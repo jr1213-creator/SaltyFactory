@@ -219,18 +219,22 @@ async function authorizeWorkspace(identity: SupabaseIdentity, workspaceId: strin
   if (!identity.emailVerified) return null;
 
   const db = getDb();
-  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const [workspace] = await db
+    .select({ id: workspaces.id, organizationId: workspaces.organizationId })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
   if (!workspace) return null;
 
   const [profile] = await db
-    .select()
+    .select({ id: users.id, email: users.email, status: users.status })
     .from(users)
     .where(or(eq(users.id, identity.id), eq(users.email, identity.email)))
     .limit(1);
   if (!profile || profile.status !== "active") return null;
 
   const [membership] = await db
-    .select()
+    .select({ role: organizationMembers.role, status: organizationMembers.status })
     .from(organizationMembers)
     .where(and(
       eq(organizationMembers.organizationId, workspace.organizationId),

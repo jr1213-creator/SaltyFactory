@@ -25,11 +25,19 @@ function resultTone(status: string) {
   return "info";
 }
 
+function ownerLabel(value: unknown, fallback = "pending") {
+  return String(value ?? fallback).replace(/_/g, " ");
+}
+
 function sanitizeDeveloperDetails(value: unknown) {
   return JSON.parse(JSON.stringify(value, (key, nestedValue) => {
     if (/token|secret|authorization|credential/i.test(key)) return "[redacted]";
     return nestedValue;
   }));
+}
+
+function assetPreviewHref(asset: ResultRecord) {
+  return asset.id ? `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview` : "";
 }
 
 function ResultPanel({ result }: { result: unknown }) {
@@ -40,6 +48,9 @@ function ResultPanel({ result }: { result: unknown }) {
   const provider = asRecord(record.provider);
   const job = asRecord(record.job);
   const asset = asRecord(record.asset);
+  const assetHref = asset ? assetPreviewHref(asset) : "";
+  const qaStatus = String(asset?.qaStatus ?? asset?.status ?? "pending");
+  const assetReadyForMockup = Boolean(asset?.approvedForMockup) || qaStatus === "passed";
   const blockers = Array.isArray(record.blockingReasons)
     ? record.blockingReasons.map(String)
     : Array.isArray(record.setupRequired)
@@ -51,7 +62,7 @@ function ResultPanel({ result }: { result: unknown }) {
     <div className="provider-result-header">
       <div>
         <p className="eyebrow-label">Workflow result</p>
-        <h3>{status.replace(/_/g, " ")}</h3>
+        <h3>{ownerLabel(status)}</h3>
         <p className="text-muted">{message}</p>
       </div>
     </div>
@@ -61,13 +72,24 @@ function ResultPanel({ result }: { result: unknown }) {
       <div><dt>Provider</dt><dd>{provider?.provider === "huggingface" ? "Hugging Face" : provider?.provider ?? job.provider ?? "not connected"}</dd></div>
       <div><dt>Model</dt><dd>{provider?.model ?? job.model ?? "not selected"}</dd></div>
     </dl> : null}
-    {asset ? <p className="text-muted">Private asset created: <strong>{asset.id}</strong></p> : null}
+    {asset ? <div className="surface-card" style={{ display: "grid", gap: 12 }}>
+      {assetHref ? <img src={assetHref} alt="Generated private source artwork preview" style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} /> : null}
+      <dl className="result-detail-grid">
+        <div><dt>Asset ID</dt><dd>{asset.id}</dd></div>
+        <div><dt>Created</dt><dd>{asset.createdAt ? new Date(String(asset.createdAt)).toLocaleString() : "just now"}</dd></div>
+        <div><dt>QA status</dt><dd>{ownerLabel(qaStatus)}</dd></div>
+        <div><dt>Visibility</dt><dd>{ownerLabel(asset.visibility, "private")}</dd></div>
+      </dl>
+    </div> : null}
     {blockers.length ? <div>
       <strong>Blocker reasons</strong>
-      <ul>{blockers.map((item) => <li key={item}>{item}</li>)}</ul>
+      <ul>{blockers.map((item) => <li key={item}>{ownerLabel(item)}</li>)}</ul>
     </div> : null}
     <div className="action-bar">
-      {record.ok ? <a className="btn btn-primary" href="/studio/image-generation">Open image generation</a> : null}
+      {asset ? <a className="btn btn-primary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Open asset</a> : null}
+      {asset && assetReadyForMockup ? <a className="btn btn-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(asset.id))}`}>Create mockup</a> : null}
+      {asset && !assetReadyForMockup ? <a className="btn btn-secondary" href={`/studio/assets?asset_id=${encodeURIComponent(String(asset.id))}`}>Review QA</a> : null}
+      {record.ok && !asset ? <a className="btn btn-primary" href="/studio/image-generation">Open image generation</a> : null}
       {showSetupAction ? <a className="btn btn-primary" href={setupAction}>Open image generation setup</a> : null}
       {showSetupAction ? <a className="btn btn-secondary" href="/studio/onboarding/help?provider=image_generation">Request setup help</a> : null}
       {!record.ok && setupAction.includes("image-generation") ? <a className="btn btn-secondary" href="/studio/onboarding/providers/image-generation#field-guides">Try a recommended model</a> : null}
@@ -141,7 +163,7 @@ export function BriefWorkflowClient({ initialBriefs }: { initialBriefs: Brief[] 
       <button className="btn btn-secondary" disabled={busy} onClick={createManualBrief}>Create Manual Brief</button>
     </div>
     <label>Brief<select value={selectedBriefId} onChange={(event) => setSelectedBriefId(event.target.value)}>{briefs.map((brief) => <option key={brief.id} value={brief.id}>{brief.style_direction?.title ?? brief.collection ?? brief.id}</option>)}</select></label>
-    {selected ? <p className="text-muted">{selected.status ?? "draft"} · approved for generation {String(Boolean(selected.approved_for_generation ?? selected.approvedForGeneration))}</p> : <p className="text-muted">Create or convert a suggestion into a brief first.</p>}
+    {selected ? <p className="text-muted">{ownerLabel(selected.status ?? "draft")} - approved for generation {String(Boolean(selected.approved_for_generation ?? selected.approvedForGeneration))}</p> : <p className="text-muted">Create or convert a suggestion into a brief first.</p>}
     <div className="action-bar">
       <button className="btn btn-primary" disabled={!selected || busy || selected?.approved_for_generation} onClick={() => run("approve")}>Approve Brief</button>
       <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => run("reject")}>Reject Brief</button>

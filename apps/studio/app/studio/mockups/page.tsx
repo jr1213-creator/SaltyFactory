@@ -2,6 +2,14 @@ import { DataTable, EmptyState, PageHeader, StatusBadge } from "@saltyfactory/ui
 import { getStudioLists } from "../data";
 import { MockupWorkflowClient } from "./MockupWorkflowClient";
 
+function mockupPreviewHref(mockup: any) {
+  return `/api/studio/mockups/${encodeURIComponent(String(mockup.id))}/preview`;
+}
+
+function ownerLabel(value: unknown, fallback = "pending") {
+  return String(value ?? fallback).replace(/_/g, " ");
+}
+
 export default async function Page({ searchParams }: { searchParams?: Promise<{ asset_id?: string }> } = {}) {
   const params = await searchParams;
   const { assets, mockups } = await getStudioLists();
@@ -13,9 +21,18 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
     <MockupWorkflowClient initialAssets={assets as any[]} initialMockups={mockups as any[]} initialAssetId={params?.asset_id} />
     <section className="surface-card" style={{ marginTop: 18 }}>
       <h2>Mockup Records</h2>
+      {mockups.length ? <div className="layout-grid layout-grid-3" style={{ marginBottom: 18 }}>{mockups.slice(0, 9).map((mockup: any) => <article key={mockup.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
+        <img src={mockupPreviewHref(mockup)} alt="Composited mockup preview" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "contain", borderRadius: 8, background: "#f8fafc", border: "1px solid rgba(15,23,42,0.08)" }} />
+        <strong>{mockup.id}</strong>
+        <p className="text-muted" style={{ margin: 0 }}>Source asset {mockup.asset_id ?? mockup.assetId}</p>
+        <div className="action-bar">
+          <a className="btn btn-secondary" href={`/studio/mockups?asset_id=${encodeURIComponent(String(mockup.asset_id ?? mockup.assetId ?? ""))}`}>Open mockup</a>
+          {(mockup.approved_for_product || mockup.approvedForProduct) ? <a className="btn btn-primary" href="/studio/product-builder">Use in product draft</a> : null}
+        </div>
+      </article>)}</div> : null}
       {mockups.length ? <DataTable columns={["Mockup", "Status", "Approved", "Asset"]} rows={mockups.map((mockup: any) => [
         mockup.file_path ?? mockup.id,
-        <StatusBadge key="status" status={mockup.status ?? "generated"} />,
+        <StatusBadge key="status" status={ownerLabel(mockup.status ?? "generated")} />,
         String(Boolean(mockup.approved_for_product ?? mockup.approvedForProduct)),
         mockup.asset_id ?? mockup.assetId
       ])} /> : <EmptyState title="No mockups yet" description="Run QA and approve an asset, then generate an internal preview." />}

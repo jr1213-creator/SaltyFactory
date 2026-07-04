@@ -39,6 +39,8 @@ export async function POST(req: Request) {
     const price = Number(body.price || 0);
     const estimatedCogs = Number(body.estimated_cogs || body.estimatedCogs || 0);
     const estimatedShipping = Number(body.estimated_shipping || body.estimatedShipping || 0);
+    const metadataInput = body.metadata && typeof body.metadata === "object" ? body.metadata as Record<string, unknown> : {};
+    const shopifyCollectionId = String(body.shopify_collection_id || body.shopifyCollectionId || metadataInput.shopify_collection_id || metadataInput.shopifyCollectionId || "");
     const draft = await repos.draft.create({
       id: draftId,
       workspace_id: workspaceId,
@@ -60,10 +62,15 @@ export async function POST(req: Request) {
       blocking_reasons: [],
       warnings: [],
       metadata: {
+        ...metadataInput,
         price,
         estimated_cogs: estimatedCogs,
         estimated_shipping: estimatedShipping,
         provider_target: providerTarget,
+        product_idea: String(body.product_idea || body.productIdea || metadataInput.product_idea || ""),
+        source_asset_id: assetId,
+        source_mockup_ids: approvedMockups,
+        ...(shopifyCollectionId ? { shopify_collection_id: shopifyCollectionId } : {}),
         seo_title: String(body.seo_title || body.seoTitle || body.title || ""),
         seo_description: String(body.seo_description || body.seoDescription || body.description || ""),
         aeo_answer_block: String(body.aeo_answer_block || body.aeoAnswerBlock || ""),

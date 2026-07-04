@@ -107,13 +107,16 @@ function safeAsset(asset: any) {
   return {
     id: asset.id,
     status: asset.status ?? asset.qa_status ?? null,
+    qaStatus: asset.qa_status ?? asset.qaStatus ?? null,
+    approvedForMockup: Boolean(asset.approved_for_mockup ?? asset.approvedForMockup),
     storageBucket: asset.storage_bucket ?? asset.storageBucket ?? null,
     filePath: asset.file_path ?? asset.filePath ?? null,
     width: asset.width ?? null,
     height: asset.height ?? null,
     generator: asset.generator ?? null,
     model: asset.model ?? null,
-    visibility: asset.visibility ?? "private"
+    visibility: asset.visibility ?? "private",
+    createdAt: asset.created_at ?? asset.createdAt ?? null
   };
 }
 

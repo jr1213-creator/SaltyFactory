@@ -149,4 +149,18 @@ The `/studio/briefs` Send to Generation action shows a structured result panel:
 
 - job id, status, provider, and model when a job starts or succeeds
 - safe setup-required message, blocker reasons, and setup/help actions when blocked
+- protected generated image preview, asset id, created timestamp, QA status, and next actions when generation succeeds
 - no normal owner-facing raw JSON dump
+
+## POD Golden Path After Setup
+
+Connected providers are prerequisites, not completion. After Hugging Face, Supabase Storage, Printify, Shopify, and the Shopify default collection are connected, the visible product path is:
+
+1. `/studio/briefs`: approve a brief and send it to image generation.
+2. `/studio/assets`: view the generated private asset, run QA, and approve it for mockups.
+3. `/studio/mockups`: create a real composed mockup from the approved artwork and approve it for product use.
+4. `/studio/product-builder`: create one product draft from the approved asset and mockup.
+5. `/studio/printify-catalog`: browse real Printify catalog data and save blueprint/provider/variant/pricing to the draft.
+6. `/studio/publish-review`: review the single readiness matrix and run guarded provider draft actions only when gates pass.
+
+Local demo mode remains development/test only. It can show the workflow shape but must not be described as real provider success. Product creation and live publish remain owner-gated.

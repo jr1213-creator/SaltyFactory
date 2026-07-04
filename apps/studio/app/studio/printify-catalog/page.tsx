@@ -1,7 +1,7 @@
 import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
-import { EmptyState, PageHeader, ProviderReadinessCard, WorkflowStepHeader } from "@saltyfactory/ui";
+import { PageHeader, ProviderReadinessCard, WorkflowStepHeader } from "@saltyfactory/ui";
 import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
 import { getStudioLists, SchemaSetupState } from "../data";
 import { PrintifyCatalogClient } from "./PrintifyCatalogClient";
@@ -46,8 +46,8 @@ export default async function Page() {
       <WorkflowStepHeader step="Connected" title="Printify connection" status="connected" description={`Credential source: ${credentialSource}. Shop: ${printify.shopName ?? printify.shopId ?? "selected"}.`} />
     </section>}
     <section className="surface-card" style={{ marginTop: 18 }}>
-      <WorkflowStepHeader step="P" title="Printify Product Inputs" status={drafts.length ? "drafts available" : "blocked"} description="Product draft, blueprint, print provider, variant IDs, pricing, and uploaded image ID are all required." />
+      <WorkflowStepHeader step="Catalog" title="Printify Product Inputs" status={drafts.length ? "drafts available" : "catalog browsing available"} description={drafts.length ? "Product draft, blueprint, print provider, variant IDs, pricing, and uploaded image ID are all required before product creation." : "Browse blueprints now. Saving variants requires a product draft from approved artwork and an approved mockup."} />
     </section>
-    {printifyReady && drafts.length ? <PrintifyCatalogClient drafts={drafts as any[]} initialShopId={printify.shopId ?? ""} initialShopName={printify.shopName ?? ""} connected /> : drafts.length ? null : <EmptyState title="No product drafts" description="Create a product draft from approved generated artwork and a composited mockup before selecting Printify catalog data." action={<a className="btn btn-primary" href="/studio/product-builder">Open Product Builder</a>} />}
+    {printifyReady ? <PrintifyCatalogClient drafts={drafts as any[]} initialShopId={printify.shopId ?? ""} initialShopName={printify.shopName ?? ""} connected /> : null}
   </>;
 }
