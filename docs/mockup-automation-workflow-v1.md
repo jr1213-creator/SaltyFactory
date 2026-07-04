@@ -1,6 +1,6 @@
 # Mockup Automation Workflow v1
 
-Status: API/route-tested and browser-proven locally for internal automated mockups from approved generated assets using the guarded local proof provider.
+Status: API/route-tested, browser-proven locally, and live-smoke proven for internal automated mockups from approved generated assets. The latest live smoke rendered a Sharp internal mockup from a real Hugging Face-generated `print_png` derivative.
 
 ## What Is Real
 
@@ -44,6 +44,14 @@ Each mockup render stores:
 The owner UI shows the selected asset, template controls, placement controls, rendered mockup preview, and hero selection.
 
 Pixel-level regression proof now verifies that a synthetic magenta source artwork changes the rendered mockup output, that the output checksum differs from the base template, and that source-art pixels are detectable inside the expected art zone.
+
+Latest live smoke proof on 2026-07-04:
+
+- source asset: `asset_hf_1783179053612_0_e32d8034`
+- mockup: `mockup_1783179063831_tmpl_internal_apparel_light_tee_73d3f8`
+- renderer: `internal-sharp-v1`
+- preview: `/api/studio/mockups/mockup_1783179063831_tmpl_internal_apparel_light_tee_73d3f8/preview`
+- pixel proof: passed with 2,000 sampled pixels, source-like ratio `1`, changed ratio `0.915`
 
 ## Blocked States
 

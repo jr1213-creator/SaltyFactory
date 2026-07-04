@@ -1,6 +1,6 @@
 # Image Generation Workflow v1
 
-Status: API/route-tested and browser-proven locally for approved brief to private generated asset package using the guarded local proof provider. Live Hugging Face smoke is still not proven because the live smoke blocks at local Drizzle smoke brief insertion before provider execution.
+Status: API/route-tested, browser-proven locally, and live-smoke proven for approved brief to private generated asset package. The latest live smoke used the guided Hugging Face credential-store provider and stored real provider output in private Supabase-backed storage.
 
 ## What Is Real
 
@@ -51,7 +51,7 @@ Every generated master creates private derivative rows in `design_assets`:
 - `web_preview`
 - `print_png`
 
-The print PNG is the downstream mockup source. If the model output has no alpha channel, SaltyFactory records it as a plain-background print file rather than claiming it is transparent.
+The print PNG is the downstream mockup source. If the model output has no alpha channel, SaltyFactory records it as a plain-background print file rather than claiming it is transparent. Generated opaque print files pass QA with a plain-background warning so internal mockups can render real output without pretending transparency exists.
 
 ## Worker Path
 
@@ -100,7 +100,16 @@ RUN_LIVE_IMAGE_MOCKUP_SMOKE=true corepack pnpm smoke:image-mockup-live
 
 The script creates one approved brief, generates one variant, runs QA, approves the asset, renders internal mockups, verifies previews, and prints IDs only.
 
-Latest local result on 2026-07-04: live smoke did not pass. It blocked on local Drizzle persistence while inserting the smoke brief, before any Hugging Face provider call. No provider token or storage secret was printed. Treat live Hugging Face proof as not complete until this script prints an `ok: true` report.
+Latest local result on 2026-07-04: passing through the guided credential-store provider after the owner manually accepted Hugging Face access for `black-forest-labs/FLUX.1-schnell`. The smoke created approved brief `brief_1783179051850`, generated Hugging Face-backed asset `asset_hf_1783179053612_0_e32d8034`, created derivative kinds `thumbnail`, `web_preview`, and `print_png`, verified protected preview routes, rendered internal mockup `mockup_1783179063831_tmpl_internal_apparel_light_tee_73d3f8`, and wrote report `.saltyfactory-private/smoke-reports/image-mockup-1783179066858.json`.
+
+The standalone HF-only env-token probe on 2026-07-04 did not pass: local env exposes `HF_API_TOKEN`, but Hugging Face returned `401 Invalid username or password`. That does not invalidate the app runtime proof because the passing Studio smoke used the saved credential-store token, not the stale env fallback token.
+
+Safe proof routes from the passing run:
+
+- `/api/studio/assets/asset_hf_1783179053612_0_e32d8034/preview`
+- `/api/studio/assets/asset_hf_1783179053612_0_e32d8034/derivatives/thumbnail/preview`
+- `/api/studio/assets/asset_hf_1783179053612_0_e32d8034/derivatives/web_preview/preview`
+- `/api/studio/assets/asset_hf_1783179053612_0_e32d8034/derivatives/print_png/preview`
 
 ## Browser Proof
 

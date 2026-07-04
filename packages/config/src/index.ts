@@ -5,6 +5,11 @@ const asBool = (fallback = false) => z.preprocess(
   z.boolean()
 );
 
+const imageGenerationProvider = z.preprocess(
+  (value) => value === "huggingface" ? "hugging_face" : value,
+  z.enum(["disabled", "local_dev_mock", "hugging_face"])
+);
+
 const envSchema = z.object({
   NODE_ENV: z.string().default("development"),
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -27,7 +32,7 @@ const envSchema = z.object({
   AI_TEXT_ENABLED: asBool(false),
   AI_IMAGE_ENABLED: asBool(false),
   IMAGE_GENERATION_ENABLED: asBool(false),
-  IMAGE_GENERATION_PROVIDER: z.enum(["disabled", "local_dev_mock", "hugging_face"]).default("disabled"),
+  IMAGE_GENERATION_PROVIDER: imageGenerationProvider.default("disabled"),
   LOCAL_DEV_IMAGE_GENERATION: asBool(false),
   IMAGE_GENERATION_TIMEOUT_MS: z.string().optional().default("60000"),
   IMAGE_GENERATION_MAX_OUTPUT_BYTES: z.string().optional().default("15000000"),

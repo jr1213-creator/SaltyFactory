@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import path from "node:path";
 import { requireDraftMutationPermission } from "@saltyfactory/auth";
 import { createRepositories } from "@saltyfactory/db";
-import { computePerceptualHash, evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
+import { computePerceptualHash, defaultQaRules, evaluateAssetQaFromMetadata } from "@saltyfactory/image-pipeline";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../../_auth";
 import { findAssetDerivative, generatedDerivativeKinds, isGeneratedDerivativeAsset, metadataOf } from "../../../_image-production";
 
@@ -40,16 +40,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       : [];
     const printDerivative = derivatives.find((item) => item.kind === "print_png")?.row;
     const qaSource = printDerivative ?? asset;
+    const qaSourceHasAlpha = Boolean(qaSource.transparent_background || qaSource.transparentBackground);
     const qaResult = evaluateAssetQaFromMetadata({
       width: Number(qaSource.width || 0),
       height: Number(qaSource.height || 0),
       format: String(qaSource.extension || qaSource.mime_type || qaSource.mimeType || qaSource.file_path || "").split(".").pop() || "png",
-      hasAlpha: Boolean(qaSource.transparent_background || qaSource.transparentBackground),
+      hasAlpha: qaSourceHasAlpha,
       density: Number(qaSource.dpi || 0),
       fileSizeBytes: Number(qaSource.file_size_bytes || qaSource.fileSizeBytes || 0),
       filename: String(qaSource.original_filename ?? qaSource.originalFilename ?? qaSource.file_path ?? ""),
       perceptualHash
-    }, undefined, existingHashes);
+    }, isGeneratedMaster ? { ...defaultQaRules, requireTransparent: false } : defaultQaRules, existingHashes);
     const missingDerivativeKinds = derivatives.filter((item) => !item.row).map((item) => item.kind);
     const assetMetadata = metadataOf(asset);
     const checks = {
@@ -71,6 +72,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         preview_route_available: {
           status: "passed",
           message: "Protected preview routes are available for the master asset and derivative package."
+        },
+        plain_background_print_file: {
+          status: qaSourceHasAlpha ? "passed" : "warnings",
+          message: qaSourceHasAlpha
+            ? "The print-ready PNG preserves transparency."
+            : "The print-ready PNG has a plain background instead of transparency; internal mockups can render it, but owner review should confirm the background is acceptable."
         }
       } : {}),
       ...(assetMetadata.text_requested === true || assetMetadata.textRequested === true ? {
@@ -86,6 +93,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ];
     const warnings = [
       ...qaResult.warnings,
+      ...(isGeneratedMaster && !qaSourceHasAlpha ? ["plain_background_print_file"] : []),
       ...(assetMetadata.text_requested === true || assetMetadata.textRequested === true ? ["text_reliability_warning"] : [])
     ];
     const status = blockedReasons.length ? "failed" : qaResult.status;

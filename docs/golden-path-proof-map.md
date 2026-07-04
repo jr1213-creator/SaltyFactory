@@ -39,9 +39,9 @@ Provider proof now visible in `/studio/publish-review`:
 
 ## Known Verification Gaps
 
-- Live external provider smoke is not yet passing locally. On 2026-07-04, `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true corepack pnpm smoke:image-mockup-live` blocked while inserting the smoke brief through Drizzle, before Hugging Face execution. It did not print secrets and did not prove live Hugging Face success.
+- Live image/mockup provider smoke is passing locally. On 2026-07-04, `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true corepack pnpm smoke:image-mockup-live` created brief `brief_1783178628635`, generated Hugging Face asset `asset_hf_1783178630554_0_cdd6aebf`, created derivatives `thumbnail`, `web_preview`, and `print_png`, rendered mockup `mockup_1783178637936_tmpl_internal_apparel_light_tee_55d058`, verified protected previews, and printed no provider/storage secrets.
 - Focused authenticated browser proof exists as `corepack pnpm frontend:qa:image-mockup`. On 2026-07-04 it passed with the guarded local proof provider: browser-created brief, four generated variants, protected asset previews, derivative proof, QA/approval, recommended internal mockups, protected mockup preview, and hero selection.
-- Live image/mockup smoke exists as `corepack pnpm smoke:image-mockup-live` and is skipped unless `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true`.
+- Live image/mockup smoke exists as `corepack pnpm smoke:image-mockup-live` and is skipped unless `RUN_LIVE_IMAGE_MOCKUP_SMOKE=true`. It uses the same browser route path and real Hugging Face resolver, not the local demo provider.
 - Worker queued generation currently persists one generated output plus derivatives. Browser route supports up to four variants; worker multi-variant support remains partial.
 - Shopify currently uses the REST Admin adapter in the repo. GraphQL is a future migration, not required for the current verified draft path.
 - Publish Review provider proof rows are derived from persisted refs and asset metadata. The core domain gate schema still uses the legacy compact gate set.
