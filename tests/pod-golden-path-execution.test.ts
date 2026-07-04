@@ -7,6 +7,7 @@ import { SUPABASE_ACCESS_COOKIE, setSupabaseUserVerifierForTests, setWorkspaceAu
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
 import { encryptCredential } from "@saltyfactory/security";
 import AssetsPage from "../apps/studio/app/studio/assets/page";
+import BriefsPage from "../apps/studio/app/studio/briefs/page";
 import GeneratePage from "../apps/studio/app/studio/image-generation/page";
 import MockupsPage from "../apps/studio/app/studio/mockups/page";
 import PrintifyCatalogPage from "../apps/studio/app/studio/printify-catalog/page";
@@ -180,17 +181,23 @@ describe("POD golden path execution", () => {
     setMemoryRuntime();
 
     const pages = await Promise.all([
-      ProductBuilderPage(),
+      BriefsPage(),
       GeneratePage(),
       AssetsPage(),
-      MockupsPage()
+      MockupsPage(),
+      PrintifyCatalogPage(),
+      ProductBuilderPage(),
+      PublishReviewPage()
     ]);
     const html = pages.map((page) => renderToStaticMarkup(page)).join("\n");
 
+    expect(html).toContain("Design Briefs");
     expect(html).toContain("POD Product Builder");
     expect(html).toContain("Generation Queue");
     expect(html).toContain("Generation Jobs &amp; Assets");
     expect(html).toContain("Mockups");
+    expect(html).toContain("Printify Catalog");
+    expect(html).toContain("Publish Review");
     expect(html).not.toMatch(/Failed query|default_brand_name|workspaces\.id/);
   });
 

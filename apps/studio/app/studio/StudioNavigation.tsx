@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export type StudioNavLink = readonly [label: string, href: string];
@@ -23,9 +23,234 @@ export type StudioStageLink = {
   href: string;
   blockerHint: string;
 };
+export type StudioTopNavMenuItem = {
+  label: string;
+  href: string;
+  description: string;
+  status?: string;
+};
+export type StudioTopNavMenuGroup = {
+  label: string;
+  items: readonly StudioTopNavMenuItem[];
+};
+export type StudioTopNavArea = {
+  id: string;
+  label: string;
+  href: string;
+  description: string;
+  sectionIds: readonly string[];
+  groups: readonly StudioTopNavMenuGroup[];
+};
 
 export const STUDIO_NAV_STORAGE_KEY = "saltyfactory.studio.nav.expanded";
 export const STUDIO_DASHBOARD_LINK: StudioNavLink = ["Dashboard", "/studio"];
+
+export const STUDIO_TOP_NAV_AREAS: readonly StudioTopNavArea[] = [
+  {
+    id: "home",
+    label: "Home",
+    href: "/studio",
+    description: "Workspace command center, guided setup, readiness, and integrations.",
+    sectionIds: ["dashboard"],
+    groups: [
+      {
+        label: "Command",
+        items: [
+          { label: "Command Center", href: "/studio", description: "Workspace operating overview and next actions.", status: "Home" },
+          { label: "Guided Setup", href: "/studio/onboarding/guided", description: "Launch Setup Concierge for provider connections." },
+          { label: "Feature Readiness", href: "/studio/setup", description: "Provider and workflow readiness with safe owner language." },
+          { label: "Integrations", href: "/studio/integrations", description: "Unified connected provider stack and Google data readiness." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "pod",
+    label: "POD",
+    href: "/studio/pod-launch-studio",
+    description: "Generate artwork, prepare mockups, choose Printify inputs, and review launch gates.",
+    sectionIds: ["pod-studio"],
+    groups: [
+      {
+        label: "Golden Path",
+        items: [
+          { label: "Launch Studio", href: "/studio/pod-launch-studio", description: "Main POD command center and stage map.", status: "Core" },
+          { label: "Briefs", href: "/studio/briefs", description: "Approve prompts and send briefs to generation." },
+          { label: "Image Generation", href: "/studio/image-generation", description: "Generated artwork jobs using the connected provider." },
+          { label: "Assets", href: "/studio/assets", description: "Protected generated asset previews and QA actions." },
+          { label: "Mockups", href: "/studio/mockups", description: "Composed internal mockups from approved artwork." }
+        ]
+      },
+      {
+        label: "Product Launch",
+        items: [
+          { label: "Printify Catalog", href: "/studio/printify-catalog", description: "Browse real blueprints, providers, variants, and shipping." },
+          { label: "Product Builder", href: "/studio/product-builder", description: "Create product drafts from approved assets and mockups." },
+          { label: "Publish Review", href: "/studio/publish-review", description: "Owner-gated readiness and provider draft actions.", status: "Gated" },
+          { label: "Launch Packet", href: "/studio/launch-packet", description: "Review product, provider, and publish blockers." },
+          { label: "POD Batches", href: "/studio/pod-batches", description: "Batch product creation workspace." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "ai",
+    label: "AI",
+    href: "/studio/ai-employees",
+    description: "Owner-gated AI workforce, hiring, improvements, and model operations.",
+    sectionIds: ["ai-employees"],
+    groups: [
+      {
+        label: "Workforce",
+        items: [
+          { label: "AI Employees", href: "/studio/ai-employees", description: "Role-based draft assistants and approval queue.", status: "Drafts" },
+          { label: "Hiring Desk", href: "/studio/ai-employees/hiring", description: "Review proposed AI employee roles." },
+          { label: "Improvement Desk", href: "/studio/ai-employees/improvements", description: "Review improvement suggestions and repeated blockers." }
+        ]
+      },
+      {
+        label: "Model Ops",
+        items: [
+          { label: "Model Registry", href: "/studio/ai-employees/models", description: "Configured model records and routing context." },
+          { label: "Model Usage", href: "/studio/ai-employees/model-usage", description: "Usage records without exposing provider secrets." },
+          { label: "Model Evaluations", href: "/studio/ai-employees/model-evals", description: "Owner-reviewed model evaluation records." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "business",
+    label: "Business",
+    href: "/studio/business",
+    description: "Business OS, opportunities, decisions, documents, and legitimacy work.",
+    sectionIds: ["business"],
+    groups: [
+      {
+        label: "Command",
+        items: [
+          { label: "Business Command Center", href: "/studio/business", description: "Business readiness, decisions, and next actions.", status: "OS" },
+          { label: "Business Profile", href: "/studio/business/profile", description: "Workspace business profile and readiness." },
+          { label: "Opportunities", href: "/studio/business/opportunities", description: "Saved opportunities for owner review." },
+          { label: "Decision Memos", href: "/studio/business/decision-memos", description: "Decision records and assumptions." }
+        ]
+      },
+      {
+        label: "Legitimacy",
+        items: [
+          { label: "Documents", href: "/studio/business/documents", description: "Business documents and owner-approved proof packs." },
+          { label: "Authority Requests", href: "/studio/business/authority-requests", description: "Sensitive authority requests and approvals." },
+          { label: "Print Studio", href: "/studio/business/print-studio", description: "Business card and print-ready legitimacy assets." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "storefront",
+    label: "Storefront",
+    href: "/studio/shopify-products",
+    description: "Shopify, Printify, provider setup, product drafts, and storefront-facing state.",
+    sectionIds: ["storefront"],
+    groups: [
+      {
+        label: "Commerce",
+        items: [
+          { label: "Shopify Products", href: "/studio/shopify-products", description: "Shopify draft refs and product readiness.", status: "Drafts" },
+          { label: "Printify Catalog", href: "/studio/printify-catalog", description: "Printify catalog browsing and variant selection." },
+          { label: "Publish Review", href: "/studio/publish-review", description: "Provider draft actions behind owner gates." },
+          { label: "Product Builder", href: "/studio/product-builder", description: "Create and update product drafts." }
+        ]
+      },
+      {
+        label: "Providers",
+        items: [
+          { label: "Integrations", href: "/studio/integrations", description: "Connected provider stack and readiness." },
+          { label: "Provider Setup", href: "/studio/onboarding/providers", description: "Guided provider connection entry point." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    href: "/studio/marketing-command-center",
+    description: "Campaigns, approvals, social, email, ads, tracking, and search visibility.",
+    sectionIds: ["marketing", "analytics"],
+    groups: [
+      {
+        label: "Command",
+        items: [
+          { label: "Marketing Command Center", href: "/studio/marketing-command-center", description: "Marketing work queue and channel readiness.", status: "Drafts" },
+          { label: "Campaigns", href: "/studio/marketing-campaigns", description: "Campaign drafts and launch planning." },
+          { label: "Approvals", href: "/studio/marketing/approvals", description: "Owner-gated marketing approvals." }
+        ]
+      },
+      {
+        label: "Channels",
+        items: [
+          { label: "Social", href: "/studio/marketing/social", description: "Social draft queue and planning." },
+          { label: "Email", href: "/studio/marketing/email", description: "Email draft studio without live sending." },
+          { label: "Ads", href: "/studio/marketing/ads", description: "Ad drafts without automatic spend." },
+          { label: "Tracking / UTMs", href: "/studio/marketing/tracking", description: "Campaign tracking and UTM links." },
+          { label: "Search / AEO / GEO", href: "/studio/marketing/search-visibility", description: "Search visibility and AI-readiness work." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "customers",
+    label: "Customers",
+    href: "/studio/customer-command-center",
+    description: "Customer command center, CRM, leads, inbox, campaigns, service, and scheduling.",
+    sectionIds: ["customer"],
+    groups: [
+      {
+        label: "Command",
+        items: [
+          { label: "Customer Command Center", href: "/studio/customer-command-center", description: "Customer operations overview.", status: "Ops" },
+          { label: "Customers", href: "/studio/customers", description: "Customer records and safe empty states." },
+          { label: "Leads", href: "/studio/leads", description: "Lead records and follow-up work." },
+          { label: "Segments", href: "/studio/customer-segments", description: "Customer segment definitions." }
+        ]
+      },
+      {
+        label: "Operations",
+        items: [
+          { label: "Inbox", href: "/studio/customer-inbox", description: "Customer conversation workspace." },
+          { label: "Campaigns", href: "/studio/customer-campaigns", description: "Customer campaign drafts." },
+          { label: "Opportunities", href: "/studio/opportunities", description: "CRM opportunity pipeline." },
+          { label: "Service Cases", href: "/studio/service-cases", description: "Service case workflow." },
+          { label: "Scheduling", href: "/studio/customer-scheduling", description: "Appointment and scheduling setup." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    href: "/studio/onboarding/guided",
+    description: "Guided setup, provider readiness, integrations, storage readiness, and help.",
+    sectionIds: ["operations"],
+    groups: [
+      {
+        label: "Setup",
+        items: [
+          { label: "Guided Setup", href: "/studio/onboarding/guided", description: "Launch Setup Concierge for provider connections.", status: "Primary" },
+          { label: "Quick Setup", href: "/studio/onboarding/quick-start", description: "Fast local setup checklist." },
+          { label: "Feature Readiness", href: "/studio/setup", description: "Runtime readiness and exact setup blockers." },
+          { label: "Provider Setup", href: "/studio/onboarding/providers", description: "Provider-specific connection pages." }
+        ]
+      },
+      {
+        label: "Diagnostics",
+        items: [
+          { label: "Integrations", href: "/studio/integrations", description: "Unified provider readiness and connected stack." },
+          { label: "Storage Readiness", href: "/studio/setup", description: "Generated asset storage readiness diagnostic." },
+          { label: "Help Requests", href: "/studio/onboarding/help", description: "Request setup help without exposing secrets." }
+        ]
+      }
+    ]
+  }
+];
 
 export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
   {
@@ -273,8 +498,23 @@ export function visibleStudioNavLinks(input: { pathname: string; expandedIds: re
   return sections.flatMap((section) => expanded.has(section.id) ? section.links.map(([label]) => label) : []);
 }
 
+export function allStudioTopNavItems(areas: readonly StudioTopNavArea[] = STUDIO_TOP_NAV_AREAS) {
+  return areas.flatMap((area) => area.groups.flatMap((group) => group.items.map((item) => ({ ...item, areaId: area.id, groupLabel: group.label }))));
+}
+
+export function activeStudioTopNavAreaId(pathname: string, areas: readonly StudioTopNavArea[] = STUDIO_TOP_NAV_AREAS) {
+  if (pathname === "/studio") return "home";
+  const activeSectionIds = activeStudioNavSectionIds(pathname);
+  const bySection = areas.find((area) => area.sectionIds.some((id) => activeSectionIds.includes(id)));
+  if (bySection) return bySection.id;
+  const activeItems = allStudioTopNavItems(areas)
+    .filter((item) => isActiveStudioHref(pathname, item.href))
+    .sort((a, b) => b.href.length - a.href.length);
+  return activeItems[0]?.areaId ?? areas.find((area) => isActiveStudioHref(pathname, area.href))?.id ?? "home";
+}
+
 export function topStudioCommandLabels() {
-  return STUDIO_COMMAND_CENTER_LINKS.map((link) => link.label);
+  return STUDIO_TOP_NAV_AREAS.map((area) => area.label);
 }
 
 function persistExpanded(ids: Iterable<string>) {
@@ -402,37 +642,148 @@ export function StudioPodStageRail() {
 
 export function StudioCommandCenterNav() {
   const pathname = usePathname() || "/studio";
-  const activeSectionIds = useMemo(() => activeStudioNavSectionIds(pathname), [pathname]);
+  const activeAreaId = useMemo(() => activeStudioTopNavAreaId(pathname), [pathname]);
+  const [openAreaId, setOpenAreaId] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
 
-  return <nav className="studio-command-nav" aria-label="Studio command center navigation">
-    {STUDIO_COMMAND_CENTER_LINKS.map((link) => {
-      const active = link.href === "/studio" ? pathname === "/studio" : activeSectionIds.includes(link.sectionId) || isActiveStudioHref(pathname, link.href);
-      return <a
-        className={`studio-command-link${active ? " is-active" : ""}`}
-        href={link.href}
-        key={link.href}
-        aria-current={active ? "page" : undefined}
-        title={link.description}
-      >
-        <span>{link.label}</span>
-        <small>{link.description}</small>
-      </a>;
-    })}
-    <details className="studio-command-more studio-top-nav-dropdown">
-      <summary>
-        <span>More</span>
-        <small>All modules</small>
-      </summary>
-      <div className="studio-command-menu studio-top-nav-menu">
-        {STUDIO_NAV_SECTIONS.map((section) => <section key={`more-${section.id}`}>
-          <strong>{section.label}</strong>
-          {section.links.map(([label, href]) => <a key={`${section.id}-top-${href}-${label}`} href={href} aria-current={isActiveStudioHref(pathname, href) ? "page" : undefined}>{label}</a>)}
-        </section>)}
-      </div>
-    </details>
+  useEffect(() => {
+    if (!openAreaId) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenAreaId(null);
+    }
+    function onPointerDown(event: MouseEvent) {
+      if (!navRef.current?.contains(event.target as Node)) setOpenAreaId(null);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [openAreaId]);
+
+  return <nav className="studio-command-nav" aria-label="Studio command center navigation" ref={navRef}>
+    <div className="studio-command-list" aria-label="Primary Studio areas">
+      {STUDIO_TOP_NAV_AREAS.map((area, index) => {
+        const active = activeAreaId === area.id;
+        const open = openAreaId === area.id;
+        const menuId = `studio-top-nav-menu-${area.id}`;
+        return <div className="studio-command-item" key={area.id}>
+          <button
+            type="button"
+            className={`studio-command-link${active ? " is-active" : ""}`}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-controls={menuId}
+            onClick={() => setOpenAreaId((current) => current === area.id ? null : area.id)}
+          >
+            <span>{area.label}</span>
+          </button>
+          {open ? <div
+            className={`studio-command-menu studio-top-nav-menu${index >= STUDIO_TOP_NAV_AREAS.length - 3 ? " align-right" : ""}`}
+            id={menuId}
+            role="menu"
+          >
+            <div className="studio-command-menu-header">
+              <strong>{area.label}</strong>
+              <p>{area.description}</p>
+            </div>
+            {area.groups.map((group) => <section key={`${area.id}-${group.label}`}>
+              <strong>{group.label}</strong>
+              {group.items.map((item) => <a
+                href={item.href}
+                key={`${area.id}-${group.label}-${item.href}`}
+                role="menuitem"
+                aria-current={isActiveStudioHref(pathname, item.href) ? "page" : undefined}
+                onClick={() => setOpenAreaId(null)}
+              >
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.description}</small>
+                </span>
+                {item.status ? <em>{item.status}</em> : null}
+              </a>)}
+            </section>)}
+          </div> : null}
+        </div>;
+      })}
+    </div>
+    <StudioMobileCommandNav pathname={pathname} />
   </nav>;
 }
 
 export function StudioTopNavDropdowns() {
   return <StudioCommandCenterNav />;
+}
+
+function StudioMobileCommandNav({ pathname }: { pathname: string }) {
+  return <details className="studio-mobile-command-nav">
+    <summary>Menu</summary>
+    <div className="studio-mobile-command-panel">
+      {STUDIO_TOP_NAV_AREAS.map((area) => <section key={`mobile-${area.id}`}>
+        <strong>{area.label}</strong>
+        {area.groups.flatMap((group) => group.items).map((item) => <a
+          href={item.href}
+          key={`mobile-${area.id}-${item.href}`}
+          aria-current={isActiveStudioHref(pathname, item.href) ? "page" : undefined}
+        >
+          {item.label}
+        </a>)}
+      </section>)}
+    </div>
+  </details>;
+}
+
+export function StudioRouteLauncher() {
+  const [open, setOpen] = useState(false);
+  const launcherRef = useRef<HTMLDivElement | null>(null);
+  const items = useMemo(() => {
+    const unique = new Map<string, ReturnType<typeof allStudioTopNavItems>[number]>();
+    for (const item of allStudioTopNavItems()) if (!unique.has(item.href)) unique.set(item.href, item);
+    return [...unique.values()];
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function onPointerDown(event: MouseEvent) {
+      if (!launcherRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [open]);
+
+  return <div className="studio-route-launcher" ref={launcherRef}>
+    <button
+      type="button"
+      className="studio-route-launcher-trigger"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls="studio-route-launcher-panel"
+      onClick={() => setOpen((current) => !current)}
+    >
+      Search or jump to workflow...
+    </button>
+    {open ? <div className="studio-route-launcher-panel" id="studio-route-launcher-panel" role="dialog" aria-label="Route launcher">
+      <div className="studio-route-launcher-header">
+        <strong>Jump to workflow</strong>
+        <span>Major Studio routes</span>
+      </div>
+      <div className="studio-route-launcher-list">
+        {items.map((item) => <a href={item.href} key={`launcher-${item.href}`} onClick={() => setOpen(false)}>
+          <span>
+            <strong>{item.label}</strong>
+            <small>{item.description}</small>
+          </span>
+          <em>{STUDIO_TOP_NAV_AREAS.find((area) => area.id === item.areaId)?.label}</em>
+        </a>)}
+      </div>
+    </div> : null}
+  </div>;
 }

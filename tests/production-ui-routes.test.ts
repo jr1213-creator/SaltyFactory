@@ -125,7 +125,7 @@ describe("production UI routes", () => {
   });
 
   it("Studio IA exposes primary command centers and active workflow breadcrumbs", () => {
-    expect(topStudioCommandLabels()).toEqual(["Home", "POD", "AI", "Business", "Customer", "Marketing", "Setup"]);
+    expect(topStudioCommandLabels()).toEqual(["Home", "POD", "AI", "Business", "Storefront", "Marketing", "Customers", "Operations"]);
     expect(getActiveStudioNavContext("/studio/business/documents")?.activeLink).toEqual(["Documents", "/studio/business/documents"]);
     expect(getActiveStudioNavContext("/studio/printify-catalog")?.section.id).toBe("pod-studio");
     expect(getStudioBreadcrumbs("/studio/printify-catalog")).toEqual([

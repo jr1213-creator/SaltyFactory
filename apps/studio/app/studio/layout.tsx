@@ -3,8 +3,8 @@ export const runtime = "nodejs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireStudioUser } from "@saltyfactory/auth";
-import { NotificationBell, ProgressBar, SearchCommand, UserMenu, WorkspaceSwitcher } from "@saltyfactory/ui";
-import { StudioCommandCenterNav, StudioNavigation, StudioPodStageRail, StudioWorkflowContextPanel } from "./StudioNavigation";
+import { NotificationBell, ProgressBar, UserMenu, WorkspaceSwitcher } from "@saltyfactory/ui";
+import { StudioCommandCenterNav, StudioNavigation, StudioPodStageRail, StudioRouteLauncher, StudioWorkflowContextPanel } from "./StudioNavigation";
 
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -33,7 +33,7 @@ export default async function StudioLayout({ children }: { children: React.React
       <header className="studio-topbar">
         <WorkspaceSwitcher />
         <StudioCommandCenterNav />
-        <SearchCommand />
+        <StudioRouteLauncher />
         <div className="page-actions"><NotificationBell /><UserMenu /></div>
       </header>
       <main className="studio-content">{children}</main>
