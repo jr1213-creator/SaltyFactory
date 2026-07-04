@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireWorkspaceMember } from "@saltyfactory/auth";
-import { buildFeatureReadiness, buildOwnerSetupCards, parseEnv, setupFieldGuides } from "@saltyfactory/config";
+import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
+import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
+import { applyImageGenerationRuntimeReadiness, applyPrintifyRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv, setupFieldGuides } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
+import { checkStorageReadiness } from "@saltyfactory/storage";
 import { studioAuthErrorResponse } from "../_auth";
 import { createSetupHelpRequest, handleSetupHelpList, workspaceId } from "../provider-connections/_shared";
 
@@ -22,7 +25,18 @@ function safeJson(data: unknown) {
 export async function onboardingSummary(req: Request) {
   try {
     await requireWorkspaceMember(req, workspaceId);
-    const report = buildFeatureReadiness(parseEnv(), process.env, workspaceId);
+    const config = parseEnv();
+    const repos = createRepositories();
+    const image = await resolveImageGenerationProvider({ workspaceId, repos, config });
+    const printify = await resolvePrintifyProvider({ workspaceId, repos, config });
+    const storage = await checkStorageReadiness(config);
+    const report = applyPrintifyRuntimeReadiness(
+      applyImageGenerationRuntimeReadiness(
+        applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storage),
+        publicImageGenerationProviderResolution(image)
+      ),
+      publicPrintifyProviderResolution(printify)
+    );
     return safeJson({
       ok: true,
       title: "Launch Setup Concierge",

@@ -1,3 +1,4 @@
+import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
 import { parseEnv } from "@saltyfactory/config";
 import {
   createAccountCenterLaunchCards,
@@ -9,8 +10,8 @@ import {
   generateDnsReadinessRecords,
   runAgenticPodWorkflow
 } from "@saltyfactory/domain";
-import type { WorkspaceRow } from "@saltyfactory/db";
-import { getStudioLists } from "../data";
+import { createRepositories, type WorkspaceRow } from "@saltyfactory/db";
+import { getStudioLists, studioWorkspaceId } from "../data";
 
 function providerKey(row: WorkspaceRow) {
   return String(row.provider_type ?? row.providerType ?? row.provider_key ?? row.providerKey ?? "");
@@ -20,9 +21,24 @@ function statusFor(connections: WorkspaceRow[], key: string) {
   return String(connections.find((row) => providerKey(row) === key)?.status ?? "not_configured");
 }
 
+function canOpenRepositories() {
+  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
+}
+
+async function resolvePrintifyRuntimeForAccountCenter(config: ReturnType<typeof parseEnv>) {
+  if (!canOpenRepositories()) return null;
+  try {
+    return publicPrintifyProviderResolution(await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos: createRepositories(), config }));
+  } catch {
+    return null;
+  }
+}
+
 export async function getAccountCenterReadiness() {
   const config = parseEnv();
   const lists = await getStudioLists();
+  const resolvedPrintifyRuntime = await resolvePrintifyRuntimeForAccountCenter(config);
+  const printifyRuntime = resolvedPrintifyRuntime?.credentialSource === "credential_store" ? resolvedPrintifyRuntime : null;
   const latestBusinessProfile = (lists.businessProfiles[0] as any)?.profile_json ?? (lists.businessProfiles[0] as any)?.profileJson ?? lists.businessProfiles[0] ?? {};
   const workflowPreview = runAgenticPodWorkflow({
     trends: lists.trends,
@@ -79,12 +95,30 @@ export async function getAccountCenterReadiness() {
     hasClientCredentials: Boolean(config.SHOPIFY_CLIENT_ID && config.SHOPIFY_CLIENT_SECRET),
     persistedStatus: statusFor(lists.providerConnections, "shopify")
   });
-  const printifySetup = createPrintifySetupState({
-    enabled: config.PRINTIFY_ENABLED,
-    hasApiToken: Boolean(config.PRINTIFY_API_TOKEN),
-    shopId: config.PRINTIFY_SHOP_ID,
-    persistedStatus: statusFor(lists.providerConnections, "printify")
+  const printifySetupBase = createPrintifySetupState({
+    enabled: printifyRuntime ? ["ready", "owner_gated", "invalid"].includes(printifyRuntime.status) : config.PRINTIFY_ENABLED,
+    hasApiToken: printifyRuntime ? printifyRuntime.credentialSource === "credential_store" || printifyRuntime.status === "ready" : Boolean(config.PRINTIFY_API_TOKEN),
+    shopId: printifyRuntime?.shopId ?? config.PRINTIFY_SHOP_ID,
+    persistedStatus: printifyRuntime?.status === "ready" ? "connected" : statusFor(lists.providerConnections, "printify")
   });
+  const printifySetup = printifyRuntime ? {
+    ...printifySetupBase,
+    setupRequired: printifyRuntime.status === "ready" ? [] : printifyRuntime.setupRequired,
+    nextOwnerAction: printifyRuntime.status === "ready" ? "Review Printify catalog and map approved artwork to product targets." : printifyRuntime.safeMessage,
+    connectionTestRequired: printifyRuntime.status !== "ready",
+    checklist: printifySetupBase.checklist.map((item) => {
+      if (item.label === "Generate API token" && printifyRuntime.credentialSource === "credential_store") {
+        return { ...item, status: "detected" as const, ownerAction: "Token is saved in secure workspace credentials." };
+      }
+      if (item.label === "Select Printify shop" && printifyRuntime.shopId) {
+        return { ...item, status: "detected" as const, ownerAction: `Selected shop: ${printifyRuntime.shopName ?? printifyRuntime.shopId}.` };
+      }
+      if (item.label === "Verify API connection" && printifyRuntime.status === "ready") {
+        return { ...item, status: "connected" as const, ownerAction: "Printify connected through Launch Setup Concierge." };
+      }
+      return item;
+    })
+  } : printifySetupBase;
   const cards = createAccountCenterLaunchCards({
     businessProfileScore: Number((lists.businessProfiles[0] as any)?.readiness_score ?? (lists.businessProfiles[0] as any)?.readinessScore ?? 0),
     businessProfileStatus: String((lists.businessProfiles[0] as any)?.status ?? "setup_needed"),

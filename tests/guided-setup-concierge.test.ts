@@ -64,16 +64,16 @@ describe("guided setup concierge UI", () => {
 
   it("renders onboarding routes with owner-facing setup actions and helper copy", async () => {
     const pages = [
-      renderToStaticMarkup(OnboardingPage()),
-      renderToStaticMarkup(QuickStartPage()),
-      renderToStaticMarkup(GuidedSetupPage()),
-      renderToStaticMarkup(ProvidersPage()),
-      renderToStaticMarkup(PrintifySetupPage()),
-      renderToStaticMarkup(ShopifySetupPage()),
+      renderToStaticMarkup(await OnboardingPage()),
+      renderToStaticMarkup(await QuickStartPage()),
+      renderToStaticMarkup(await GuidedSetupPage()),
+      renderToStaticMarkup(await ProvidersPage()),
+      renderToStaticMarkup(await PrintifySetupPage()),
+      renderToStaticMarkup(await ShopifySetupPage()),
       renderToStaticMarkup(await ImageGenerationSetupPage()),
-      renderToStaticMarkup(BusinessProfileOnboardingPage()),
-      renderToStaticMarkup(FirstLaunchOnboardingPage()),
-      renderToStaticMarkup(SetupHelpPage()),
+      renderToStaticMarkup(await BusinessProfileOnboardingPage()),
+      renderToStaticMarkup(await FirstLaunchOnboardingPage()),
+      renderToStaticMarkup(await SetupHelpPage()),
       renderToStaticMarkup(await StudioSetupPage())
     ];
     const html = pages.join("\n");

@@ -1,5 +1,8 @@
+import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
 import { parseEnv } from "@saltyfactory/config";
+import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { DataTable, PageHeader, StatusBadge } from "@saltyfactory/ui";
+import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
 import { getStudioLists } from "../data";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "primary";
@@ -24,6 +27,19 @@ function isCreated(value: unknown) {
 
 function isApprovedAsset(asset: any) {
   return Boolean(asset.approved_for_mockup ?? asset.approvedForMockup ?? false) || asset.qa_status === "passed" || asset.qaStatus === "passed";
+}
+
+function canOpenRepositories() {
+  return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
+}
+
+function openRepositoriesSafely(): RepositoryBundle | undefined {
+  if (!canOpenRepositories()) return undefined;
+  try {
+    return createRepositories();
+  } catch {
+    return undefined;
+  }
 }
 
 function PodStatCard({ label, value, badge, caption, tone = "primary" }: { label: string; value: number | string; badge: string; caption: string; tone?: Tone }) {
@@ -67,6 +83,8 @@ function PipelineStageNode({ index, label, status, detail, tone = "warning", hre
 
 export default async function PodLaunchStudioPage() {
   const config = parseEnv();
+  const printifyProvider = publicPrintifyProviderResolution(await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos: openRepositoriesSafely(), config }));
+  const printifyConnected = printifyProvider.status === "ready";
   const lists = await getStudioLists();
   const drafts = lists.drafts as any[];
   const batches = lists.productBatches as any[];
@@ -90,12 +108,12 @@ export default async function PodLaunchStudioPage() {
     },
     {
       label: "Printify Sync",
-      status: config.providers.printify.enabled ? "Ready after gates" : "Action required",
-      tone: config.providers.printify.enabled ? "success" : "warning",
-      detail: config.providers.printify.enabled ? "Catalog, upload, and product creation routes can run after owner gates pass." : "Connect Printify before product drafts can be sent to fulfillment.",
-      setup: "Printify needs a protected server connection and selected shop before product creation is available.",
+      status: printifyConnected ? "Ready after gates" : "Action required",
+      tone: printifyConnected ? "success" : "warning",
+      detail: printifyConnected ? "Catalog, upload, and product creation routes can run after owner gates pass." : "Connect Printify before product drafts can be sent to fulfillment.",
+      setup: printifyProvider.safeMessage,
       href: "/studio/printify-catalog",
-      ready: config.providers.printify.enabled
+      ready: printifyConnected
     },
     {
       label: "Shopify Drafts",

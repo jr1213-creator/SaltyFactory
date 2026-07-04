@@ -21,14 +21,14 @@ async function postJson(url: string, body: Row) {
   return { response, data };
 }
 
-export function PrintifyCatalogClient({ drafts }: { drafts: Row[] }) {
+export function PrintifyCatalogClient({ drafts, initialShopId = "", initialShopName = "", connected = false }: { drafts: Row[]; initialShopId?: string; initialShopName?: string; connected?: boolean }) {
   const [shops, setShops] = useState<Row[]>([]);
   const [blueprints, setBlueprints] = useState<Row[]>([]);
   const [providers, setProviders] = useState<Row[]>([]);
   const [variants, setVariants] = useState<Row[]>([]);
   const [shipping, setShipping] = useState<Row[] | Row | null>(null);
   const [productDraftId, setProductDraftId] = useState(drafts[0]?.id ?? "");
-  const [shopId, setShopId] = useState("");
+  const [shopId, setShopId] = useState(initialShopId);
   const [blueprintId, setBlueprintId] = useState("");
   const [providerId, setProviderId] = useState("");
   const [salePrice, setSalePrice] = useState("32.00");
@@ -47,20 +47,20 @@ export function PrintifyCatalogClient({ drafts }: { drafts: Row[] }) {
   }
 
   return <div className="layout-grid" style={{ marginTop: 18 }}>
-    <PrintifyCatalogCard title="Printify Connection" description="Discover real Printify shops and save the selected shop as setup evidence. Product creation still requires PRINTIFY_SHOP_ID in protected server config.">
+    <PrintifyCatalogCard title="Printify Connection" description={connected ? "Printify is connected through Launch Setup Concierge. You can refresh shops or continue to catalog browsing." : "Discover real Printify shops and save the selected shop through Launch Setup Concierge."}>
       <div className="action-bar">
         <button className="btn btn-secondary" type="button" disabled={busy === "shops"} onClick={() => run("shops", async () => {
           const { data, response } = await getJson("/api/studio/integrations/printify/shops");
           setResult({ httpStatus: response.status, ...data });
           if (Array.isArray(data.shops)) setShops(data.shops);
         })}>Discover Shops</button>
-        <button className="btn btn-primary" type="button" disabled={!shopId || busy === "select-shop"} title={shopId ? "Persist selected shop metadata. Server env still controls live provider readiness." : "Discover and choose a Printify shop first."} onClick={() => run("select-shop", async () => {
+        <button className="btn btn-primary" type="button" disabled={!shopId || busy === "select-shop"} title={shopId ? "Persist selected shop metadata for the secure workspace provider connection." : "Discover and choose a Printify shop first."} onClick={() => run("select-shop", async () => {
           const selected = shops.find((shop) => shop.id === shopId);
           const { data, response } = await postJson("/api/studio/integrations/printify/shops/select", { shopId, title: selected?.title });
           setResult({ httpStatus: response.status, ...data });
         })}>Save Selected Shop</button>
       </div>
-      <label>Selected shop<select value={shopId} onChange={(event) => setShopId(event.target.value)}><option value="">Choose a discovered shop</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.title ?? shop.id}</option>)}</select></label>
+      <label>Selected shop<select value={shopId} onChange={(event) => setShopId(event.target.value)}><option value={initialShopId}>{initialShopName || initialShopId || "Choose a discovered shop"}</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.title ?? shop.id}</option>)}</select></label>
     </PrintifyCatalogCard>
 
     <PrintifyCatalogCard title="Catalog Browser" description="Fetch real blueprints, print providers, and variants from Printify. No IDs are invented.">

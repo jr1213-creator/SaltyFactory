@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission, requireReviewerOrAbove } from "@saltyfactory/auth";
-import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../../_auth";
+import { printifySetupRequiredResponse, printifyWorkspaceId, resolvePrintifyRuntime } from "../_runtime";
 
-const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 export const runtime = "nodejs";
 
 function sanitizeShop(shop: Record<string, unknown>) {
@@ -18,25 +17,14 @@ function sanitizeShop(shop: Record<string, unknown>) {
 
 export async function GET(req: Request) {
   try {
-    await requireReviewerOrAbove(req, workspaceId);
-    const config = parseEnv();
-    if (!config.PRINTIFY_ENABLED || !config.PRINTIFY_API_TOKEN) {
-      return NextResponse.json({
-        ok: false,
-        status: "not_configured",
-        provider: "printify",
-        setupRequired: ["PRINTIFY_ENABLED=true", "PRINTIFY_API_TOKEN"],
-        message: "Printify shop discovery requires a server-side API token and explicit feature flag."
-      }, { status: 503 });
+    await requireReviewerOrAbove(req, printifyWorkspaceId);
+    const runtime = await resolvePrintifyRuntime();
+    if (runtime.resolution.status !== "ready") return printifySetupRequiredResponse(runtime.resolution);
+    const result = await runtime.printify.getShops();
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, status: "failed", provider: "printify", message: sanitizeProviderError(result.error), retryable: result.retryable, rateLimited: result.rateLimited }, { status: result.rateLimited ? 429 : 502 });
     }
-    const response = await fetch("https://api.printify.com/v1/shops.json", {
-      headers: { authorization: `Bearer ${config.PRINTIFY_API_TOKEN}` }
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      return NextResponse.json({ ok: false, status: "failed", provider: "printify", message: sanitizeProviderError(data?.message ?? data?.error ?? response.statusText), retryable: response.status >= 500, rateLimited: response.status === 429 }, { status: response.status === 429 ? 429 : 502 });
-    }
-    const shops = Array.isArray(data) ? data.map((shop) => sanitizeShop(shop as Record<string, unknown>)).filter((shop) => shop.id) : [];
+    const shops = Array.isArray(result.data) ? result.data.map((shop) => sanitizeShop(shop as Record<string, unknown>)).filter((shop) => shop.id) : [];
     return NextResponse.json({ ok: true, provider: "printify", shops, tokenExposed: false });
   } catch (error) {
     return studioAuthErrorResponse(error);
@@ -45,7 +33,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireProviderMutationPermission(req, workspaceId);
+    const user = await requireProviderMutationPermission(req, printifyWorkspaceId);
     const body = await req.json().catch(() => ({}));
     const shopId = String(body.shopId || body.shop_id || "");
     const title = String(body.title || body.name || "Printify shop");
@@ -53,20 +41,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: ["printify_shop_id_required"] }, { status: 400 });
     }
     const repos = createRepositories();
-    const connection = await repos.integration.updateProviderConnectionStatus(workspaceId, "printify", {
-      id: "printify",
-      workspace_id: workspaceId,
-      status: "configured_not_verified",
+    const existing = await repos.integration.getProviderConnectionForWorkspace(printifyWorkspaceId, "printify");
+    const credentialRef = String(existing?.secret_ref ?? existing?.secretRef ?? "");
+    if (!credentialRef) {
+      return NextResponse.json({
+        ok: false,
+        status: "setup_required",
+        provider: "printify",
+        safeMessage: "Connect Printify in Launch Setup Concierge before selecting a shop.",
+        setupRequired: ["Connect Printify", "Validate Printify token"],
+        setupAction: "/studio/onboarding/providers/printify"
+      }, { status: 409 });
+    }
+    const connection = await repos.integration.updateProviderConnectionStatus(printifyWorkspaceId, "printify", {
+      id: existing?.id ? String(existing.id) : "printify",
+      workspace_id: printifyWorkspaceId,
+      status: "connected",
       provider_key: "printify",
       provider_type: "printify",
       provider_name: "Printify",
-      enabled: false,
-      configuration: { selectedShopId: shopId, selectedShopTitle: title },
-      setup_required: ["Set PRINTIFY_SHOP_ID in protected server config, then test the connection."],
+      secret_ref: credentialRef,
+      enabled: true,
+      configuration: { ...((existing?.configuration ?? {}) as Record<string, unknown>), selectedShopId: shopId, selectedShopName: title, maskedDisplayValue: "Saved securely" },
+      setup_required: [],
       updated_by: user.id
     }, {
       id: `audit_printify_shop_${Date.now()}`,
-      workspace_id: workspaceId,
+      workspace_id: printifyWorkspaceId,
       entity_type: "provider_connection",
       entity_id: "printify",
       action: "printify_shop_selected",
@@ -77,11 +78,11 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({
       ok: true,
-      status: "configured_not_verified",
+      status: "connected",
       provider: "printify",
       selectedShopId: shopId,
       connection,
-      setupRequired: ["Set PRINTIFY_SHOP_ID in protected server config, then test the connection."]
+      setupRequired: ["Live publish still requires owner gates"]
     });
   } catch (error) {
     return studioAuthErrorResponse(error);

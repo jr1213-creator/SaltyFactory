@@ -35,7 +35,7 @@ Every setup blocker must include a plain-English explanation, next action, setup
 | Marketing Command Center | Fully functional v1 | Guided launch campaign workflow creates persisted product-referenced campaign packets, proof packs, growth plans, channel drafts, asset specs, UTMs, tasks, recommendations, and approvals. |
 | Approvals | Fully functional v1 | Shared approvals cover marketing and AI employee outputs; approval pages expose real controls and audit/event records. |
 | Social Care | Manual/export-ready | Manual/imported social opportunities create source records, response notes, tasks, events, and audit logs. No live social provider inbox or reply sending is active. |
-| Shopify/Printify | Provider-backed draft creation when configured | Shopify Admin draft creation supports media, variants, SEO, update, get, and required collection assignment by real collection ID. Printify supports shop discovery, catalog/provider/variant/shipping discovery, image upload, print areas, product creation, and product retrieval. All actions block without exact server-side config, gates, and owner permission. Live publishing is still blocked by default. |
+| Shopify/Printify | Provider-backed draft creation when configured | Shopify Admin draft creation supports media, variants, SEO, update, get, and required collection assignment by real collection ID. Printify supports shop discovery, catalog/provider/variant/shipping discovery, image upload, print areas, product creation, and product retrieval. Guided provider credential records are the normal runtime path; advanced server env config is fallback only. All actions block without provider readiness, gates, and owner permission. Live publishing is still blocked by default. |
 | Google/Merchant/Search/Analytics | Honest foundation | Setup, OAuth/configuration helpers, readiness scoring, and sanitized sync/test paths exist. No fake analytics, ranking guarantees, or feed submission. |
 | Email/Social/Ads | Manual/export-ready | Drafts and campaign packets persist for manual/export use. Sending, posting, ad launch, and spend are not implemented. |
 | AI Hiring Desk | Owner-gated functional v1 | Missing-capability proposals create persisted hire requests, role specs, approvals, audit events, permission scopes, and employee definitions only after owner approval. New AI employees inherit global forbidden actions and receive no provider authority. |
@@ -219,7 +219,14 @@ The v1 adapter tests `shop.json` and creates draft products only after provider 
 
 ## Printify Setup
 
-Required env:
+Owner setup:
+
+- `/studio/onboarding/providers/printify`
+- Printify API token as a write-only secure field
+- server-side token validation through shops discovery
+- selected Printify shop after discovery
+
+Advanced protected server fallback:
 
 ```txt
 PRINTIFY_ENABLED=true
@@ -230,11 +237,13 @@ PRINTIFY_SHOP_ID=
 Account Center state:
 
 - `external_signup_required` when the owner must create/open a Printify account or generate a server-side API token.
-- `manual_setup_required` when `PRINTIFY_SHOP_ID` must be set from a real discovered shop.
+- `manual_setup_required` when the Printify token or shop must be saved through onboarding or protected server config.
 - `configured_not_verified` until a live API test succeeds.
 - `connected` only after a live API test succeeds.
 
-The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. The v1 adapter can fetch shops, catalog blueprints, print providers, variants, shipping snapshots, upload approved generated artwork to Printify media, build print areas, create draft products, and retrieve products only after approval gates pass.
+The setup route can discover real shops using the server-side token and returns sanitized shop candidates only. Once the guided provider record is connected, feature readiness, `/studio/printify-catalog`, catalog routes, artwork upload, and draft product creation use the encrypted workspace credential first. Env fallback is advanced/server-only and is used only when no connected provider record exists.
+
+The v1 adapter can fetch shops, catalog blueprints, print providers, variants, shipping snapshots, upload approved generated artwork to Printify media, build print areas, create draft products, and retrieve products only after approval gates pass. Draft creation does not publish live products; live publish remains a separate disabled/gated action.
 
 ## Domain, DNS, Email, and Merchant Feed Readiness
 

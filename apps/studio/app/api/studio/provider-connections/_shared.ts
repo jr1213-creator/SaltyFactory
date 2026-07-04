@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission, requireWorkspaceMember, type StudioUser } from "@saltyfactory/auth";
+import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
 import { publicImageGenerationProviderResolution, resolveImageGenerationProvider, validateHuggingFaceImageProvider } from "@saltyfactory/ai-free";
 import {
   HUGGING_FACE_IMAGE_PROVIDER,
   applyImageGenerationRuntimeReadiness,
+  applyPrintifyRuntimeReadiness,
   applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   buildOwnerSetupCards,
@@ -284,10 +286,14 @@ export async function handleProviderConnectionsList(req: Request) {
     const config = parseEnv();
     const connections = await repos.integration.listProviderConnectionsForWorkspace(workspaceId);
     const imageRuntime = await resolveImageGenerationProvider({ workspaceId, repos, config });
+    const printifyRuntime = await resolvePrintifyProvider({ workspaceId, repos, config });
     const storageRuntime = await checkStorageReadiness(config);
-    const report = applyImageGenerationRuntimeReadiness(
-      applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storageRuntime),
-      publicImageGenerationProviderResolution(imageRuntime)
+    const report = applyPrintifyRuntimeReadiness(
+      applyImageGenerationRuntimeReadiness(
+        applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, workspaceId), storageRuntime),
+        publicImageGenerationProviderResolution(imageRuntime)
+      ),
+      publicPrintifyProviderResolution(printifyRuntime)
     );
     const cards = buildOwnerSetupCards(report).map((card) => ({
       ...card,

@@ -308,7 +308,7 @@ describe("production UI guardrails", () => {
     expect(shopifyPost).toContain("getByProductDraftId");
     expect(printifyPost).toContain("getByProductDraftId");
     expect(shopifyPost).toContain("createCommerceProviders");
-    expect(printifyPost).toContain("createCommerceProviders");
+    expect(printifyPost).toContain("resolvePrintifyRuntime");
     expect(shopifyPost).not.toContain("fixtures.publishReviewBlocked");
     expect(printifyPost).not.toContain("fixtures.publishReviewBlocked");
     expect(shopifyPost).not.toMatch(/config\.SHOPIFY_ADMIN_TOKEN|config\.PRINTIFY_API_TOKEN|config\.SUPABASE_SERVICE_ROLE_KEY/);

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { requirePublishPermission, requireReviewerOrAbove } from "@saltyfactory/auth";
-import { createCommerceProviders } from "@saltyfactory/commerce";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../_auth";
+import { printifySetupRequiredResponse, resolvePrintifyRuntime } from "../../integrations/printify/_runtime";
 import {
   defaultPrintAreas,
   extractProviderProductId,
@@ -42,7 +42,8 @@ export async function POST(req: Request) {
     const gates = evaluatePublishReviewGates(review);
     if (!gates.printifyAllowed) return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: gates.blockedReasons, gates }, { status: 409 });
     const config = parseEnv();
-    if (!config.providers.printify.enabled) return NextResponse.json({ ok: false, status: "not_configured", setupRequired: ["PRINTIFY_ENABLED=true", "PRINTIFY_API_TOKEN", "PRINTIFY_SHOP_ID"] }, { status: 503 });
+    const printifyRuntime = await resolvePrintifyRuntime(repos);
+    if (printifyRuntime.resolution.status !== "ready") return printifySetupRequiredResponse(printifyRuntime.resolution);
     const artwork = await getApprovedGeneratedArtwork({ repos, workspaceId, draft });
     if (!artwork.ok) return NextResponse.json({ ok: false, status: artwork.status, blockingReasons: artwork.blockingReasons }, { status: 409 });
     const variantsResult = await getDraftVariants({ repos, workspaceId, draftId: productDraftId });
@@ -56,7 +57,6 @@ export async function POST(req: Request) {
     if (!blueprintId || !printProviderId) {
       return NextResponse.json({ ok: false, status: "blocked_by_guardrail", blockingReasons: ["printify_blueprint_and_provider_selection_required"] }, { status: 409 });
     }
-    const commerce = createCommerceProviders(config);
     const assetMetadata = metadataOf(artwork.asset);
     let uploadId = String(assetMetadata.printify_upload_id ?? assetMetadata.printifyUploadId ?? "");
     if (!uploadId) {
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       if ("ok" in source) {
         return NextResponse.json({ ok: false, status: source.status, blockingReasons: source.blockingReasons, setupRequired: source.setupRequired }, { status: source.status === "not_configured" ? 503 : 409 });
       }
-      const upload = await commerce.printify.uploadImage({
+      const upload = await printifyRuntime.printify.uploadImage({
         fileName: source.fileName,
         contents: source.contents,
         url: source.url
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     const printAreas = Array.isArray(body.printAreas ?? body.print_areas) && (body.printAreas ?? body.print_areas).length
       ? body.printAreas ?? body.print_areas
       : defaultPrintAreas({ uploadId, variantIds, placement: body.placement });
-    const result = await commerce.printify.createProduct({
+    const result = await printifyRuntime.printify.createProduct({
       title: draft.title,
       description: draft.description,
       blueprintId,
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
       workspace_id: workspaceId,
       product_draft_id: productDraftId,
       printify_product_id: printifyProductId,
-      printify_shop_id: config.PRINTIFY_SHOP_ID,
+      printify_shop_id: printifyRuntime.resolution.shopId ?? "",
       printify_blueprint_id: blueprintId,
       printify_print_provider_id: printProviderId,
       printify_upload_id: uploadId,
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     let mockupSyncStatus = "mockups_not_checked";
     let mockupUrls: string[] = [];
     if (printifyProductId) {
-      const mockupSync = await fetchPrintifyProductWithMockupRetry(commerce.printify, printifyProductId);
+      const mockupSync = await fetchPrintifyProductWithMockupRetry(printifyRuntime.printify, printifyProductId);
       mockupSyncStatus = mockupSync.status;
       if (mockupSync.ok) {
         mockupUrls = mockupSync.mockupUrls;

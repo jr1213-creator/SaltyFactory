@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission } from "@saltyfactory/auth";
-import { createCommerceProviders } from "@saltyfactory/commerce";
-import { parseEnv } from "@saltyfactory/config";
 import { createPrintifySetupState, redactLaunchError } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../../../_auth";
+import { printifySetupRequiredResponse, printifyWorkspaceId, resolvePrintifyRuntime } from "../_runtime";
 
-const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 export const runtime = "nodejs";
 
 async function bodyFromRequest(req: Request) {
@@ -41,46 +39,34 @@ function sanitizeBlueprint(blueprint: Record<string, unknown>) {
 
 export async function POST(req: Request) {
   try {
-    await requireProviderMutationPermission(req, workspaceId);
+    await requireProviderMutationPermission(req, printifyWorkspaceId);
     const body = await bodyFromRequest(req);
     const action = typeof body.action === "string" ? body.action : "status";
-    const config = parseEnv();
+    const runtime = await resolvePrintifyRuntime();
     const setupState = createPrintifySetupState({
-      enabled: config.PRINTIFY_ENABLED,
-      hasApiToken: Boolean(config.PRINTIFY_API_TOKEN),
-      shopId: config.PRINTIFY_SHOP_ID,
-      persistedStatus: config.providers.printify.enabled ? "configured_not_verified" : "not_configured"
+      enabled: runtime.resolution.status === "ready",
+      hasApiToken: runtime.resolution.status === "ready" || runtime.resolution.credentialSource === "credential_store",
+      shopId: runtime.resolution.shopId ?? null,
+      persistedStatus: runtime.resolution.status === "ready" ? "connected" : runtime.resolution.status === "owner_gated" ? "needs_input" : "not_configured"
     });
 
     if (action === "status") {
-      return NextResponse.json({ ok: true, status: setupState.status, provider: "printify", setup: setupState });
+      return NextResponse.json({ ok: true, status: runtime.resolution.status === "ready" ? "connected" : setupState.status, provider: "printify", setup: setupState, printify: runtime.resolution });
     }
 
     if (action === "discover_shops") {
-      if (!config.PRINTIFY_ENABLED || !config.PRINTIFY_API_TOKEN) {
+      if (runtime.resolution.status !== "ready") return printifySetupRequiredResponse(runtime.resolution);
+      const result = await runtime.printify.getShops();
+      if (!result.ok) {
         return NextResponse.json({
           ok: false,
-          status: setupState.status,
+          status: result.error.includes("401") || result.error.includes("403") ? "access_limited" : "failed",
           provider: "printify",
-          message: "Printify shop discovery requires PRINTIFY_ENABLED=true and PRINTIFY_API_TOKEN in protected server config.",
-          setup: setupState
-        }, { status: 503 });
+          message: sanitizeProviderError(result.error),
+          setup: { ...setupState, sanitizedError: redactLaunchError(result.error) }
+        }, { status: result.rateLimited ? 429 : 502 });
       }
-      const response = await fetch("https://api.printify.com/v1/shops.json", {
-        method: "GET",
-        headers: { authorization: `Bearer ${config.PRINTIFY_API_TOKEN}`, "content-type": "application/json" }
-      });
-      const raw = await response.json().catch(() => ([]));
-      if (!response.ok) {
-        return NextResponse.json({
-          ok: false,
-          status: response.status === 401 || response.status === 403 ? "access_limited" : "failed",
-          provider: "printify",
-          message: sanitizeProviderError((raw as any)?.error ?? (raw as any)?.message ?? `Printify HTTP ${response.status}`),
-          setup: { ...setupState, sanitizedError: redactLaunchError(raw) }
-        }, { status: response.status === 401 || response.status === 403 ? 403 : 502 });
-      }
-      const shops = Array.isArray(raw) ? raw.map((shop) => sanitizeShop(shop as Record<string, unknown>)).filter((shop) => shop.id) : [];
+      const shops = Array.isArray(result.data) ? result.data.map((shop) => sanitizeShop(shop as Record<string, unknown>)).filter((shop) => shop.id) : [];
       const status = shops.length === 1 ? "requires_owner_action" : shops.length > 1 ? "requires_owner_action" : "manual_setup_required";
       return NextResponse.json({
         ok: true,
@@ -89,21 +75,13 @@ export async function POST(req: Request) {
         shops,
         autoSaved: false,
         tokenExposed: false,
-        message: shops.length ? "Select the real Salty Cowhide Printify shop and set PRINTIFY_SHOP_ID in protected server config, then test the connection." : "No Printify shops were returned for this token."
+        message: shops.length ? "Select the real Salty Cowhide Printify shop in Launch Setup Concierge." : "No Printify shops were returned for this token."
       });
     }
 
     if (action === "discover_catalog") {
-      if (!config.providers.printify.enabled) {
-        return NextResponse.json({
-          ok: false,
-          status: setupState.status,
-          provider: "printify",
-          message: "Printify catalog discovery requires a verified token and shop ID in protected server config.",
-          setup: setupState
-        }, { status: 503 });
-      }
-      const result = await createCommerceProviders(config).printify.getCatalog();
+      if (runtime.resolution.status !== "ready") return printifySetupRequiredResponse(runtime.resolution);
+      const result = await runtime.printify.getCatalog();
       if (!result.ok) {
         return NextResponse.json({ ok: false, status: "failed", provider: "printify", message: sanitizeProviderError(result.error), setupRequired: result.setupRequired ?? setupState.setupRequired }, { status: 502 });
       }

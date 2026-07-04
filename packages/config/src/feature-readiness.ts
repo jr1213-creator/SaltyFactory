@@ -65,6 +65,18 @@ export type StorageRuntimeReadiness = {
   };
 };
 
+export type PrintifyRuntimeReadiness = {
+  status: "ready" | "config_required" | "invalid" | "owner_gated";
+  provider: "printify" | "disabled";
+  shopId?: string;
+  shopName?: string;
+  credentialSource: "credential_store" | "env" | "none";
+  safeMessage: string;
+  setupAction: string;
+  setupRequired: string[];
+  blockingReasons: string[];
+};
+
 export const featureReadinessEnvVars = [
   "NODE_ENV",
   "APP_ENV",
@@ -629,6 +641,75 @@ export function applyStorageRuntimeReadiness(
         disabledFlags: unique([...feature.disabledFlags, "private_storage_blocked"]),
         setupRequired: unique([...feature.setupRequired, ...(storage.setupRequired.length ? storage.setupRequired : ["Run the storage readiness diagnostic."])]),
         notes: unique([...feature.notes, storage.safeMessage])
+      };
+    }
+    return feature;
+  });
+
+  return {
+    ...report,
+    features,
+    summary: summarize(features),
+    safeLocalTesting: features
+      .filter((item) => item.canTestWithoutProvider)
+      .map((item) => ({
+        featureKey: item.featureKey,
+        label: item.label,
+        ...(item.safeLocalRoute ? { route: item.safeLocalRoute } : {})
+      }))
+  };
+}
+
+export function applyPrintifyRuntimeReadiness(
+  report: FeatureReadinessReport,
+  runtime: PrintifyRuntimeReadiness
+): FeatureReadinessReport {
+  const features = report.features.map((feature) => {
+    if (feature.featureKey !== "printify") return feature;
+    if (runtime.status === "ready") {
+      const sourceLabel = runtime.credentialSource === "credential_store" ? "secure workspace credential" : "advanced server fallback";
+      return {
+        ...feature,
+        status: "ready" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [`printify_provider:${runtime.provider}`, `credential_source:${runtime.credentialSource}`],
+        disabledFlags: [],
+        setupRequired: [],
+        canTestWithoutProvider: false,
+        notes: [
+          runtime.credentialSource === "credential_store"
+            ? "Printify connected through Launch Setup Concierge."
+            : "Printify is configured through advanced server environment fallback.",
+          runtime.shopId ? `Shop ID: ${runtime.shopId}.` : "",
+          runtime.shopName ? `Shop: ${runtime.shopName}.` : "",
+          `Credential source: ${sourceLabel}.`,
+          "Live publish remains disabled unless explicitly enabled and all owner gates pass."
+        ].filter(Boolean)
+      };
+    }
+    if (runtime.status === "owner_gated") {
+      return {
+        ...feature,
+        status: "owner_gated" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [],
+        disabledFlags: [],
+        setupRequired: runtime.setupRequired.length ? runtime.setupRequired : runtime.blockingReasons,
+        notes: [runtime.safeMessage]
+      };
+    }
+    if (runtime.status === "invalid") {
+      return {
+        ...feature,
+        status: "config_blocked" as const,
+        requiredEnv: [],
+        missingEnv: [],
+        enabledFlags: [],
+        disabledFlags: [],
+        setupRequired: runtime.setupRequired.length ? runtime.setupRequired : runtime.blockingReasons,
+        notes: [runtime.safeMessage]
       };
     }
     return feature;

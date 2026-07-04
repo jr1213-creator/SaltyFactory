@@ -142,7 +142,11 @@ for (const path of ["publish/shopify", "publish/printify"]) {
   if (!post.includes("evaluatePublishReviewGates")) failures.push(`${path}: publish POST gate evaluator missing`);
   if (!post.includes("getByProductDraftId")) failures.push(`${path}: publish POST must load persisted publish review`);
   if (!post.includes("blocked_by_guardrail")) failures.push(`${path}: publish POST must return blocked_by_guardrail for unsafe requests`);
-  if (!post.includes("createCommerceProviders")) failures.push(`${path}: publish POST must use real commerce provider adapter`);
+  if (path === "publish/printify") {
+    if (!post.includes("resolvePrintifyRuntime")) failures.push(`${path}: publish POST must use the Printify runtime resolver`);
+  } else if (!post.includes("createCommerceProviders")) {
+    failures.push(`${path}: publish POST must use real commerce provider adapter`);
+  }
   if (/fixtures\.publishReviewBlocked/.test(routeText)) failures.push(`${path}: publish POST must not use fixture publish review`);
 }
 

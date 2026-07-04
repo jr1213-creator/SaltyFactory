@@ -1,11 +1,35 @@
 import { assertPublishAllowedForPrintify, assertPublishAllowedForShopify, type PublishReview } from "@saltyfactory/domain";
 import type { RuntimeConfig } from "@saltyfactory/config";
-import { sanitizeProviderError } from "@saltyfactory/security";
+import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
+import { decryptCredential, sanitizeProviderError } from "@saltyfactory/security";
 
 export type CommerceResult<T> = { ok: true; data: T } | { ok: false; error: string; retryable?: boolean; rateLimited?: boolean; setupRequired?: string[] };
 
 const disabled = <T>(error = "provider_disabled", setupRequired: string[] = []): CommerceResult<T> => ({ ok: false, error, setupRequired });
 export type ShopifyCredentialMode = "legacy_admin_token" | "dev_dashboard_client_credentials";
+export type PrintifyRuntimeStatus = "ready" | "config_required" | "invalid" | "owner_gated";
+export type PrintifyRuntimeProvider = "printify" | "disabled";
+export type PrintifyCredentialSource = "credential_store" | "env" | "none";
+
+export type PublicPrintifyProviderResolution = {
+  status: PrintifyRuntimeStatus;
+  provider: PrintifyRuntimeProvider;
+  shopId?: string;
+  shopName?: string;
+  credentialSource: PrintifyCredentialSource;
+  setupAction: string;
+  safeMessage: string;
+  setupRequired: string[];
+  blockingReasons: string[];
+  connectionId?: string;
+};
+
+export type PrintifyProviderResolution = PublicPrintifyProviderResolution & {
+  serverCredential?: {
+    token: string;
+    source: Extract<PrintifyCredentialSource, "credential_store" | "env">;
+  };
+};
 
 export type ShopifyAdminAuthConfig = {
   credentialMode?: ShopifyCredentialMode;
@@ -25,6 +49,256 @@ type ShopifyResolvedToken = {
 
 function hasText(value: string | undefined | null) {
   return Boolean(value && value.trim().length > 0);
+}
+
+const PRINTIFY_SETUP_ACTION = "/studio/onboarding/providers/printify";
+
+function credentialStorageReady(config: RuntimeConfig) {
+  return Boolean(config.CREDENTIAL_STORAGE_ENABLED && config.CREDENTIAL_ENCRYPTION_KEY && config.CREDENTIAL_ENCRYPTION_KEY.trim().length >= 32);
+}
+
+function field(row: WorkspaceRow | null | undefined, ...keys: string[]) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "boolean") return String(value);
+  }
+  return "";
+}
+
+function record(row: WorkspaceRow | null | undefined, ...keys: string[]): Record<string, unknown> {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+function withPrintifyServerCredential(
+  resolution: PublicPrintifyProviderResolution,
+  credential?: PrintifyProviderResolution["serverCredential"]
+): PrintifyProviderResolution {
+  const result = { ...resolution } as PrintifyProviderResolution;
+  if (credential) {
+    Object.defineProperty(result, "serverCredential", {
+      value: credential,
+      enumerable: false,
+      configurable: false,
+      writable: false
+    });
+  }
+  return result;
+}
+
+function publicPrintifyResolution(input: PublicPrintifyProviderResolution): PrintifyProviderResolution {
+  return withPrintifyServerCredential(input);
+}
+
+function invalidPrintifyResolution(input: {
+  safeMessage: string;
+  setupRequired: string[];
+  blockingReasons?: string[];
+  shopId?: string;
+  shopName?: string;
+  connectionId?: string;
+  status?: Extract<PrintifyRuntimeStatus, "invalid" | "owner_gated">;
+}) {
+  return publicPrintifyResolution({
+    status: input.status ?? "invalid",
+    provider: "printify",
+    ...(input.shopId ? { shopId: input.shopId } : {}),
+    ...(input.shopName ? { shopName: input.shopName } : {}),
+    credentialSource: "credential_store",
+    setupAction: PRINTIFY_SETUP_ACTION,
+    safeMessage: input.safeMessage,
+    setupRequired: input.setupRequired,
+    blockingReasons: input.blockingReasons ?? input.setupRequired,
+    ...(input.connectionId ? { connectionId: input.connectionId } : {})
+  });
+}
+
+async function findPrintifyConnection(repos: RepositoryBundle, workspaceId: string) {
+  const direct = await repos.integration.getProviderConnectionForWorkspace(workspaceId, "printify");
+  if (direct) return direct;
+  return (await repos.integration.listProviderConnectionsForWorkspace(workspaceId)).find((row) => {
+    const providerKey = field(row, "provider_key", "providerKey", "provider_type", "providerType", "provider");
+    return providerKey === "printify";
+  }) ?? null;
+}
+
+async function resolveCredentialStorePrintifyProvider(input: {
+  repos?: RepositoryBundle | undefined;
+  config: RuntimeConfig;
+  workspaceId: string;
+}) {
+  if (!input.repos) return null;
+  const connection = await findPrintifyConnection(input.repos, input.workspaceId);
+  if (!connection) return null;
+  const status = field(connection, "status");
+  const enabled = connection.enabled ?? connection["enabled"];
+  const connectionId = connection.id;
+  const configuration = record(connection, "configuration", "metadata");
+  const shopId = String(configuration.selectedShopId ?? configuration.shopId ?? field(connection, "shop_id", "shopId")).trim();
+  const shopName = String(configuration.selectedShopName ?? configuration.shopName ?? configuration.title ?? "").trim();
+  const credentialRef = field(connection, "secret_ref", "secretRef", "credential_ref", "credentialRef");
+
+  if (status !== "connected") {
+    if (credentialRef && (status === "needs_input" || status === "configured_not_verified")) {
+      return invalidPrintifyResolution({
+        status: "owner_gated",
+        safeMessage: "Printify token is saved, but a shop has not been selected yet.",
+        setupRequired: ["Select Printify shop"],
+        blockingReasons: ["printify_shop_not_selected"],
+        shopId,
+        shopName,
+        connectionId
+      });
+    }
+    return null;
+  }
+  if (enabled === false) {
+    return invalidPrintifyResolution({
+      safeMessage: "The saved Printify connection is connected but disabled. Reconnect it from Launch Setup Concierge.",
+      setupRequired: ["Reconnect Printify"],
+      blockingReasons: ["provider_connection_disabled"],
+      shopId,
+      shopName,
+      connectionId
+    });
+  }
+  if (!shopId) {
+    return invalidPrintifyResolution({
+      safeMessage: "The connected Printify provider is missing a selected shop. Choose the shop in Launch Setup Concierge.",
+      setupRequired: ["Select Printify shop"],
+      blockingReasons: ["printify_shop_id_missing"],
+      connectionId
+    });
+  }
+  if (!credentialRef) {
+    return invalidPrintifyResolution({
+      safeMessage: "The connected Printify provider is missing its secure credential reference. Reconnect Printify from Launch Setup Concierge.",
+      setupRequired: ["Reconnect Printify token"],
+      blockingReasons: ["credential_reference_missing"],
+      shopId,
+      shopName,
+      connectionId
+    });
+  }
+  if (!credentialStorageReady(input.config)) {
+    return invalidPrintifyResolution({
+      safeMessage: "Secure credential storage is not available, so the saved Printify connection cannot be used at runtime.",
+      setupRequired: ["Enable encrypted credential storage", "Configure the server encryption key"],
+      blockingReasons: ["credential_storage_unavailable"],
+      shopId,
+      shopName,
+      connectionId
+    });
+  }
+  try {
+    const credential = await input.repos.integration.getCredentialForServerUseOnly(input.workspaceId, credentialRef);
+    if (!credential || credential.status === "revoked") {
+      return invalidPrintifyResolution({
+        safeMessage: "The saved Printify credential is not active. Reconnect Printify from Launch Setup Concierge.",
+        setupRequired: ["Reconnect Printify token"],
+        blockingReasons: ["credential_inactive"],
+        shopId,
+        shopName,
+        connectionId
+      });
+    }
+    const token = decryptCredential(credential.encrypted_payload as any, input.config.CREDENTIAL_ENCRYPTION_KEY);
+    if (!token.trim()) {
+      return invalidPrintifyResolution({
+        safeMessage: "The saved Printify credential is empty. Reconnect Printify from Launch Setup Concierge.",
+        setupRequired: ["Reconnect Printify token"],
+        blockingReasons: ["credential_empty"],
+        shopId,
+        shopName,
+        connectionId
+      });
+    }
+    return withPrintifyServerCredential({
+      status: "ready",
+      provider: "printify",
+      shopId,
+      ...(shopName ? { shopName } : {}),
+      credentialSource: "credential_store",
+      setupAction: PRINTIFY_SETUP_ACTION,
+      safeMessage: "Printify connected through Launch Setup Concierge.",
+      setupRequired: [],
+      blockingReasons: [],
+      connectionId
+    }, { token, source: "credential_store" });
+  } catch {
+    return invalidPrintifyResolution({
+      safeMessage: "The saved Printify credential could not be read. Reconnect Printify from Launch Setup Concierge.",
+      setupRequired: ["Reconnect Printify token"],
+      blockingReasons: ["credential_read_failed"],
+      shopId,
+      shopName,
+      connectionId
+    });
+  }
+}
+
+function resolveEnvPrintifyProvider(config: RuntimeConfig) {
+  if (!config.PRINTIFY_ENABLED) return null;
+  if (!config.PRINTIFY_API_TOKEN || !config.PRINTIFY_SHOP_ID) {
+    return publicPrintifyResolution({
+      status: "config_required",
+      provider: "disabled",
+      credentialSource: "none",
+      setupAction: PRINTIFY_SETUP_ACTION,
+      safeMessage: "Advanced server Printify configuration is incomplete.",
+      setupRequired: ["Connect Printify in Launch Setup Concierge, or configure advanced server Printify fallback"],
+      blockingReasons: ["env_token_or_shop_missing"]
+    });
+  }
+  return withPrintifyServerCredential({
+    status: "ready",
+    provider: "printify",
+    shopId: config.PRINTIFY_SHOP_ID,
+    credentialSource: "env",
+    setupAction: PRINTIFY_SETUP_ACTION,
+    safeMessage: "Printify is configured through advanced server environment fallback.",
+    setupRequired: [],
+    blockingReasons: []
+  }, { token: config.PRINTIFY_API_TOKEN, source: "env" });
+}
+
+export async function resolvePrintifyProvider(input: {
+  workspaceId: string;
+  repos?: RepositoryBundle | undefined;
+  config: RuntimeConfig;
+}): Promise<PrintifyProviderResolution> {
+  const credentialStore = await resolveCredentialStorePrintifyProvider(input);
+  if (credentialStore) return credentialStore;
+  const envProvider = resolveEnvPrintifyProvider(input.config);
+  if (envProvider) return envProvider;
+  return publicPrintifyResolution({
+    status: "config_required",
+    provider: "disabled",
+    credentialSource: "none",
+    setupAction: PRINTIFY_SETUP_ACTION,
+    safeMessage: "Printify is not connected. Connect Printify in Launch Setup Concierge before catalog browsing, uploads, or draft product creation.",
+    setupRequired: ["Connect Printify", "Validate Printify token", "Select Printify shop"],
+    blockingReasons: ["printify_provider_not_connected"]
+  });
+}
+
+export function publicPrintifyProviderResolution(resolution: PrintifyProviderResolution): PublicPrintifyProviderResolution {
+  return {
+    status: resolution.status,
+    provider: resolution.provider,
+    ...(resolution.shopId ? { shopId: resolution.shopId } : {}),
+    ...(resolution.shopName ? { shopName: resolution.shopName } : {}),
+    credentialSource: resolution.credentialSource,
+    setupAction: resolution.setupAction,
+    safeMessage: resolution.safeMessage,
+    setupRequired: [...resolution.setupRequired],
+    blockingReasons: [...resolution.blockingReasons],
+    ...(resolution.connectionId ? { connectionId: resolution.connectionId } : {})
+  };
 }
 
 function normalizeShopifyAuth(input: ShopifyAdminAuthInput): ShopifyAdminAuthConfig {
@@ -418,6 +692,12 @@ export const createCommerceProviders = (c: RuntimeConfig, fetcher?: typeof fetch
   }, c.LIVE_PUBLISHING_ENABLED, fetcher) : new ShopifyAdminProviderDisabled()),
   printify: c.providers.printify.enabled ? new PrintifyProviderLive(c.PRINTIFY_API_TOKEN, c.PRINTIFY_SHOP_ID, fetcher) : new PrintifyProviderDisabled()
 });
+
+export function createPrintifyProviderFromResolution(resolution: PrintifyProviderResolution, fetcher?: typeof fetch) {
+  const token = resolution.serverCredential?.token ?? "";
+  if (resolution.status !== "ready" || !token || !resolution.shopId) return new PrintifyProviderDisabled();
+  return new PrintifyProviderLive(token, resolution.shopId, fetcher);
+}
 
 export const safeProductProjection = (p: any) => ({ id: p.id, handle: p.handle, title: p.title, description: p.description, images: p.images ?? [], variants: p.variants ?? [] });
 export const structuredDataProductProjection = (p: any) => ({ "@context": "https://schema.org", "@type": "Product", name: p.title, description: p.description, brand: { "@type": "Brand", name: "Salty Cowhide Co." } });

@@ -1,5 +1,6 @@
 import { publicImageGenerationProviderResolution, resolveImageGenerationProvider } from "@saltyfactory/ai-free";
-import { applyImageGenerationRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
+import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
+import { applyImageGenerationRuntimeReadiness, applyPrintifyRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { checkStorageReadiness } from "@saltyfactory/storage";
 import { AdvancedConfigDetails, PageHeader, SetupProviderCard } from "@saltyfactory/ui";
@@ -21,11 +22,16 @@ function openRepositoriesSafely(): RepositoryBundle | undefined {
 
 export default async function StudioSetupPage() {
   const config = parseEnv();
-  const provider = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos: openRepositoriesSafely(), config });
+  const repos = openRepositoriesSafely();
+  const provider = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config });
+  const printify = await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos, config });
   const storageDiagnostic = await checkStorageReadiness(config);
-  const report = applyImageGenerationRuntimeReadiness(
-    applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, studioWorkspaceId), storageDiagnostic),
-    publicImageGenerationProviderResolution(provider)
+  const report = applyPrintifyRuntimeReadiness(
+    applyImageGenerationRuntimeReadiness(
+      applyStorageRuntimeReadiness(buildFeatureReadiness(config, process.env, studioWorkspaceId), storageDiagnostic),
+      publicImageGenerationProviderResolution(provider)
+    ),
+    publicPrintifyProviderResolution(printify)
   );
   const cards = buildOwnerSetupCards(report);
   const internalReady = report.features.filter((feature) => feature.canTestWithoutProvider && !["printify", "shopify", "imageGeneration"].includes(feature.featureKey));

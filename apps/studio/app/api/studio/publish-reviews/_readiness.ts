@@ -1,4 +1,6 @@
 import { evaluatePublishReviewGates, type PublishReview } from "@saltyfactory/domain";
+import { resolvePrintifyProvider } from "@saltyfactory/commerce";
+import { parseEnv } from "@saltyfactory/config";
 import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
 
 export const computedGateDefaults = {
@@ -82,7 +84,15 @@ export async function evaluatePublishReadiness(input: {
       const variants = await input.repos.variant.listByDraft(input.workspaceId, input.draftId);
       const printifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "printify");
       const shopifyConnection = await input.repos.integration.getProviderConnectionForWorkspace(input.workspaceId, "shopify");
-      gates.printify_variants_valid = providerTarget !== "printify_draft" || (variants.length > 0 && variants.every((row) => hasText(row.printify_variant_id ?? row.printifyVariantId)) && connected(printifyConnection));
+      let printifyReady = connected(printifyConnection);
+      if (!printifyReady) {
+        try {
+          printifyReady = (await resolvePrintifyProvider({ workspaceId: input.workspaceId, repos: input.repos, config: parseEnv() })).status === "ready";
+        } catch {
+          printifyReady = false;
+        }
+      }
+      gates.printify_variants_valid = providerTarget !== "printify_draft" || (variants.length > 0 && variants.every((row) => hasText(row.printify_variant_id ?? row.printifyVariantId)) && printifyReady);
       const shopifyCollectionId = String(metadata.shopify_collection_id ?? metadata.shopifyCollectionId ?? "");
       gates.shopify_collection_assigned = providerTarget !== "shopify_draft" || (hasText(shopifyCollectionId) && connected(shopifyConnection));
       if (!gates.printify_variants_valid) notes.push("printify_variant_or_connection_missing");

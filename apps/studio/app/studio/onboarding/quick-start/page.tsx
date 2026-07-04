@@ -1,9 +1,11 @@
 import { ConciergeHeader, ImageGenerationSetupForms, PrintifySetupForms, SetupCardGrid, ShopifySetupForms } from "../_components";
+import { runtimeOwnerSetupCards } from "../_runtime-readiness";
 
-export default function QuickStartPage() {
+export default async function QuickStartPage() {
+  const cards = await runtimeOwnerSetupCards();
   return <div className="setup-command-page onboarding-command-page">
     <ConciergeHeader title="Quick Setup" description="A faster setup lane for owners who already have provider values. Secrets are still write-only, encrypted when credential storage is enabled, and validated server-side." />
-    <SetupCardGrid providers={["image_generation", "printify", "shopify", "storage", "banking", "live_publish"]} />
+    <SetupCardGrid cards={cards} providers={["image_generation", "printify", "shopify", "storage", "banking", "live_publish"]} />
     <section className="setup-section">
       <div className="setup-section-header">
         <div>

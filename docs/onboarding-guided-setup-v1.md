@@ -72,7 +72,20 @@ Provider validation runs server-side only:
 
 Validation responses return only safe status, setup requirements, next step, masked display, and sanitized metadata.
 
-Validated provider records are the runtime source of truth. When image generation is connected through Launch Setup Concierge, feature readiness, `/studio/image-generation`, approved-brief generation, and the worker use the secure workspace credential record. Owners should not need to edit `.env.local` after guided setup succeeds.
+Validated provider records are the runtime source of truth. When image generation or Printify is connected through Launch Setup Concierge, feature readiness and runtime actions use the secure workspace credential record. Owners should not need to edit `.env.local` after guided setup succeeds.
+
+## Printify Setup
+
+The Printify onboarding page is the normal runtime setup path:
+
+- save the Printify token through the write-only secure field
+- validate the token server-side
+- discover real Printify shops
+- select the shop for the workspace
+
+After the provider record is `connected`, Printify readiness, `/studio/printify-catalog`, catalog browsing, artwork upload, and draft product creation resolve through the encrypted workspace credential first. Advanced server env fallback remains available only for technical deployments and must not override a connected provider record.
+
+Owner-facing Printify blockers should say `Connect Printify`, `Validate Printify token`, or `Select Printify shop`; they should not show `PRINTIFY_API_TOKEN missing` as the primary path. Product creation still requires approved artwork, valid variants, pricing, publish review gates, and owner permission. Live publishing remains separate and disabled unless explicit live-publish gates are enabled.
 
 ## Image Generation Setup
 

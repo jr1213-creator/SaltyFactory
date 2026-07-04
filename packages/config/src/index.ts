@@ -195,6 +195,7 @@ export type {
 } from "./hugging-face-image";
 export {
   applyImageGenerationRuntimeReadiness,
+  applyPrintifyRuntimeReadiness,
   applyStorageRuntimeReadiness,
   buildFeatureReadiness,
   featureReadinessEnvVars
@@ -204,6 +205,7 @@ export type {
   FeatureReadinessReport,
   FeatureReadinessStatus,
   ImageGenerationRuntimeReadiness,
+  PrintifyRuntimeReadiness,
   StorageRuntimeReadiness
 } from "./feature-readiness";
 export {

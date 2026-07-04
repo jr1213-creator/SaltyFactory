@@ -24,7 +24,18 @@ Required behavior:
 - No PowerShell.
 - No manual API calls.
 - No fake upload IDs or product IDs.
+- A connected Printify provider record is the normal runtime source for readiness, catalog browsing, uploads, and draft product creation.
+- Protected env vars are advanced server fallback only when no connected provider record exists.
+- Owners should not edit `.env.local` after guided setup succeeds.
 - Live Printify publishing remains owner-gated.
+
+Runtime behavior:
+- First choice: connected workspace provider credential record for `printify`.
+- Second choice: advanced server env fallback using `PRINTIFY_ENABLED`, `PRINTIFY_API_TOKEN`, and `PRINTIFY_SHOP_ID`.
+- Final state: `setup_required` with a link back to `/studio/onboarding/providers/printify`.
+- Server-side code decrypts the token only inside the Printify call. Tokens are never returned to the browser or logs.
+- Product creation still requires approved generated artwork, selected variants, pricing, publish review gates, and owner permission.
+- Live publish remains separate from draft creation and disabled by default.
 
 ## Shopify
 

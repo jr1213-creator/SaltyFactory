@@ -3,14 +3,13 @@ import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@salt
 import { applyImageGenerationRuntimeReadiness, applyPrintifyRuntimeReadiness, applyStorageRuntimeReadiness, buildFeatureReadiness, buildOwnerSetupCards, parseEnv } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
 import { checkStorageReadiness } from "@saltyfactory/storage";
-import { studioWorkspaceId } from "../../../../api/studio/design-suggestions/_shared";
-import { FieldGuides, PrintifySetupForms, ProviderIntro, SetupCardGrid } from "../../_components";
+import { studioWorkspaceId } from "../../api/studio/design-suggestions/_shared";
 
 function canOpenRepositories() {
   return process.env.NODE_ENV === "test" || process.env.REPOSITORY_ADAPTER === "memory" || Boolean(process.env.DATABASE_URL) || process.env.APP_ENV === "production";
 }
 
-function openRepositoriesSafely(): RepositoryBundle | undefined {
+export function openOnboardingRepositoriesSafely(): RepositoryBundle | undefined {
   if (!canOpenRepositories()) return undefined;
   try {
     return createRepositories();
@@ -19,9 +18,9 @@ function openRepositoriesSafely(): RepositoryBundle | undefined {
   }
 }
 
-export default async function PrintifySetupPage() {
+export async function runtimeOwnerSetupCards() {
   const config = parseEnv();
-  const repos = openRepositoriesSafely();
+  const repos = openOnboardingRepositoriesSafely();
   const image = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config });
   const printify = await resolvePrintifyProvider({ workspaceId: studioWorkspaceId, repos, config });
   const storage = await checkStorageReadiness(config);
@@ -32,10 +31,5 @@ export default async function PrintifySetupPage() {
     ),
     publicPrintifyProviderResolution(printify)
   );
-  return <div className="setup-command-page onboarding-command-page">
-    <ProviderIntro provider="printify" />
-    <SetupCardGrid cards={buildOwnerSetupCards(report)} providers={["printify"]} />
-    <PrintifySetupForms />
-    <FieldGuides providerKey="printify" />
-  </div>;
+  return buildOwnerSetupCards(report);
 }
