@@ -128,6 +128,18 @@ describe("image generation provider resolver", () => {
     });
   });
 
+  it("does not treat the old SDXL base model as supported on the current Hugging Face path", () => {
+    expect(resolveImageGenerationProvider({
+      IMAGE_GENERATION_ENABLED: "true",
+      IMAGE_GENERATION_PROVIDER: "hugging_face",
+      HUGGING_FACE_API_TOKEN: "server-only-token",
+      HUGGING_FACE_IMAGE_MODEL: "stabilityai/stable-diffusion-xl-base-1.0"
+    } as unknown as NodeJS.ProcessEnv)).toMatchObject({
+      status: "blocked",
+      blockingReasons: expect.arrayContaining(["model_not_supported", "try_model:black-forest-labs/FLUX.1-schnell"])
+    });
+  });
+
   it("returns not_configured for Hugging Face in production without private storage", () => {
     expect(resolveImageGenerationProvider({
       IMAGE_GENERATION_ENABLED: "true",

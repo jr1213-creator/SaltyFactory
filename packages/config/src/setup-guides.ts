@@ -1,4 +1,5 @@
 import type { FeatureReadiness, FeatureReadinessReport, FeatureReadinessStatus } from "./feature-readiness";
+import { primaryHuggingFaceImageModel, publicHuggingFaceImageModelRecommendations } from "./hugging-face-image";
 
 export type OwnerSetupStatus =
   | "ready"
@@ -228,14 +229,14 @@ export const setupFieldGuides: SetupFieldGuide[] = [
     label: "Image generation token",
     plainEnglishDescription: "A private provider token for the approved image generation provider.",
     whyNeeded: "SaltyFactory must use a real configured image provider to generate original artwork. It does not create fake placeholder art.",
-    whereToGetIt: "For Hugging Face, create an access token from your account settings.",
+    whereToGetIt: "For Hugging Face, create a fine-grained access token from your account settings with the Inference Providers permission enabled.",
     providerUrl: "https://huggingface.co/settings/tokens",
-    stepsToFindIt: ["Open Hugging Face settings.", "Open Access Tokens.", "Create a token for inference.", "Paste it into the secure field."],
-    recommendedScopes: ["inference"],
+    stepsToFindIt: ["Open Hugging Face settings.", "Open Access Tokens.", "Create a fine-grained token.", "Enable Make calls to Inference Providers.", "Paste it into the secure field."],
+    recommendedScopes: ["Make calls to Inference Providers"],
     securityNote: "The token is write-only and encrypted when credential storage is enabled.",
     validationAction: "/api/studio/provider-connections/image-generation/validate",
-    commonProblems: ["Model key is missing.", "Token lacks inference access.", "Provider rate limits the request."],
-    troubleshootingSteps: ["Check token permissions.", "Use a supported model key.", "Validate again after provider rate limit resets."],
+    commonProblems: ["Model key is missing.", "Token lacks Inference Providers permission.", "The model is gated or unsupported by the selected Hugging Face provider.", "Provider billing, quota, or router availability blocks the request."],
+    troubleshootingSteps: ["Check token permission: Inference Providers.", `Try a recommended model such as ${primaryHuggingFaceImageModel()}.`, "Accept model terms on Hugging Face if the model is gated.", "Validate again after provider quota or billing is fixed."],
     setupMode: "secure_token",
     sensitivity: "secret",
     showInOwnerSetup: true,
@@ -402,8 +403,12 @@ export function buildOwnerSetupCards(report: FeatureReadinessReport): OwnerSetup
       primaryLabel: "Configure image generation",
       primaryHref: "/studio/onboarding/providers/image-generation",
       validateHref: "/api/studio/provider-connections/image-generation/validate",
-      advancedSummary: "Hugging Face or local development image mode can also be configured during deployment.",
-      deploymentNotes: ["Use local demo image mode only in development.", "Production image generation requires an allowed configured provider."]
+      advancedSummary: "Hugging Face Inference Providers or local development image mode can also be configured during deployment.",
+      deploymentNotes: [
+        "Use local demo image mode only in development or test.",
+        "Production image generation requires a Hugging Face token with Inference Providers permission.",
+        `Recommended HF Inference text-to-image models: ${publicHuggingFaceImageModelRecommendations().map((item) => item.model).join(", ")}.`
+      ]
     }),
     createCard({
       feature: printify,

@@ -1,4 +1,12 @@
-import { buildFeatureReadiness, buildOwnerSetupCards, parseEnv, setupGuidesForProvider, type OwnerSetupCard } from "@saltyfactory/config";
+import {
+  buildFeatureReadiness,
+  buildOwnerSetupCards,
+  parseEnv,
+  primaryHuggingFaceImageModel,
+  publicHuggingFaceImageModelRecommendations,
+  setupGuidesForProvider,
+  type OwnerSetupCard
+} from "@saltyfactory/config";
 import { AdvancedConfigDetails, OwnerGatedActionNotice, PageHeader, SetupProviderCard, StatusBadge, WhereToFindThisPanel } from "@saltyfactory/ui";
 import { SetupApiForm } from "./_provider-form-client";
 
@@ -145,16 +153,42 @@ export function ShopifySetupForms() {
 }
 
 export function ImageGenerationSetupForms() {
+  const recommendedModels = publicHuggingFaceImageModelRecommendations();
+  const primaryModel = primaryHuggingFaceImageModel();
   return <section className="setup-action-panel" aria-label="Image generation setup actions">
+    <div className="setup-card-grid">
+      <article className="setup-field-guide-card">
+        <h3>Use local demo mode</h3>
+        <p>Fastest local path for development and test previews. Local demo mode does not count as provider success and cannot be used for production artwork.</p>
+      </article>
+      <article className="setup-field-guide-card">
+        <h3>Hugging Face provider</h3>
+        <p>Real provider path through Hugging Face Inference Providers. The token must include Make calls to Inference Providers.</p>
+        <p><strong>Check token permission:</strong> Inference Providers.</p>
+      </article>
+    </div>
+    <div className="setup-field-guide-card">
+      <h3>Model recommendations</h3>
+      <p>Do not assume <code>stabilityai/stable-diffusion-xl-base-1.0</code> works on this Hugging Face hf-inference path.</p>
+      <ul>
+        {recommendedModels.map((item) => <li key={item.model}>
+          <strong>{item.label}</strong> <code>{item.model}</code>
+          <span>{item.setupNote}</span>
+        </li>)}
+      </ul>
+    </div>
     <SetupApiForm
       title="Validate Hugging Face image provider"
+      description="Use a fine-grained Hugging Face token with Make calls to Inference Providers. Where do I get this? Open the setup guide below."
       action="/api/studio/provider-connections/image-generation/validate"
       submitLabel="Save securely and validate"
       fields={[
         { name: "provider", label: "Provider", type: "hidden", value: "hugging_face" },
-        { name: "model", label: "Image model", placeholder: "stabilityai/stable-diffusion-xl-base-1.0" },
-        { name: "token", label: "Provider token", type: "password", placeholder: "Paste token securely", helper: "Write-only. Used only for server-side validation and generation." }
+        { name: "hfProvider", label: "Hugging Face provider", type: "hidden", value: "hf-inference" },
+        { name: "model", label: "Image model", placeholder: primaryModel, value: primaryModel, helper: "Use a recommended hf-inference text-to-image model unless you have verified another provider-specific model." },
+        { name: "token", label: "Provider token", type: "password", placeholder: "Paste token securely", helper: "Write-only. Check token permission: Inference Providers." }
       ]}
+      quickActions={[{ label: "Try a recommended model", values: { model: primaryModel } }]}
     />
     <SetupApiForm
       title="Use local demo image mode"

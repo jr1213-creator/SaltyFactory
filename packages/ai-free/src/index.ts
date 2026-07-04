@@ -1,8 +1,17 @@
-import type { RuntimeConfig } from "@saltyfactory/config";
+import {
+  HUGGING_FACE_IMAGE_PROVIDER,
+  publicHuggingFaceImageModelRecommendations,
+  unsupportedHuggingFaceImageModelReason,
+  type HuggingFaceImageProviderId,
+  type HuggingFaceImageValidationStatus,
+  type RuntimeConfig
+} from "@saltyfactory/config";
 import { detectRiskyPhrases, type SourceLabel } from "@saltyfactory/domain";
 import { sanitizeProviderError } from "@saltyfactory/security";
 
-export type ProviderResult<T> = { ok: true; data: T; modelUsed?: string; latencyMs?: number; sourceLabel: SourceLabel; tokenEstimate?: number } | { ok: false; error: string; retryable: boolean; rateLimited?: boolean; sourceLabel: SourceLabel };
+export type ProviderResult<T> =
+  | { ok: true; data: T; modelUsed?: string; latencyMs?: number; sourceLabel: SourceLabel; tokenEstimate?: number }
+  | { ok: false; error: string; retryable: boolean; rateLimited?: boolean; sourceLabel: SourceLabel; providerStatus?: HuggingFaceImageValidationStatus; setupRequired?: string[] };
 
 const blocked = (error = "provider_disabled"): ProviderResult<never> => ({ ok: false, error, retryable: false, sourceLabel: "rules_based" });
 
@@ -17,6 +26,289 @@ export function detectPromptSafetyIssues(prompt: string) {
 
 export function estimateTokens(text: string) {
   return Math.ceil(text.length / 4);
+}
+
+const HUGGING_FACE_ROUTER_BASE_URL = "https://router.huggingface.co";
+const defaultValidationPrompt = "Simple coastal western badge art, centered, clean product graphic";
+
+type HuggingFaceImageFailureStatus = Exclude<HuggingFaceImageValidationStatus, "valid">;
+
+export type HuggingFaceImageProviderFailure = {
+  ok: false;
+  status: HuggingFaceImageFailureStatus;
+  safeMessage: string;
+  setupRequired: string[];
+  nextStep: string;
+  retryable: boolean;
+  httpStatus?: number;
+  recommendedModels: ReturnType<typeof publicHuggingFaceImageModelRecommendations>;
+};
+
+export type HuggingFaceImageProviderSuccess = {
+  ok: true;
+  status: "valid";
+  safeMessage: string;
+  model: string;
+  provider: HuggingFaceImageProviderId;
+  contentType: string;
+  latencyMs: number;
+  bytes?: ArrayBuffer;
+  recommendedModels: ReturnType<typeof publicHuggingFaceImageModelRecommendations>;
+};
+
+export type HuggingFaceImageProviderCheck = HuggingFaceImageProviderSuccess | HuggingFaceImageProviderFailure;
+
+function encodeModelPath(model: string) {
+  return model.trim().split("/").filter(Boolean).map(encodeURIComponent).join("/");
+}
+
+export function huggingFaceImageRouterEndpoint(model: string, provider: HuggingFaceImageProviderId = HUGGING_FACE_IMAGE_PROVIDER) {
+  if (provider !== HUGGING_FACE_IMAGE_PROVIDER) throw Object.assign(new Error("endpoint_misconfigured"), { providerStatus: "endpoint_misconfigured" });
+  const encoded = encodeModelPath(model);
+  if (!encoded) throw Object.assign(new Error("model_not_found"), { providerStatus: "model_not_found" });
+  return `${HUGGING_FACE_ROUTER_BASE_URL}/${provider}/models/${encoded}`;
+}
+
+function setupRequiredForStatus(status: HuggingFaceImageFailureStatus) {
+  const recommended = publicHuggingFaceImageModelRecommendations()[0]?.model ?? "a recommended Hugging Face text-to-image model";
+  const map: Record<HuggingFaceImageFailureStatus, string[]> = {
+    token_missing: ["Paste a Hugging Face token in the secure field."],
+    token_invalid: ["Generate a fresh Hugging Face token.", "Paste it into the secure field."],
+    permission_missing: ["Check token permission: Inference Providers.", "Create a fine-grained token with Make calls to Inference Providers."],
+    model_not_found: ["Enter a Hugging Face text-to-image model ID."],
+    model_not_supported: [`Try a recommended model such as ${recommended}.`],
+    model_gated: ["Open the model on Hugging Face.", "Accept the model terms or choose a non-gated recommended model."],
+    quota_or_billing: ["Check Hugging Face Inference Providers billing, credits, rate limits, or quota."],
+    provider_unreachable: ["Try again after network connectivity or provider availability recovers."],
+    endpoint_misconfigured: ["Use the Hugging Face hf-inference router path configured by SaltyFactory."],
+    unknown_provider_error: ["Try again later.", "If it repeats, request setup help with the status code only."]
+  };
+  return map[status];
+}
+
+function nextStepForStatus(status: HuggingFaceImageFailureStatus) {
+  const map: Record<HuggingFaceImageFailureStatus, string> = {
+    token_missing: "Paste token",
+    token_invalid: "Generate token again",
+    permission_missing: "Check token permission: Inference Providers",
+    model_not_found: "Enter model",
+    model_not_supported: "Try a recommended model",
+    model_gated: "Accept model terms or choose another model",
+    quota_or_billing: "Review billing or quota",
+    provider_unreachable: "Try again",
+    endpoint_misconfigured: "Use supported provider path",
+    unknown_provider_error: "Try again or request setup help"
+  };
+  return map[status];
+}
+
+function safeMessageForStatus(status: HuggingFaceImageFailureStatus, override?: string) {
+  if (override) return sanitizeProviderError(override);
+  const map: Record<HuggingFaceImageFailureStatus, string> = {
+    token_missing: "Paste a Hugging Face token to validate it securely.",
+    token_invalid: "Hugging Face did not accept this token. Generate a fresh token and validate again.",
+    permission_missing: "This token does not appear to have the Hugging Face Inference Providers permission.",
+    model_not_found: "Hugging Face could not find this model ID for text-to-image validation.",
+    model_not_supported: "This model is not supported by the selected Hugging Face provider path.",
+    model_gated: "This model is gated or requires accepting terms before SaltyFactory can use it.",
+    quota_or_billing: "Hugging Face blocked the request because of quota, rate limit, billing, or credits.",
+    provider_unreachable: "SaltyFactory could not reach Hugging Face. This is a network or provider availability failure.",
+    endpoint_misconfigured: "The Hugging Face provider endpoint is misconfigured for this validation path.",
+    unknown_provider_error: "Hugging Face returned an unavailable or unrecognized provider error."
+  };
+  return map[status];
+}
+
+function failure(status: HuggingFaceImageFailureStatus, input: { safeMessage?: string; retryable?: boolean; httpStatus?: number } = {}): HuggingFaceImageProviderFailure {
+  return {
+    ok: false,
+    status,
+    safeMessage: safeMessageForStatus(status, input.safeMessage),
+    setupRequired: setupRequiredForStatus(status),
+    nextStep: nextStepForStatus(status),
+    retryable: input.retryable ?? ["provider_unreachable", "unknown_provider_error", "quota_or_billing"].includes(status),
+    ...(input.httpStatus ? { httpStatus: input.httpStatus } : {}),
+    recommendedModels: publicHuggingFaceImageModelRecommendations()
+  };
+}
+
+function providerBodyText(body: unknown) {
+  if (!body) return "";
+  if (typeof body === "string") return body;
+  try {
+    return JSON.stringify(body);
+  } catch {
+    return String(body);
+  }
+}
+
+async function readProviderErrorBody(response: Response) {
+  const text = await response.text().catch(() => "");
+  if (!text) return { body: {}, text: "" };
+  try {
+    return { body: JSON.parse(text), text };
+  } catch {
+    return { body: { message: text.slice(0, 500) }, text };
+  }
+}
+
+export function classifyHuggingFaceImageProviderError(input: {
+  httpStatus?: number;
+  body?: unknown;
+  error?: unknown;
+}): Pick<HuggingFaceImageProviderFailure, "status" | "safeMessage" | "setupRequired" | "nextStep" | "retryable" | "httpStatus"> {
+  if (input.error) {
+    const raw = input.error instanceof Error ? input.error.message : String(input.error);
+    if (/endpoint_misconfigured/.test(raw) || (input.error as any)?.providerStatus === "endpoint_misconfigured") return failure("endpoint_misconfigured");
+    if (/model_not_found/.test(raw) || (input.error as any)?.providerStatus === "model_not_found") return failure("model_not_found");
+    if (/abort|timed\s*out|fetch failed|network|ENOTFOUND|ECONN|EAI_AGAIN|UND_ERR/i.test(raw)) return failure("provider_unreachable");
+    return failure("unknown_provider_error");
+  }
+
+  const httpStatus = input.httpStatus ?? 0;
+  const raw = providerBodyText(input.body);
+  const lower = raw.toLowerCase();
+  const has = (pattern: RegExp) => pattern.test(lower);
+
+  if (httpStatus === 402 || httpStatus === 429 || has(/quota|billing|credit|payment|required balance|rate.?limit|too many requests|exceeded/)) {
+    return failure("quota_or_billing", { httpStatus });
+  }
+  if ([401, 403].includes(httpStatus) && has(/gated|terms|license|restricted|access request|not authorized to access this model|model access/)) {
+    return failure("model_gated", { httpStatus });
+  }
+  if ([401, 403].includes(httpStatus) && has(/inference providers|make calls|permission|scope|fine.?grained|not allowed|insufficient permission/)) {
+    return failure("permission_missing", { httpStatus });
+  }
+  if (httpStatus === 401) return failure("token_invalid", { httpStatus });
+  if (httpStatus === 403) return failure("permission_missing", { httpStatus });
+  if (httpStatus === 404 && has(/endpoint|route|cannot\s+(get|post)|router|provider path/)) return failure("endpoint_misconfigured", { httpStatus });
+  if (httpStatus === 404) return failure("model_not_found", { httpStatus });
+  if (httpStatus === 400 || httpStatus === 422 || has(/not supported|unsupported|no provider|not available|task|text-to-image|text to image|pipeline/)) {
+    return failure("model_not_supported", { httpStatus });
+  }
+  if (httpStatus === 405 || httpStatus === 501) return failure("endpoint_misconfigured", { httpStatus });
+  if (httpStatus >= 500) return failure("unknown_provider_error", { httpStatus, retryable: true });
+  return httpStatus ? failure("unknown_provider_error", { httpStatus }) : failure("unknown_provider_error");
+}
+
+async function requestHuggingFaceImage(input: {
+  token: string;
+  model: string;
+  provider?: HuggingFaceImageProviderId;
+  prompt: string;
+  negativePrompt?: string;
+  parameters?: Record<string, unknown>;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+  includeBytes?: boolean;
+}): Promise<HuggingFaceImageProviderCheck> {
+  const token = input.token.trim();
+  const model = input.model.trim();
+  const provider = input.provider ?? HUGGING_FACE_IMAGE_PROVIDER;
+  const started = Date.now();
+
+  if (!token) return failure("token_missing", { retryable: false });
+  if (!model) return failure("model_not_found", { retryable: false });
+  if (provider !== HUGGING_FACE_IMAGE_PROVIDER) return failure("endpoint_misconfigured", { retryable: false });
+
+  const unsupportedReason = unsupportedHuggingFaceImageModelReason(model);
+  if (unsupportedReason) return failure("model_not_supported", { safeMessage: unsupportedReason, retryable: false });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, Math.min(input.timeoutMs ?? 60000, 120000)));
+  try {
+    const response = await (input.fetcher ?? fetch)(huggingFaceImageRouterEndpoint(model, provider), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        accept: "image/png"
+      },
+      body: JSON.stringify({
+        inputs: input.prompt,
+        parameters: {
+          ...(input.negativePrompt ? { negative_prompt: input.negativePrompt } : {}),
+          ...(input.parameters ?? {})
+        }
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const { body } = await readProviderErrorBody(response);
+      return classifyHuggingFaceImageProviderError({ httpStatus: response.status, body }) as HuggingFaceImageProviderFailure;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    if (!/^image\//i.test(contentType)) {
+      const { body } = await readProviderErrorBody(response);
+      const classified = classifyHuggingFaceImageProviderError({ httpStatus: response.status, body });
+      return classified.status === "unknown_provider_error"
+        ? failure("unknown_provider_error", { safeMessage: "Hugging Face validated the request but did not return image bytes.", httpStatus: response.status })
+        : classified as HuggingFaceImageProviderFailure;
+    }
+
+    const bytes = await response.arrayBuffer();
+    if (!bytes.byteLength) return failure("unknown_provider_error", { safeMessage: "Hugging Face returned an empty image response.", httpStatus: response.status });
+
+    return {
+      ok: true,
+      status: "valid",
+      safeMessage: "Hugging Face image provider validated through the Inference Providers router.",
+      model,
+      provider,
+      contentType,
+      latencyMs: Date.now() - started,
+      ...(input.includeBytes ? { bytes } : {}),
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    };
+  } catch (error) {
+    return classifyHuggingFaceImageProviderError({ error }) as HuggingFaceImageProviderFailure;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function validateHuggingFaceImageProvider(input: {
+  token: string;
+  model: string;
+  provider?: HuggingFaceImageProviderId;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}) {
+  return requestHuggingFaceImage({
+    token: input.token,
+    model: input.model,
+    prompt: defaultValidationPrompt,
+    parameters: { width: 256, height: 256, num_inference_steps: 1 },
+    ...(input.provider ? { provider: input.provider } : {}),
+    ...(input.fetcher ? { fetcher: input.fetcher } : {}),
+    ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+    includeBytes: false
+  });
+}
+
+export function generateHuggingFaceImage(input: {
+  token: string;
+  model: string;
+  provider?: HuggingFaceImageProviderId;
+  prompt: string;
+  negativePrompt?: string;
+  parameters?: Record<string, unknown>;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}) {
+  return requestHuggingFaceImage({
+    token: input.token,
+    model: input.model,
+    prompt: input.prompt,
+    ...(input.provider ? { provider: input.provider } : {}),
+    ...(input.negativePrompt ? { negativePrompt: input.negativePrompt } : {}),
+    ...(input.parameters ? { parameters: input.parameters } : {}),
+    ...(input.fetcher ? { fetcher: input.fetcher } : {}),
+    ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+    includeBytes: true
+  });
 }
 
 function rulesBasedDraft(prompt: string, count = 5) {
@@ -89,14 +381,36 @@ export class HuggingFaceImageProvider extends FreeImageProviderDisabled {
   async generateImage(prompt = "", _negative = "", parameters: Record<string, unknown> = {}) {
     const issues = detectPromptSafetyIssues(prompt);
     if (issues.length) return { ok: false as const, error: `prompt_blocked:${issues.join(",")}`, retryable: false, sourceLabel: "rules_based" as const };
-    const response = await this.fetcher(`https://api-inference.huggingface.co/models/${encodeURIComponent(this.model)}`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ inputs: prompt, parameters })
+    const result = await generateHuggingFaceImage({
+      token: this.token,
+      model: this.model,
+      prompt,
+      negativePrompt: _negative,
+      parameters,
+      fetcher: this.fetcher
     });
-    if (!response.ok) return { ok: false as const, error: `hf_image_http_${response.status}`, retryable: response.status >= 500, rateLimited: response.status === 429, sourceLabel: "model_generated" as const };
-    const bytes = await response.arrayBuffer();
-    return { ok: true as const, data: { bytes, contentType: response.headers.get("content-type") ?? "application/octet-stream" }, modelUsed: this.model, sourceLabel: "model_generated" as const, tokenEstimate: estimateTokens(prompt) };
+    if (!result.ok) {
+      return {
+        ok: false as const,
+        error: result.status,
+        retryable: result.retryable,
+        rateLimited: result.status === "quota_or_billing",
+        sourceLabel: "model_generated" as const,
+        providerStatus: result.status,
+        setupRequired: result.setupRequired
+      };
+    }
+    if (!result.bytes) {
+      return {
+        ok: false as const,
+        error: "unknown_provider_error",
+        retryable: true,
+        sourceLabel: "model_generated" as const,
+        providerStatus: "unknown_provider_error" as const,
+        setupRequired: setupRequiredForStatus("unknown_provider_error")
+      };
+    }
+    return { ok: true as const, data: { bytes: result.bytes, contentType: result.contentType }, modelUsed: this.model, latencyMs: result.latencyMs, sourceLabel: "model_generated" as const, tokenEstimate: estimateTokens(prompt) };
   }
   async getJobStatus(jobId: string) { return { ok: true as const, data: { jobId, status: "completed" }, sourceLabel: "model_generated" as const }; }
   async isHealthy() { return true; }

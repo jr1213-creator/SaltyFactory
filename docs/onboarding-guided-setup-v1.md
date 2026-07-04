@@ -68,6 +68,35 @@ Provider validation runs server-side only:
 - Printify token validation calls Printify shops discovery.
 - Shopify Dev Dashboard validation exchanges Client ID/Secret server-side, calls the Shopify Admin shop endpoint, and discovers collections.
 - Legacy Shopify Admin token validation remains available under Advanced / Legacy only.
-- Image generation validation checks configured provider/model, or labels local demo mode as development-only.
+- Image generation validation uses the Hugging Face Inference Providers router for the real provider path, checks token/model access server-side, and labels local demo mode as development/test-only.
 
 Validation responses return only safe status, setup requirements, next step, masked display, and sanitized metadata.
+
+## Image Generation Setup
+
+The image generation onboarding page must show two separate paths:
+
+- `Use local demo mode`: fastest local development/test preview. It does not count as provider success and is blocked in production.
+- `Hugging Face provider`: real provider validation. The token must be a fine-grained Hugging Face token with `Make calls to Inference Providers`.
+
+Recommended HF Inference text-to-image models:
+
+- `black-forest-labs/FLUX.1-schnell`
+- `stabilityai/stable-diffusion-3-medium-diffusers`
+
+The old `stabilityai/stable-diffusion-xl-base-1.0` default is not treated as supported for the current `hf-inference` router path. The UI includes a `Try a recommended model` action.
+
+Image provider validation never returns raw transport strings such as `fetch failed`. It maps provider failures to:
+
+- `token_missing`
+- `token_invalid`
+- `permission_missing`
+- `model_not_found`
+- `model_not_supported`
+- `model_gated`
+- `quota_or_billing`
+- `provider_unreachable`
+- `endpoint_misconfigured`
+- `unknown_provider_error`
+
+No token is returned to the browser or written into owner-facing error messages. No OpenAI or Anthropic provider is used.

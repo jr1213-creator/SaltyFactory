@@ -47,6 +47,7 @@ function jsonPost(path: string, body: Record<string, unknown>) {
 afterEach(() => {
   process.env = { ...originalEnv };
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   setSupabaseUserVerifierForTests(null);
   setWorkspaceAuthorizerForTests(null);
 });
@@ -57,6 +58,7 @@ describe("guided setup concierge UI", () => {
     expect(setupGuidesForProvider("shopify").map((guide) => guide.fieldKey)).toEqual(expect.arrayContaining(["shopify_store_domain", "shopify_client_id", "shopify_client_secret", "shopify_admin_token", "shopify_collection"]));
     expect(setupGuidesForProvider("shopify").find((guide) => guide.fieldKey === "shopify_admin_token")?.showInAdvancedOnly).toBe(true);
     expect(setupGuidesForProvider("image_generation").map((guide) => guide.fieldKey)).toContain("huggingface_token");
+    expect(setupGuidesForProvider("image_generation").find((guide) => guide.fieldKey === "huggingface_token")?.recommendedScopes).toContain("Make calls to Inference Providers");
     expect(setupFieldGuides.every((guide) => guide.stepsToFindIt.length > 0 && guide.securityNote.length > 0)).toBe(true);
   });
 
@@ -85,6 +87,11 @@ describe("guided setup concierge UI", () => {
     expect(html).toContain("Shopify Client Secret");
     expect(html).toContain("Advanced / Legacy Admin token");
     expect(html).toContain("Configure image generation");
+    expect(html).toContain("Use local demo mode");
+    expect(html).toContain("Hugging Face provider");
+    expect(html).toContain("Check token permission");
+    expect(html).toContain("Try a recommended model");
+    expect(html).toContain("black-forest-labs/FLUX.1-schnell");
     expect(html).toContain("Where do I get this?");
     expect(html).toContain("Save securely and validate");
     expect(html).toContain("Request setup help");
@@ -131,9 +138,15 @@ describe("guided setup concierge APIs", () => {
       body: JSON.stringify({ storeDomain: "saltycowhide.myshopify.com", clientId: "client_1234", clientSecret: "secret_should_not_matter" }),
       headers: { "content-type": "application/json" }
     }));
+    const imageResponse = await imageValidatePost(new Request("http://localhost:3001/api/studio/provider-connections/image-generation/validate", {
+      method: "POST",
+      body: JSON.stringify({ provider: "hugging_face", model: "black-forest-labs/FLUX.1-schnell", token: "hf_should_not_matter" }),
+      headers: { "content-type": "application/json" }
+    }));
     expect(listResponse.status).toBe(401);
     expect(validateResponse.status).toBe(401);
     expect(shopifyExchangeResponse.status).toBe(401);
+    expect(imageResponse.status).toBe(401);
   });
 
   it("blocks plaintext secret storage when encrypted credential storage is unavailable", async () => {
@@ -268,6 +281,157 @@ describe("guided setup concierge APIs", () => {
     expect(body.status).toBe("blocked");
     expect(body.safeMessage).toContain("development workflow previews only");
     expect(body.setupRequired).toEqual(expect.arrayContaining(["Use real provider before production"]));
+  });
+
+  it("blocks local image mode in production", async () => {
+    authorizeAsOwner();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_ENV", "production");
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "local_dev_mock"
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("blocked");
+    expect(body.safeMessage).toContain("development-only");
+  });
+
+  it("returns token_missing before calling Hugging Face", async () => {
+    authorizeAsOwner();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return new Response("{}", { status: 200 });
+    });
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "black-forest-labs/FLUX.1-schnell"
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("token_missing");
+    expect(body.safeMessage).toContain("Inference Providers");
+    expect(calls).toEqual([]);
+  });
+
+  it("returns permission_missing for a Hugging Face token without Inference Providers permission", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const token = "hf_permission_missing_secret";
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Token missing permission to Make calls to Inference Providers" }), { status: 403 }));
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "black-forest-labs/FLUX.1-schnell",
+      token
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("permission_missing");
+    expect(body.safeMessage).toContain("Inference Providers");
+    expect(JSON.stringify(body)).not.toContain(token);
+  });
+
+  it("returns token_invalid for invalid Hugging Face tokens without echoing the token", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const token = "hf_invalid_secret_value";
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Invalid access token" }), { status: 401 }));
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "black-forest-labs/FLUX.1-schnell",
+      token
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("token_invalid");
+    expect(body.safeMessage).toContain("did not accept");
+    expect(JSON.stringify(body)).not.toContain(token);
+  });
+
+  it("returns model_not_supported for the old SDXL default and recommends current models", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return new Response("{}", { status: 200 });
+    });
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "stabilityai/stable-diffusion-xl-base-1.0",
+      token: "hf_sdxl_secret"
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.status).toBe("model_not_supported");
+    expect(body.safeMessage).toContain("older SDXL base model");
+    expect(body.providerMetadata.recommendedModels.map((item: any) => item.model)).toContain("black-forest-labs/FLUX.1-schnell");
+    expect(calls).toEqual([]);
+    expect(JSON.stringify(body)).not.toContain("hf_sdxl_secret");
+  });
+
+  it("returns provider_unreachable for network failures and never shows raw fetch failed", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const token = "hf_network_secret";
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("fetch failed");
+    });
+
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "black-forest-labs/FLUX.1-schnell",
+      token
+    }));
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe("provider_unreachable");
+    expect(body.safeMessage).toContain("could not reach Hugging Face");
+    expect(serialized).not.toContain("fetch failed");
+    expect(serialized).not.toContain(token);
+  });
+
+  it("validates Hugging Face image provider through the router and returns only masked status", async () => {
+    authorizeAsOwner();
+    process.env.CREDENTIAL_STORAGE_ENABLED = "true";
+    process.env.CREDENTIAL_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
+      calls.push({ url: String(url), init });
+      return new Response(new Uint8Array([137, 80, 78, 71]).buffer, { status: 200, headers: { "content-type": "image/png" } });
+    });
+
+    const token = "hf_valid_secret_value";
+    const response = await imageValidatePost(jsonPost("/api/studio/provider-connections/image-generation/validate", {
+      provider: "hugging_face",
+      model: "black-forest-labs/FLUX.1-schnell",
+      token
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(calls[0]?.url).toBe("https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell");
+    expect(String((calls[0]?.init.headers as Record<string, string>).authorization)).toContain("Bearer");
+    expect(body.status).toBe("connected");
+    expect(body.maskedDisplayValue).toBe("Saved securely");
+    expect(body.providerMetadata.hfProvider).toBe("hf-inference");
+    expect(JSON.stringify(body)).not.toContain(token);
   });
 
   it("rejects setup help requests that include secrets and accepts safe requests", async () => {

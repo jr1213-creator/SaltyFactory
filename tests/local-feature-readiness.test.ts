@@ -78,6 +78,24 @@ describe("local feature readiness service", () => {
     expect(safeKeys).toEqual(expect.arrayContaining(["aiEmployees", "businessCommandCenter", "documentOps", "printStudio", "authorityRequests"]));
     expect(report.recommendedSetupOrder[0]).toBe("Internal AI Business OS pages");
   });
+
+  it("does not mark Hugging Face image generation ready for the old SDXL default model", () => {
+    const env = {
+      NODE_ENV: "development",
+      APP_ENV: "development",
+      REPOSITORY_ADAPTER: "memory",
+      AI_IMAGE_ENABLED: "true",
+      HF_API_TOKEN: "hf_should_not_leak",
+      HF_IMAGE_MODEL: "stabilityai/stable-diffusion-xl-base-1.0"
+    };
+    const report = buildFeatureReadiness(parseEnv(env), env);
+    const image = report.features.find((feature) => feature.featureKey === "imageGeneration")!;
+
+    expect(image.status).toBe("config_blocked");
+    expect(image.setupRequired.join(" ")).toContain("older SDXL base model");
+    expect(image.notes.join(" ")).toContain("black-forest-labs/FLUX.1-schnell");
+    expect(JSON.stringify(report)).not.toContain("hf_should_not_leak");
+  });
 });
 
 describe("feature readiness API", () => {

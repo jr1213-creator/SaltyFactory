@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireProviderMutationPermission } from "@saltyfactory/auth";
+import { generateHuggingFaceImage } from "@saltyfactory/ai-free";
 import { createRepositories } from "@saltyfactory/db";
 import { buildPromptPackageFromBrief, resolveImageGenerationProvider } from "@saltyfactory/image-pipeline";
 import { notFoundApiResponse, studioAuthErrorResponse } from "../../../_auth";
@@ -77,24 +78,26 @@ async function fetchHuggingFaceImage(prompt: string, negativePrompt: string) {
   const model = process.env.HUGGING_FACE_IMAGE_MODEL || process.env.HF_IMAGE_MODEL || "";
   const timeoutMs = Math.max(1000, Math.min(Number(process.env.IMAGE_GENERATION_TIMEOUT_MS || 60000), 120000));
   const maxBytes = Math.max(1024, Math.min(Number(process.env.IMAGE_GENERATION_MAX_OUTPUT_BYTES || 15000000), 25000000));
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ inputs: prompt, parameters: { negative_prompt: negativePrompt } }),
-      signal: controller.signal
-    });
-    if (!response.ok) return { ok: false as const, status: "failed", error: "hugging_face_generation_failed" };
-    const blob = await response.arrayBuffer();
-    if (blob.byteLength > maxBytes) return { ok: false as const, status: "failed", error: "image_generation_output_too_large" };
-    return { ok: true as const, buffer: Buffer.from(blob), model };
-  } catch {
-    return { ok: false as const, status: "failed", error: "hugging_face_generation_failed" };
-  } finally {
-    clearTimeout(timeout);
+  const result = await generateHuggingFaceImage({
+    token,
+    model,
+    prompt,
+    negativePrompt,
+    timeoutMs
+  });
+  if (!result.ok) {
+    return {
+      ok: false as const,
+      status: "failed",
+      error: result.status,
+      message: result.safeMessage,
+      setupRequired: result.setupRequired,
+      retryable: result.retryable
+    };
   }
+  if (!result.bytes) return { ok: false as const, status: "failed", error: "unknown_provider_error", message: "Image provider returned no image bytes.", setupRequired: ["Validate image provider again"], retryable: true };
+  if (result.bytes.byteLength > maxBytes) return { ok: false as const, status: "failed", error: "image_generation_output_too_large", message: "Image provider returned an output larger than SaltyFactory allows.", setupRequired: ["Use a smaller output size"], retryable: false };
+  return { ok: true as const, buffer: Buffer.from(result.bytes), model };
 }
 
 async function createPrivateAssetFromBuffer(input: {
@@ -191,8 +194,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const hf = await fetchHuggingFaceImage(promptPackage.positive_prompt, promptPackage.negative_prompt);
     if (!hf.ok) {
-      const failed = await repos.job.markFailed(job.id, hf.error, false);
-      return NextResponse.json({ ok: false, status: "failed", message: "Image provider failed. Error details were sanitized.", job: failed }, { status: 502 });
+      const failed = await repos.job.markFailed(job.id, hf.error, hf.retryable);
+      return NextResponse.json({
+        ok: false,
+        status: hf.error,
+        message: hf.message,
+        setupRequired: hf.setupRequired,
+        job: failed
+      }, { status: hf.retryable ? 503 : 400 });
     }
     const assetId = `asset_hf_${Date.now()}`;
     const storageKey = `workspaces/${safeSegment(studioWorkspaceId)}/private/assets/${assetId}.png`;

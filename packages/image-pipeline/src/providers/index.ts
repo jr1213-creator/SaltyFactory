@@ -30,6 +30,19 @@ export function resolveImageGenerationProvider(env: NodeJS.ProcessEnv = process.
     if (!model || !token) {
       return { key, enabled: false, status: "not_configured", model: model || "missing_model", blockingReasons: ["hugging_face_token_or_model_missing"] };
     }
+    if (model === "stabilityai/stable-diffusion-xl-base-1.0") {
+      return {
+        key,
+        enabled: false,
+        status: "blocked",
+        model,
+        blockingReasons: [
+          "model_not_supported",
+          "try_model:black-forest-labs/FLUX.1-schnell",
+          "try_model:stabilityai/stable-diffusion-3-medium-diffusers"
+        ]
+      };
+    }
     const privateStorageConfigured = Boolean((env.SUPABASE_URL || "") && (env.SUPABASE_SERVICE_ROLE_KEY || "") && (env.SUPABASE_PRIVATE_ASSETS_BUCKET || env.SUPABASE_STORAGE_BUCKET || ""));
     if (production && !privateStorageConfigured) {
       return { key, enabled: false, status: "not_configured", model, blockingReasons: ["private_storage_not_configured"] };

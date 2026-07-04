@@ -180,6 +180,19 @@ export const runStaticGuardrailCheck = (files: Record<string, string>) => Object
 );
 
 export {
+  HUGGING_FACE_IMAGE_PROVIDER,
+  isRecommendedHuggingFaceImageModel,
+  primaryHuggingFaceImageModel,
+  publicHuggingFaceImageModelRecommendations,
+  recommendedHuggingFaceImageModels,
+  unsupportedHuggingFaceImageModelReason
+} from "./hugging-face-image";
+export type {
+  HuggingFaceImageModelRecommendation,
+  HuggingFaceImageProviderId,
+  HuggingFaceImageValidationStatus
+} from "./hugging-face-image";
+export {
   buildFeatureReadiness,
   featureReadinessEnvVars
 } from "./feature-readiness";

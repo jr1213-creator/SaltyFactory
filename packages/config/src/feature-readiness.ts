@@ -1,4 +1,10 @@
 import type { RuntimeConfig } from "./index";
+import {
+  isRecommendedHuggingFaceImageModel,
+  primaryHuggingFaceImageModel,
+  publicHuggingFaceImageModelRecommendations,
+  unsupportedHuggingFaceImageModelReason
+} from "./hugging-face-image";
 
 export type FeatureReadinessStatus = "ready" | "config_blocked" | "owner_gated" | "disabled" | "partial" | "future" | "error";
 
@@ -143,8 +149,18 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
   const supabaseAuthReady = (has(env, "NEXT_PUBLIC_SUPABASE_URL") || has(env, "SUPABASE_URL")) && (has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY") || has(env, "SUPABASE_ANON_KEY"));
   const storageReady = has(env, "SUPABASE_URL") && has(env, "SUPABASE_SERVICE_ROLE_KEY");
   const localImageReady = flagEnabled(env, "IMAGE_GENERATION_ENABLED") && env.IMAGE_GENERATION_PROVIDER === "local_dev_mock" && flagEnabled(env, "LOCAL_DEV_IMAGE_GENERATION") && nonProduction;
-  const hfImageReady = (flagEnabled(env, "AI_IMAGE_ENABLED") && has(env, "HF_API_TOKEN") && has(env, "HF_IMAGE_MODEL"))
+  const hfImageModel = env.HUGGING_FACE_IMAGE_MODEL || env.HF_IMAGE_MODEL || "";
+  const hfImageConfigPresent = (flagEnabled(env, "AI_IMAGE_ENABLED") && has(env, "HF_API_TOKEN") && has(env, "HF_IMAGE_MODEL"))
     || (flagEnabled(env, "IMAGE_GENERATION_ENABLED") && env.IMAGE_GENERATION_PROVIDER === "hugging_face" && (has(env, "HUGGING_FACE_API_TOKEN") || has(env, "HF_API_TOKEN")) && (has(env, "HUGGING_FACE_IMAGE_MODEL") || has(env, "HF_IMAGE_MODEL")));
+  const hfImageModelUnsupportedReason = hfImageModel ? unsupportedHuggingFaceImageModelReason(hfImageModel) : null;
+  const hfImageModelRecommended = hfImageModel ? isRecommendedHuggingFaceImageModel(hfImageModel) : false;
+  const hfImageReady = hfImageConfigPresent && hfImageModelRecommended && !hfImageModelUnsupportedReason;
+  const hfImageModelSetupRequired = hfImageConfigPresent && !hfImageReady
+    ? [
+      hfImageModelUnsupportedReason ?? `Use a recommended Hugging Face HF Inference text-to-image model such as ${primaryHuggingFaceImageModel()}.`,
+      "Validate the Hugging Face provider from /studio/onboarding/providers/image-generation before treating it as connected."
+    ]
+    : [];
   const printifyReady = config.PRINTIFY_ENABLED && has(env, "PRINTIFY_API_TOKEN") && has(env, "PRINTIFY_SHOP_ID");
   const shopifyLegacyReady = has(env, "SHOPIFY_ADMIN_TOKEN");
   const shopifyClientCredentialsReady = has(env, "SHOPIFY_CLIENT_ID") && has(env, "SHOPIFY_CLIENT_SECRET");
@@ -217,11 +233,14 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       requiredEnv: localImageReady ? ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_DEV_IMAGE_GENERATION"] : ["AI_IMAGE_ENABLED", "HF_API_TOKEN", "HF_IMAGE_MODEL"],
       enabledFlags: unique([flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=true", flagEnabled(env, "IMAGE_GENERATION_ENABLED") && "IMAGE_GENERATION_ENABLED=true", localImageReady && "LOCAL_DEV_IMAGE_GENERATION=true"]),
       disabledFlags: unique([!flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=false", !flagEnabled(env, "IMAGE_GENERATION_ENABLED") && "IMAGE_GENERATION_ENABLED=false"]),
-      setupRequired: hfImageReady || localImageReady ? [] : ["AI_IMAGE_ENABLED=true", "HF_API_TOKEN", "HF_IMAGE_MODEL", "or local dev only: IMAGE_GENERATION_ENABLED=true, IMAGE_GENERATION_PROVIDER=local_dev_mock, LOCAL_DEV_IMAGE_GENERATION=true"],
+      setupRequired: hfImageReady || localImageReady ? [] : hfImageModelSetupRequired.length ? hfImageModelSetupRequired : ["AI_IMAGE_ENABLED=true", "HF_API_TOKEN", "HF_IMAGE_MODEL", "or local dev only: IMAGE_GENERATION_ENABLED=true, IMAGE_GENERATION_PROVIDER=local_dev_mock, LOCAL_DEV_IMAGE_GENERATION=true"],
       canTestWithoutProvider: localImageReady,
       safeLocalRoute: "/studio/image-generation",
       dangerousActionsBlocked: ["placeholder_provider_success", "public_generation_endpoint", "production_local_dev_mock"],
-      notes: ["Core provider path is HuggingFace-compatible or local dev fixture. No OpenAI or Anthropic provider is allowed."]
+      notes: [
+        "Core provider path is Hugging Face Inference Providers or local dev fixture. No OpenAI or Anthropic provider is allowed.",
+        `Recommended HF Inference text-to-image models: ${publicHuggingFaceImageModelRecommendations().map((item) => item.model).join(", ")}.`
+      ]
     }),
     feature({
       env,

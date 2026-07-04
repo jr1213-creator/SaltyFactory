@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission, requireWorkspaceMember, type StudioUser } from "@saltyfactory/auth";
-import { buildFeatureReadiness, buildOwnerSetupCards, parseEnv, setupGuidesForProvider, type RuntimeConfig } from "@saltyfactory/config";
+import { validateHuggingFaceImageProvider } from "@saltyfactory/ai-free";
+import {
+  HUGGING_FACE_IMAGE_PROVIDER,
+  buildFeatureReadiness,
+  buildOwnerSetupCards,
+  parseEnv,
+  publicHuggingFaceImageModelRecommendations,
+  setupGuidesForProvider,
+  unsupportedHuggingFaceImageModelReason,
+  type HuggingFaceImageValidationStatus,
+  type RuntimeConfig
+} from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
 import { decryptCredential, encryptCredential, sanitizeProviderError } from "@saltyfactory/security";
 import { studioAuthErrorResponse } from "../_auth";
@@ -15,7 +26,14 @@ import {
 
 export const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 
-type ValidationStatus = "connected" | "missing" | "invalid" | "blocked" | "owner_gated" | "config_blocked";
+type ValidationStatus =
+  | "connected"
+  | "missing"
+  | "invalid"
+  | "blocked"
+  | "owner_gated"
+  | "config_blocked"
+  | Exclude<HuggingFaceImageValidationStatus, "valid">;
 
 type ProviderKey = "printify" | "shopify" | "image_generation" | "storage" | "banking" | "external_orders" | "live_publish";
 
@@ -83,6 +101,13 @@ function storageBlockedResponse() {
     setupRequired: ["Enable encrypted credential storage", "Configure the server encryption key", "Ask an administrator to complete server setup"],
     nextStep: "Request setup help"
   }, 503);
+}
+
+function imageValidationHttpStatus(status: Exclude<HuggingFaceImageValidationStatus, "valid">) {
+  if (status === "provider_unreachable") return 503;
+  if (status === "unknown_provider_error") return 502;
+  if (status === "quota_or_billing") return 429;
+  return 400;
 }
 
 function maskSavedCredential() {
@@ -583,25 +608,139 @@ export async function handleImageGenerationValidate(req: Request) {
     const user = await requireProviderMutationPermission(req, workspaceId);
     const body = await parseBody(req);
     const provider = String(body.provider || body.imageProvider || "hugging_face");
+    const hfProvider = String(body.hfProvider || body.huggingFaceProvider || HUGGING_FACE_IMAGE_PROVIDER).trim();
     const model = String(body.model || body.imageModel || "").trim();
-    const token = typeof body.token === "string" ? body.token.trim() : "";
+    const tokenFromBody = typeof body.token === "string" ? body.token.trim() : "";
     const config = parseEnv();
-    const repos = createRepositories();
     if (provider === "local_dev_mock") {
       if (config.APP_ENV === "production" || config.NODE_ENV === "production") return validationResponse({ ok: false, status: "blocked", safeMessage: "Local demo image mode is development-only and cannot be enabled in production.", setupRequired: ["Configure real image provider"], nextStep: "Configure provider" }, 400);
+      const repos = createRepositories();
       await createOrUpdateConnection({ repos, provider: "image_generation", workspaceId, actorId: user.id, status: "configured_not_verified", enabled: false, configuration: { imageProvider: "local_dev_mock" }, healthStatus: "local_demo_only" });
       return validationResponse({ ok: true, status: "blocked", safeMessage: "Local demo image mode is available for development workflow previews only. It is not treated as real provider success.", setupRequired: ["Use real provider before production"], nextStep: "Open image generation", providerMetadata: { imageProvider: "local_dev_mock" } });
     }
-    if (!token || !model) return validationResponse({ ok: false, status: "missing", safeMessage: "Enter both the image provider token and image model before validating.", setupRequired: ["Provider token", "Image model"], nextStep: "Enter provider details" }, 400);
+    if (provider !== "hugging_face") {
+      return validationResponse({
+        ok: false,
+        status: "endpoint_misconfigured",
+        safeMessage: "Choose the Hugging Face provider path for image generation validation.",
+        setupRequired: ["Use Hugging Face provider"],
+        nextStep: "Choose Hugging Face provider",
+        providerMetadata: { imageProvider: provider, recommendedModels: publicHuggingFaceImageModelRecommendations() }
+      }, 400);
+    }
+    if (hfProvider !== HUGGING_FACE_IMAGE_PROVIDER) {
+      return validationResponse({
+        ok: false,
+        status: "endpoint_misconfigured",
+        safeMessage: "SaltyFactory currently validates Hugging Face image generation through the hf-inference router path.",
+        setupRequired: ["Use Hugging Face hf-inference provider path"],
+        nextStep: "Use supported provider path",
+        providerMetadata: { imageProvider: "hugging_face", hfProvider, recommendedModels: publicHuggingFaceImageModelRecommendations() }
+      }, 400);
+    }
+    const unsupportedReason = model ? unsupportedHuggingFaceImageModelReason(model) : null;
+    if (unsupportedReason) {
+      return validationResponse({
+        ok: false,
+        status: "model_not_supported",
+        safeMessage: unsupportedReason,
+        setupRequired: ["Try a recommended model"],
+        nextStep: "Try a recommended model",
+        providerMetadata: {
+          imageProvider: "hugging_face",
+          hfProvider,
+          imageModel: model,
+          errorStatus: "model_not_supported",
+          recommendedModels: publicHuggingFaceImageModelRecommendations()
+        }
+      }, 400);
+    }
+    let token = tokenFromBody;
+    let repos: RepositoryBundle | null = null;
+    if (!token && storageReady(config)) {
+      repos = createRepositories();
+      token = await readStoredSecret({ repos, config, provider: "image_generation", workspaceId }) ?? "";
+    }
+    if (!token) {
+      return validationResponse({
+        ok: false,
+        status: "token_missing",
+        safeMessage: "Paste a Hugging Face token with Inference Providers permission before validating.",
+        setupRequired: ["Hugging Face token", "Check token permission: Inference Providers", "Image model"],
+        nextStep: "Paste token",
+        providerMetadata: { imageProvider: "hugging_face", hfProvider, imageModel: model || null, recommendedModels: publicHuggingFaceImageModelRecommendations() }
+      }, 400);
+    }
+    if (!model) {
+      return validationResponse({
+        ok: false,
+        status: "model_not_found",
+        safeMessage: "Enter a Hugging Face text-to-image model ID before validating.",
+        setupRequired: ["Image model", "Try a recommended model"],
+        nextStep: "Enter model",
+        providerMetadata: { imageProvider: "hugging_face", hfProvider, recommendedModels: publicHuggingFaceImageModelRecommendations() }
+      }, 400);
+    }
     if (!storageReady(config)) return storageBlockedResponse();
-    const { response } = await fetchJson(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, { method: "GET", headers: { authorization: `Bearer ${token}` } });
-    if (!response.ok) return validationResponse({ ok: false, status: "invalid", safeMessage: "The image provider did not validate this token/model combination.", setupRequired: ["Valid provider token", "Supported image model"], nextStep: "Review token and model" }, 400);
-    const credentialRef = await saveSecretCredential({ repos, config, provider: "image_generation", workspaceId, actorId: user.id, secret: token });
-    await createOrUpdateConnection({ repos, provider: "image_generation", workspaceId, actorId: user.id, status: "connected", enabled: true, credentialRef, configuration: { imageProvider: "hugging_face", imageModel: model, maskedDisplayValue: maskSavedCredential() }, healthStatus: "connected" });
-    return validationResponse({ ok: true, status: "connected", safeMessage: "Image generation provider validated. Generated artwork can be created after owner-approved prompts.", setupRequired: ["Owner prompt approval still required"], nextStep: "Open Image Generation", maskedDisplayValue: maskSavedCredential(), providerMetadata: { imageProvider: "hugging_face", imageModel: model } });
+    const validation = await validateHuggingFaceImageProvider({
+      token,
+      model,
+      provider: HUGGING_FACE_IMAGE_PROVIDER,
+      timeoutMs: Math.max(1000, Math.min(Number(process.env.IMAGE_GENERATION_TIMEOUT_MS || 60000), 120000))
+    });
+    if (!validation.ok) {
+      return validationResponse({
+        ok: false,
+        status: validation.status,
+        safeMessage: validation.safeMessage,
+        setupRequired: validation.setupRequired,
+        nextStep: validation.nextStep,
+        providerMetadata: {
+          imageProvider: "hugging_face",
+          hfProvider,
+          imageModel: model,
+          errorStatus: validation.status,
+          httpStatus: validation.httpStatus ?? null,
+          recommendedModels: validation.recommendedModels
+        }
+      }, imageValidationHttpStatus(validation.status));
+    }
+    repos = repos ?? createRepositories();
+    const credentialRef = tokenFromBody ? await saveSecretCredential({ repos, config, provider: "image_generation", workspaceId, actorId: user.id, secret: tokenFromBody }) : null;
+    await createOrUpdateConnection({
+      repos,
+      provider: "image_generation",
+      workspaceId,
+      actorId: user.id,
+      status: "connected",
+      enabled: true,
+      credentialRef,
+      configuration: { imageProvider: "hugging_face", hfProvider, imageModel: model, maskedDisplayValue: maskSavedCredential() },
+      healthStatus: "connected"
+    });
+    return validationResponse({
+      ok: true,
+      status: "connected",
+      safeMessage: "Hugging Face image provider validated through the Inference Providers router. Generated artwork can be created after owner-approved prompts.",
+      setupRequired: ["Owner prompt approval still required"],
+      nextStep: "Open Image Generation",
+      maskedDisplayValue: maskSavedCredential(),
+      providerMetadata: {
+        imageProvider: "hugging_face",
+        hfProvider,
+        imageModel: model,
+        recommendedModels: validation.recommendedModels
+      }
+    });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
-    return validationResponse({ ok: false, status: "invalid", safeMessage: sanitizeProviderError(error), setupRequired: ["Validate image provider again"] }, 500);
+    return validationResponse({
+      ok: false,
+      status: "provider_unreachable",
+      safeMessage: "Image provider validation could not be completed. Check network connectivity and try again.",
+      setupRequired: ["Validate image provider again"],
+      nextStep: "Try again"
+    }, 503);
   }
 }
 

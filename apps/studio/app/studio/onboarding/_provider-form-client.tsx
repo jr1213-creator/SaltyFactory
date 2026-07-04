@@ -12,6 +12,11 @@ type SetupField = {
   value?: string;
 };
 
+type QuickAction = {
+  label: string;
+  values: Record<string, string>;
+};
+
 type SetupResult = {
   ok?: boolean;
   status?: string;
@@ -39,21 +44,41 @@ function metadataList(value: unknown, key: string) {
   </div>;
 }
 
+function recommendedModelList(value: unknown) {
+  if (!Array.isArray(value) || !value.length) return null;
+  const rows = value
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+    .filter((item): item is Record<string, unknown> => Boolean(item?.model));
+  if (!rows.length) return null;
+  return <div className="setup-metadata-list">
+    <span>Recommended models</span>
+    <ul>
+      {rows.slice(0, 6).map((item) => <li key={String(item.model)}>
+        <strong>{String(item.label ?? item.model)}</strong>
+        <code>{String(item.model)}</code>
+      </li>)}
+    </ul>
+  </div>;
+}
+
 export function SetupApiForm({
   title,
   description,
   action,
   submitLabel,
-  fields = []
+  fields = [],
+  quickActions = []
 }: {
   title: string;
   description?: string;
   action: string;
   submitLabel: string;
   fields?: SetupField[];
+  quickActions?: QuickAction[];
 }) {
   const [result, setResult] = useState<SetupResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((field) => [field.name, field.value ?? ""])));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,7 +110,7 @@ export function SetupApiForm({
     <h3>{title}</h3>
     {description ? <p>{description}</p> : null}
     {fields.map((field) => field.type === "hidden"
-      ? <input key={field.name} type="hidden" name={field.name} value={field.value ?? ""} />
+      ? <input key={field.name} type="hidden" name={field.name} value={values[field.name] ?? field.value ?? ""} />
       : <label key={field.name}>
         <span>{field.label}</span>
         <input
@@ -93,10 +118,21 @@ export function SetupApiForm({
           type={field.type ?? "text"}
           placeholder={field.placeholder}
           autoComplete={field.type === "password" ? "off" : undefined}
-          defaultValue={field.value}
+          value={values[field.name] ?? ""}
+          onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
         />
         {field.helper ? <small>{field.helper}</small> : null}
       </label>)}
+    {quickActions.length ? <div className="setup-form-actions">
+      {quickActions.map((item) => <button
+        key={item.label}
+        className="btn btn-secondary"
+        type="button"
+        onClick={() => setValues((current) => ({ ...current, ...item.values }))}
+      >
+        {item.label}
+      </button>)}
+    </div> : null}
     <button className="btn btn-primary" type="submit" disabled={submitting} title={submitting ? "Validation is running server-side" : undefined}>
       {submitting ? "Validating..." : submitLabel}
     </button>
@@ -107,6 +143,7 @@ export function SetupApiForm({
       {result.nextStep ? <p><span>Next step:</span> {result.nextStep}</p> : null}
       {metadataList(result.providerMetadata?.collections, "Collections returned")}
       {metadataList(result.providerMetadata?.shops, "Shops returned")}
+      {recommendedModelList(result.providerMetadata?.recommendedModels)}
       {result.setupRequired?.length ? <ul>{result.setupRequired.map((item) => <li key={item}>{item}</li>)}</ul> : null}
     </section> : null}
   </form>;
