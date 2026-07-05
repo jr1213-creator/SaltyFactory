@@ -22,6 +22,7 @@ import {
   workspaces
 } from "@saltyfactory/db";
 import { resolveImageGenerationProvider, type ImageGenerationProviderResolution } from "@saltyfactory/ai-free";
+import { inspectImageTransparency } from "@saltyfactory/image-pipeline";
 import { checkStorageReadiness } from "@saltyfactory/storage";
 
 export const smokeDerivativeKinds = ["thumbnail", "web_preview", "print_png"] as const;
@@ -234,6 +235,49 @@ export async function verifyImagePreviewResponse(response: Response, label: stri
   return { contentType, byteLength: bytes.byteLength, bytes };
 }
 
+function colorDistance(red: number, green: number, blue: number, key: { red: number; green: number; blue: number }) {
+  return Math.sqrt((red - key.red) ** 2 + (green - key.green) ** 2 + (blue - key.blue) ** 2);
+}
+
+export async function verifyChromaBackdrop(input: { bytes: Buffer; keyColor?: string; tolerance?: number }) {
+  const keyColor = input.keyColor ?? "#FF00FF";
+  const tolerance = Math.max(0, Math.min(Number(input.tolerance ?? 86), 255));
+  const key = { red: 255, green: 0, blue: 255 };
+  const raw = await sharp(input.bytes, { failOn: "warning" })
+    .ensureAlpha()
+    .resize({ width: 256, height: 256, fit: "inside" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixels = raw.info.width * raw.info.height;
+  let nearKey = 0;
+  let borderNearKey = 0;
+  let borderPixels = 0;
+  const borderWidth = Math.max(8, Math.round(Math.min(raw.info.width, raw.info.height) * 0.12));
+  for (let pixel = 0; pixel < pixels; pixel += 1) {
+    const x = pixel % raw.info.width;
+    const y = Math.floor(pixel / raw.info.width);
+    const offset = pixel * 4;
+    const alpha = raw.data[offset + 3] ?? 255;
+    const isBorder = x < borderWidth || y < borderWidth || x >= raw.info.width - borderWidth || y >= raw.info.height - borderWidth;
+    if (isBorder) borderPixels += 1;
+    if (alpha < 20) continue;
+    const close = colorDistance(raw.data[offset] ?? 0, raw.data[offset + 1] ?? 0, raw.data[offset + 2] ?? 0, key) <= tolerance;
+    if (close) nearKey += 1;
+    if (close && isBorder) borderNearKey += 1;
+  }
+  const nearKeyPixelRatio = pixels ? nearKey / pixels : 0;
+  const borderNearKeyPixelRatio = borderPixels ? borderNearKey / borderPixels : 0;
+  if (nearKeyPixelRatio < 0.08 || borderNearKeyPixelRatio < 0.16) {
+    throw new SmokeSetupError("provider_response_failure", "chroma_key_backdrop_not_detected", {
+      keyColor,
+      tolerance,
+      nearKeyPixelRatio,
+      borderNearKeyPixelRatio
+    });
+  }
+  return { keyColor, tolerance, nearKeyPixelRatio, borderNearKeyPixelRatio, width: raw.info.width, height: raw.info.height };
+}
+
 async function ensureSmokeUserExists(actorId: string) {
   const db = getDb();
   const existing = await db.select().from(users).where(eq(users.id, actorId)).limit(1);
@@ -310,8 +354,8 @@ export async function getOrCreateApprovedSmokeBrief(input: {
     product_type: "tee",
     collection: "Live Smoke Tests",
     target_audience: "private beta smoke test",
-    background_requirement: "plain light background",
-    art_direction: "Create a simple high-resolution print-on-demand artwork graphic, centered composition, coastal cowgirl boutique style, coral and turquoise western seashell motif, suitable for apparel printing, isolated artwork only, no shirt mockup, no model, no text, no watermark.",
+    background_requirement: "transparent",
+    art_direction: "Create a simple high-resolution print-on-demand artwork graphic, centered composition, coastal cowgirl boutique style, coral and turquoise western seashell motif, suitable for apparel printing, isolated artwork only on a flat solid #FF00FF chroma key background. Do not use #FF00FF or magenta inside the design. No shirt mockup, no model, no text, no watermark.",
     color_palette: ["coral", "turquoise", "cream", "navy"],
     output_width: 512,
     output_height: 512
@@ -505,7 +549,8 @@ async function main() {
 
   setSmokePhase("preview_verification", { assetId });
   const preview = await assetPreviewGet(authedRequest(`/api/studio/assets/${assetId}/preview`), { params: Promise.resolve({ id: assetId }) });
-  await verifyImagePreviewResponse(preview, "asset_master");
+  const assetPreviewProof = await verifyImagePreviewResponse(preview, "asset_master");
+  const chromaBackdropProof = await verifyChromaBackdrop({ bytes: assetPreviewProof.bytes, keyColor: "#FF00FF" });
   const derivativeProofs: Record<SmokeDerivativeKind, { contentType: string; byteLength: number; bytes: Buffer }> = {} as Record<SmokeDerivativeKind, { contentType: string; byteLength: number; bytes: Buffer }>;
   for (const kind of smokeDerivativeKinds) {
     const derivativePreview = await assetDerivativePreviewGet(authedRequest(`/api/studio/assets/${assetId}/derivatives/${kind}/preview`), {
@@ -513,6 +558,15 @@ async function main() {
     });
     derivativeProofs[kind] = await verifyImagePreviewResponse(derivativePreview, `asset_derivative_${kind}`);
   }
+  const printPngTransparency = await inspectImageTransparency(derivativeProofs.print_png.bytes);
+  if (!printPngTransparency.hasAlpha || printPngTransparency.transparentPixelRatio < 0.02) {
+    throw new SmokeSetupError("derivative_failure", "chroma_print_png_alpha_missing", {
+      hasAlpha: printPngTransparency.hasAlpha,
+      transparentPixelRatio: printPngTransparency.transparentPixelRatio
+    });
+  }
+  const printPngAsset = await repos.asset.getById(`${assetId}_print_png`, workspaceId());
+  const printPngMetadata = printPngAsset?.metadata && typeof printPngAsset.metadata === "object" ? printPngAsset.metadata as Record<string, unknown> : {};
 
   setSmokePhase("asset_qa_and_approval", { assetId });
   await runQaPost(authedPost(`/api/studio/assets/${assetId}/run-qa`), { params: Promise.resolve({ id: assetId }) });
@@ -558,6 +612,17 @@ async function main() {
     generationJobId: generation.job.id,
     assetId,
     derivativeKinds: smokeDerivativeKinds,
+    chromaBackdropProof,
+    printPngTransparency,
+    printPngMetadata: {
+      chroma_key_enabled: printPngMetadata.chroma_key_enabled,
+      chroma_key_applied: printPngMetadata.chroma_key_applied,
+      chroma_key_color: printPngMetadata.chroma_key_color,
+      chroma_key_tolerance: printPngMetadata.chroma_key_tolerance,
+      chroma_key_keyed_pixel_ratio: printPngMetadata.chroma_key_keyed_pixel_ratio,
+      chroma_key_remaining_near_key_pixel_ratio: printPngMetadata.chroma_key_remaining_near_key_pixel_ratio,
+      transparent_background_ready: printPngMetadata.transparent_background_ready
+    },
     mockupId,
     rendererVersion: "internal-sharp-v1",
     pixelProof: {
@@ -576,6 +641,17 @@ async function main() {
     generationJobId: generation.job.id,
     assetId,
     derivativeKinds: smokeDerivativeKinds,
+    chromaBackdropProof,
+    printPngTransparency,
+    printPngMetadata: {
+      chroma_key_enabled: printPngMetadata.chroma_key_enabled,
+      chroma_key_applied: printPngMetadata.chroma_key_applied,
+      chroma_key_color: printPngMetadata.chroma_key_color,
+      chroma_key_tolerance: printPngMetadata.chroma_key_tolerance,
+      chroma_key_keyed_pixel_ratio: printPngMetadata.chroma_key_keyed_pixel_ratio,
+      chroma_key_remaining_near_key_pixel_ratio: printPngMetadata.chroma_key_remaining_near_key_pixel_ratio,
+      transparent_background_ready: printPngMetadata.transparent_background_ready
+    },
     mockupId,
     rendererVersion: "internal-sharp-v1",
     pixelProof: {

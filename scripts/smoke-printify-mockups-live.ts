@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
+import sharp from "sharp";
 
 const confirmationText = "CREATE TEST PRINTIFY PRODUCT";
 export const printifySmokeProductTitlePrefix = "SALTYFACTORY SMOKE TEST - DELETE ME";
@@ -174,6 +176,13 @@ function variantOptionText(variant: Record<string, unknown>, key: RegExp, fallba
   return text(match?.title ?? match?.value ?? match?.name, fallback);
 }
 
+function isPreferredVisibleSmokeVariant(variant: Record<string, unknown>) {
+  const color = variantOptionText(variant, /color|colour/, "").toLowerCase();
+  if (!color) return false;
+  if (/\b(white|natural|cream|ivory|sand|default)\b/.test(color)) return false;
+  return /\b(black|navy|blue|charcoal|heather|gray|grey|brown|green|red|maroon|teal)\b/.test(color);
+}
+
 export function classifyPrintifySmokeFailure(status: unknown, details: { setupRequired?: unknown; blockingReasons?: unknown } = {}) {
   const code = text(status, "unknown_provider_error");
   const detailText = JSON.stringify({
@@ -287,9 +296,10 @@ async function resolvePrintifySmokeSelection(printify: any) {
       variantAttempt["variantCount"] = variants.length;
       variantAttempt["sampleVariantIds"] = variants.map((variant) => numericId(variant.id)).filter(Boolean).slice(0, 6);
       (providerAttempt.variantAttempts as Array<Record<string, unknown>>).push(variantAttempt);
+      const enabledVariants = variants.filter((variant) => numericId(variant.id) && variant.is_enabled !== false && variant.isEnabled !== false);
       const selectedVariant = requestedVariantId
         ? variants.find((variant) => numericId(variant.id) === requestedVariantId)
-        : variants.find((variant) => numericId(variant.id) && variant.is_enabled !== false && variant.isEnabled !== false) ?? variants.find((variant) => numericId(variant.id));
+        : enabledVariants.find(isPreferredVisibleSmokeVariant) ?? enabledVariants.find((variant) => numericId(variant.id)) ?? variants.find((variant) => numericId(variant.id));
       if (selectedVariant) {
         return {
           blueprintId,
@@ -656,6 +666,78 @@ function printSafePreflight(input: {
   console.log("- secrets: not printed");
 }
 
+function nearColor(red: number, green: number, blue: number, target: { red: number; green: number; blue: number }, tolerance: number) {
+  return Math.sqrt((red - target.red) ** 2 + (green - target.green) ** 2 + (blue - target.blue) ** 2) <= tolerance;
+}
+
+async function inspectPrintifyMockupVisualQuality(input: { url: string; variantColor?: string }) {
+  const response = await fetch(input.url);
+  const contentType = String(response.headers.get("content-type") ?? "");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (response.status !== 200 || !contentType.startsWith("image/") || bytes.byteLength === 0) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "mockup_image_fetch_failed", {
+      httpStatus: response.status,
+      contentType: contentType || "missing",
+      byteLength: bytes.byteLength
+    });
+  }
+  const raw = await sharp(bytes, { failOn: "warning" })
+    .ensureAlpha()
+    .resize({ width: 512, height: 512, fit: "inside" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixels = raw.info.width * raw.info.height;
+  const centralLeft = Math.round(raw.info.width * 0.33);
+  const centralRight = Math.round(raw.info.width * 0.67);
+  const centralTop = Math.round(raw.info.height * 0.25);
+  const centralBottom = Math.round(raw.info.height * 0.68);
+  let magenta = 0;
+  let central = 0;
+  let centralNearWhite = 0;
+  for (let pixel = 0; pixel < pixels; pixel += 1) {
+    const x = pixel % raw.info.width;
+    const y = Math.floor(pixel / raw.info.width);
+    const offset = pixel * 4;
+    const alpha = raw.data[offset + 3] ?? 255;
+    if (alpha < 16) continue;
+    const red = raw.data[offset] ?? 0;
+    const green = raw.data[offset + 1] ?? 0;
+    const blue = raw.data[offset + 2] ?? 0;
+    if (nearColor(red, green, blue, { red: 255, green: 0, blue: 255 }, 64)) magenta += 1;
+    if (x >= centralLeft && x <= centralRight && y >= centralTop && y <= centralBottom) {
+      central += 1;
+      if (red >= 245 && green >= 245 && blue >= 245) centralNearWhite += 1;
+    }
+  }
+  const magentaPixelRatio = pixels ? magenta / pixels : 0;
+  const centralNearWhitePixelRatio = central ? centralNearWhite / central : 0;
+  const variantColor = text(input.variantColor).toLowerCase();
+  const lightVariant = /\b(white|natural|cream|ivory|sand|default)\b/.test(variantColor);
+  if (magentaPixelRatio > 0.01) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "magenta_box_artifact_detected", {
+      magentaPixelRatio,
+      contentType,
+      byteLength: bytes.byteLength
+    });
+  }
+  if (!lightVariant && centralNearWhitePixelRatio > 0.42) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "white_box_artifact_detected", {
+      variantColor: variantColor || "unknown",
+      centralNearWhitePixelRatio,
+      contentType,
+      byteLength: bytes.byteLength
+    });
+  }
+  return {
+    contentType,
+    byteLength: bytes.byteLength,
+    magentaPixelRatio,
+    centralNearWhitePixelRatio,
+    variantColor: variantColor || "unknown",
+    lightVariant
+  };
+}
+
 export async function runLivePrintifyMockupSmoke() {
   loadLocalEnv();
   const optIn = requirePrintifyMockupSmokeOptIn();
@@ -841,6 +923,18 @@ export async function runLivePrintifyMockupSmoke() {
       internalMockupRejected: false
     });
   }
+  const heroMetadata = asMetadata(heroMockup);
+  const heroMockupUrl = text(heroMetadata.provider_mockup_url ?? heroMetadata.providerMockupUrl ?? heroMetadata.public_url ?? heroMetadata.publicUrl ?? heroMockup?.file_path ?? heroMockup?.filePath);
+  if (!heroMockupUrl) {
+    throw new PrintifyMockupSmokeError("mockup_import_failure", "mockup_provider_url_missing", {
+      heroMockupId: safeId(heroMockup!.id)
+    });
+  }
+  const selectedVariant = prepared.variants[0] as WorkspaceRow | undefined;
+  const mockupVisualProof = await inspectPrintifyMockupVisualQuality({
+    url: heroMockupUrl,
+    variantColor: selectedVariant ? variantOptionText(selectedVariant as Record<string, unknown>, /color|colour/, "") : ""
+  });
 
   const proof = {
     ok: true,
@@ -855,6 +949,8 @@ export async function runLivePrintifyMockupSmoke() {
     mockupImageCount: importedOk.images.length,
     mockupIds: importedOk.mockups.map((mockup: WorkspaceRow) => safeId(mockup.id)),
     heroMockupId: safeId(heroMockup!.id),
+    heroMockupUrl: heroMockupUrl ? "provider image URL stored" : "missing",
+    mockupVisualProof,
     productDraftAcceptsPrintifyProof: true,
     internalMockupRejectedAsProductionProof: true,
     importAttempts: retry.attempts,
@@ -864,6 +960,10 @@ export async function runLivePrintifyMockupSmoke() {
     livePublish: false,
     secrets: "not printed"
   };
+  const reportPath = path.resolve(process.cwd(), ".saltyfactory-private", "smoke-reports", `printify-mockups-${Date.now()}.json`);
+  await mkdir(path.dirname(reportPath), { recursive: true });
+  await writeFile(reportPath, JSON.stringify(proof, null, 2));
+  (proof as Record<string, unknown>)["reportPath"] = reportPath;
   console.log(JSON.stringify(proof, null, 2));
   return proof;
 }

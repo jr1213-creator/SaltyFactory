@@ -13,6 +13,7 @@ import {
   isApprovedSmokeBrief,
   proveMockupContainsSourceArt,
   safePreflightDiagnostics,
+  verifyChromaBackdrop,
   verifyImagePreviewResponse
 } from "../scripts/smoke-image-mockup-live";
 import { POST as createBriefPost } from "../apps/studio/app/api/studio/design-briefs/route";
@@ -86,6 +87,8 @@ describe("live image/mockup smoke harness", () => {
     expect(stored?.phrase_id).toMatch(/^phrase_manual_brief_/);
     expect(stored?.cluster_id).toMatch(/^cluster_manual_brief_/);
     expect(stored?.generation_prompt).toContain("coastal cowgirl boutique style");
+    expect(stored?.generation_prompt).toContain("#FF00FF chroma key background");
+    expect(stored?.style_direction).toMatchObject({ background_requirement: "transparent" });
     expect(stored?.approved_for_generation).toBe(true);
   });
 
@@ -192,6 +195,21 @@ describe("live image/mockup smoke harness", () => {
 
     expect(proof.byteLength).toBeGreaterThan(0);
     await expect(verifyImagePreviewResponse(Response.json({ ok: false }, { status: 404 }), "asset")).rejects.toThrow(/asset_preview_failed/);
+  });
+
+  it("verifies generated source images contain the expected chroma key backdrop", async () => {
+    const foreground = await sharp({ create: { width: 64, height: 64, channels: 4, background: "#122a40" } }).png().toBuffer();
+    const chroma = await sharp({ create: { width: 180, height: 180, channels: 4, background: "#ff00ff" } })
+      .composite([{ input: foreground, left: 58, top: 58 }])
+      .png()
+      .toBuffer();
+    const white = await sharp({ create: { width: 180, height: 180, channels: 4, background: "#ffffff" } }).png().toBuffer();
+
+    const proof = await verifyChromaBackdrop({ bytes: chroma, keyColor: "#FF00FF" });
+
+    expect(proof.nearKeyPixelRatio).toBeGreaterThan(0.6);
+    expect(proof.borderNearKeyPixelRatio).toBeGreaterThan(0.9);
+    await expect(verifyChromaBackdrop({ bytes: white, keyColor: "#FF00FF" })).rejects.toThrow(/chroma_key_backdrop_not_detected/);
   });
 
   it("blocks generated opaque apparel print PNGs with transparent background missing", async () => {
