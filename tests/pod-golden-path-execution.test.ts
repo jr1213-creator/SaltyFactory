@@ -97,7 +97,11 @@ async function writeLocalArtwork(assetId: string, color = "#0f766e") {
   const storageKey = `workspaces/${workspaceId}/private/assets/${assetId}.png`;
   const filePath = localPrivatePath("assets", storageKey);
   await mkdir(path.dirname(filePath), { recursive: true });
-  const buffer = await sharp({ create: { width: 3000, height: 3000, channels: 4, background: color } }).png().toBuffer();
+  const swatch = await sharp({ create: { width: 1800, height: 1800, channels: 4, background: color } }).png().toBuffer();
+  const buffer = await sharp({ create: { width: 3000, height: 3000, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } } })
+    .composite([{ input: swatch, left: 600, top: 600 }])
+    .png()
+    .toBuffer();
   await writeFile(filePath, buffer);
   return { storageKey, buffer };
 }
@@ -152,7 +156,18 @@ async function seedApprovedAsset(repos: RepositoryBundle, suffix: string) {
     mime_type: "image/png",
     extension: "png",
     visibility: "private",
-    metadata: { derivative_package: true, derivative_kind: "print_png", source_asset_id: assetId, parent_asset_id: assetId },
+    metadata: {
+      derivative_package: true,
+      derivative_kind: "print_png",
+      source_asset_id: assetId,
+      parent_asset_id: assetId,
+      has_alpha: true,
+      transparent_pixel_ratio: 0.64,
+      near_white_opaque_pixel_ratio: 0,
+      transparent_background_ready: true,
+      background_removal_required: false,
+      print_target: "apparel_front_square"
+    },
     created_by: actorId,
     updated_by: actorId
   } as WorkspaceRow);
@@ -218,7 +233,18 @@ async function seedApprovedAssetWithColor(repos: RepositoryBundle, suffix: strin
     mime_type: "image/png",
     extension: "png",
     visibility: "private",
-    metadata: { derivative_package: true, derivative_kind: "print_png", source_asset_id: assetId, parent_asset_id: assetId },
+    metadata: {
+      derivative_package: true,
+      derivative_kind: "print_png",
+      source_asset_id: assetId,
+      parent_asset_id: assetId,
+      has_alpha: true,
+      transparent_pixel_ratio: 0.64,
+      near_white_opaque_pixel_ratio: 0,
+      transparent_background_ready: true,
+      background_removal_required: false,
+      print_target: "apparel_front_square"
+    },
     created_by: actorId,
     updated_by: actorId
   } as WorkspaceRow);

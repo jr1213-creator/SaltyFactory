@@ -194,7 +194,7 @@ describe("live image/mockup smoke harness", () => {
     await expect(verifyImagePreviewResponse(Response.json({ ok: false }, { status: 404 }), "asset")).rejects.toThrow(/asset_preview_failed/);
   });
 
-  it("allows generated opaque print PNGs to pass QA with a plain-background warning", async () => {
+  it("blocks generated opaque apparel print PNGs with transparent background missing", async () => {
     useSharedMemoryRuntime();
     const repos = createRepositories();
     const assetId = `asset_hf_opaque_${Date.now()}_0_test`;
@@ -257,11 +257,11 @@ describe("live image/mockup smoke harness", () => {
     const approveBody = await approveResponse.json();
 
     expect(qaResponse.status).toBe(200);
-    expect(qaBody.status).toBe("passed");
-    expect(qaBody.qa.warnings).toContain("plain_background_print_file");
-    expect(qaBody.qa.checks.plain_background_print_file.status).toBe("warnings");
-    expect(approveResponse.status).toBe(200);
-    expect(approveBody.asset.approved_for_mockup).toBe(true);
+    expect(qaBody.status).toBe("failed");
+    expect(qaBody.qa.blocked_reasons).toContain("transparent_background_missing");
+    expect(qaBody.qa.checks.plain_background_print_file.status).toBe("failed");
+    expect(approveResponse.status).toBe(409);
+    expect(approveBody.blockingReasons).toContain("asset_qa_not_passed");
   });
 
   it("proves a rendered mockup contains source artwork pixels", async () => {

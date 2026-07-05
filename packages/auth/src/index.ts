@@ -41,8 +41,12 @@ function authError(message: string, status = 401) {
   return Object.assign(new Error(message), { status });
 }
 
+function runtimeEnv(key: string) {
+  return (process.env as Record<string, string | undefined>)[key];
+}
+
 function isProduction() {
-  return process.env.NODE_ENV === "production" || process.env.APP_ENV === "production";
+  return runtimeEnv("NODE_ENV") === "production" || runtimeEnv("APP_ENV") === "production";
 }
 
 function publicSupabaseUrl() {
@@ -198,9 +202,9 @@ async function getVerifiedSupabaseIdentity(input?: AuthInput): Promise<SupabaseI
 }
 
 function testAuthBypassUser(workspaceId: string): StudioUser | null {
-  if (process.env.PLAYWRIGHT_AUTH_BYPASS !== "true") return null;
+  if (runtimeEnv("PLAYWRIGHT_AUTH_BYPASS") !== "true") return null;
   if (isProduction()) throw authError("test_auth_bypass_forbidden_in_production", 403);
-  if (process.env.NODE_ENV !== "test" && process.env.APP_ENV !== "test") throw authError("test_auth_bypass_requires_test_runtime", 403);
+  if (runtimeEnv("NODE_ENV") !== "test" && runtimeEnv("APP_ENV") !== "test") throw authError("test_auth_bypass_requires_test_runtime", 403);
   return {
     id: "playwright_auth_bypass_owner",
     email: "playwright-auth-bypass@saltyfactory.local",

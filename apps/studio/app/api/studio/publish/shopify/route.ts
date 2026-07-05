@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePublishPermission, requireReviewerOrAbove } from "@saltyfactory/auth";
-import { createCommerceProviders } from "@saltyfactory/commerce";
+import { createCommerceProviders, normalizeShopifyCollectionType } from "@saltyfactory/commerce";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories } from "@saltyfactory/db";
 import { evaluatePublishReviewGates } from "@saltyfactory/domain";
@@ -53,12 +53,29 @@ export async function POST(req: Request) {
     }
     const metadata = metadataOf(draft);
     const collectionId = String(body.collectionId || body.collection_id || metadata.shopify_collection_id || metadata.shopifyCollectionId || shopify.selectedCollectionId || config.SHOPIFY_DEFAULT_COLLECTION_ID || "");
+    const collectionType = normalizeShopifyCollectionType(
+      body.collectionType
+        || body.collection_type
+        || metadata.shopify_collection_type
+        || metadata.shopifyCollectionType
+        || shopify.selectedCollectionType
+    );
+    const collectionAssignmentMode = String(body.collectionAssignmentMode || body.collection_assignment_mode || metadata.shopify_collection_assignment_mode || metadata.shopifyCollectionAssignmentMode || shopify.selectedCollectionAssignmentMode || "");
     if (!collectionId) {
       return NextResponse.json({
         ok: false,
         status: "blocked_by_guardrail",
         blockingReasons: ["shopify_collection_id_required"],
         setupRequired: ["Select a real Shopify collection ID before draft creation."]
+      }, { status: 409 });
+    }
+    if (collectionType === "smart" || collectionAssignmentMode === "rule_managed") {
+      return NextResponse.json({
+        ok: false,
+        status: "blocked_by_guardrail",
+        blockingReasons: ["shopify_smart_collection_rule_managed"],
+        setupRequired: ["Select a custom Shopify collection for manual draft assignment."],
+        message: "Smart Shopify collections are rule-managed and cannot be manually assigned during draft creation."
       }, { status: 409 });
     }
     const commerce = createCommerceProviders(config, undefined, { admin: shopify.admin });
@@ -78,7 +95,7 @@ export async function POST(req: Request) {
     const shopifyProductId = String(product.id ?? "");
     let collectionAssignment: Record<string, unknown> | null = null;
     if (shopifyProductId) {
-      const assigned = await commerce.admin.assignCollection(shopifyProductId, collectionId);
+      const assigned = await commerce.admin.assignCollection(shopifyProductId, collectionId, { collectionType });
       if (!assigned.ok) {
         return NextResponse.json({ ok: false, status: "failed", message: assigned.error, retryable: assigned.retryable, rateLimited: assigned.rateLimited, setupRequired: assigned.setupRequired }, { status: assigned.rateLimited ? 429 : 502 });
       }
@@ -95,7 +112,7 @@ export async function POST(req: Request) {
       source_label: "provider_api",
       status: "completed",
       raw_payload_ref: null,
-      metadata: { mediaCount: mediaResult.media.length, variantCount: variants.length, collectionId: collectionId || null },
+      metadata: { mediaCount: mediaResult.media.length, variantCount: variants.length, collectionId: collectionId || null, collectionType },
       created_by: user.id,
       updated_by: user.id
     });
@@ -118,7 +135,7 @@ export async function POST(req: Request) {
       seo: { title: metadata.seo_title ?? metadata.seoTitle ?? draft.title, description: metadata.seo_description ?? metadata.seoDescription ?? draft.description },
       sync_status: "draft_created",
       source_record_id: sourceRecord.id,
-      metadata: { collectionAssignment, livePublishingEnabled: config.LIVE_PUBLISHING_ENABLED === true },
+      metadata: { collectionAssignment, collectionType, livePublishingEnabled: config.LIVE_PUBLISHING_ENABLED === true },
       synced_at: new Date().toISOString(),
       updated_by: user.id,
       created_by: user.id

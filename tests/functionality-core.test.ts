@@ -251,7 +251,8 @@ describe("POD image QA pipeline", () => {
       density: 300,
       format: "png",
       fileSizeBytes: 4000000,
-      hasAlpha: true
+      hasAlpha: true,
+      transparentPixelRatio: 0.35
     });
     expect(result.status).toBe("passed");
     expect(result.approved_for_product_draft).toBe(true);
@@ -264,7 +265,8 @@ describe("POD image QA pipeline", () => {
       density: 300,
       format: "png",
       fileSizeBytes: 4000000,
-      hasAlpha: true
+      hasAlpha: true,
+      transparentPixelRatio: 0.35
     });
     expect((result.checks.safe_margin_ok as any).status).toBe("not_applicable");
     expect((result.checks.text_legibility as any).status).toBe("not_applicable");

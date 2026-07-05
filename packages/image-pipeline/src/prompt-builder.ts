@@ -1,3 +1,5 @@
+import { defaultPodChromaKeyConfig, shouldUseChromaKeyForPrintTarget, type ChromaKeyConfig } from "./chroma-key";
+
 export type PromptBriefInput = {
   id: string;
   title?: string;
@@ -38,6 +40,8 @@ export type PromptPackage = {
     height: number;
     count: number;
     transparentBackground: boolean;
+    providerTransparentBackground: boolean;
+    chromaKey: ChromaKeyConfig | null;
   };
   safety_metadata: {
     promptInjectionFlagged: boolean;
@@ -75,6 +79,7 @@ export type PodPromptRecipe = {
   stylePreset: string;
   safetyNotes: string[];
   textRequested: boolean;
+  chromaKey: ChromaKeyConfig | null;
   basePackage: PromptPackage;
 };
 
@@ -229,7 +234,7 @@ export function evaluatePromptSafety(input: { safetyText: string; injectionText?
   };
 }
 
-export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { count?: number; width?: number; height?: number; allowedBrandTerms?: string[] } = {}): PromptPackage {
+export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { count?: number; width?: number; height?: number; allowedBrandTerms?: string[]; printTarget?: string } = {}): PromptPackage {
   const style = styleOf(brief);
   const promptText = String(brief.generationPrompt ?? brief.generation_prompt ?? "");
   const negativeText = String(brief.negativePrompt ?? brief.negative_prompt ?? "");
@@ -238,6 +243,10 @@ export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { 
   const keywords = arrayOfStrings(style.style_keywords ?? style.styleKeywords);
   const phrase = String(style.suggested_phrase ?? style.suggestedPhrase ?? promptText).slice(0, 120);
   const transparentBackground = style.background_requirement === "transparent" || style.transparent_background_required === true || style.transparentBackgroundRequired === true;
+  const chromaKeyPrintTarget = options.printTarget ?? productTargets[0] ?? "";
+  const chromaKey = shouldUseChromaKeyForPrintTarget({ printTarget: chromaKeyPrintTarget, transparentIntent: transparentBackground })
+    ? defaultPodChromaKeyConfig
+    : null;
   const safetyText = [
     brief.title,
     brief.collection,
@@ -268,7 +277,11 @@ export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { 
     keywords.length ? `Style keywords: ${keywords.join(", ")}.` : "Style: clean, original, boutique-ready illustration.",
     palette.length ? `Color palette: ${palette.join(", ")}.` : "Use a limited, print-friendly palette.",
     "Centered composition, clean edges, no tiny unreadable text, no brand logos, no celebrity likenesses, no copyrighted characters.",
-    transparentBackground ? "Transparent background source art." : "Background may be contextual only if requested by the human brief."
+    chromaKey
+      ? `Use a flat solid ${chromaKey.keyColor} chroma key background behind the artwork. The ${chromaKey.keyColor} key color must not appear inside the design.`
+      : transparentBackground
+        ? "Transparent background source art where the selected provider supports true alpha."
+        : "Background may be contextual only if requested by the human brief."
   ].join(" ");
   const negative = [
     negativeText,
@@ -290,7 +303,9 @@ export function buildPromptPackageFromBrief(brief: PromptBriefInput, options: { 
       width: Number(options.width ?? style.output_width ?? style.outputWidth ?? 3000),
       height: Number(options.height ?? style.output_height ?? style.outputHeight ?? 3000),
       count: Math.min(Math.max(Number(options.count ?? 1), 1), 4),
-      transparentBackground
+      transparentBackground,
+      providerTransparentBackground: transparentBackground && !chromaKey,
+      chromaKey
     },
     safety_metadata: {
       promptInjectionFlagged: safety.blockers.includes("prompt_injection_detected"),
@@ -329,14 +344,20 @@ export function buildPodPromptRecipeFromBrief(
   const printTarget = options.printTarget ?? preset.suggestedPrintTargets[0] ?? "apparel_front_square";
   const width = Number(options.width ?? preset.defaultDimensions.width);
   const height = Number(options.height ?? preset.defaultDimensions.height);
-  const base = buildPromptPackageFromBrief(brief, { count: options.variantCount ?? 4, width, height });
+  const base = buildPromptPackageFromBrief(brief, { count: options.variantCount ?? 4, width, height, printTarget });
   const style = styleOf(brief);
   const requestedText = String(style.suggested_phrase ?? style.suggestedPhrase ?? "").trim();
   const textRequested = requestedText.length > 0;
+  const chromaKey = base.generation_params.chromaKey;
   const prompt = [
     "Create a high-resolution print-on-demand artwork design.",
     "Artwork only: centered composition, clean isolated graphic, suitable for DTG printing on apparel and POD products.",
     `Print target: ${printTarget.replace(/_/g, " ")}.`,
+    ...(chromaKey ? [
+      `Place the artwork on a flat solid ${chromaKey.keyColor} chroma key background.`,
+      `Do not use ${chromaKey.keyColor}, magenta, or the chroma key color inside the artwork itself.`,
+      "The output should be regular artwork on the chroma background; SaltyFactory will remove that color after generation."
+    ] : []),
     base.positive_prompt,
     `Style preset: ${preset.label}.`,
     `Style details: ${preset.promptAdditions.join(", ")}.`,
@@ -360,9 +381,11 @@ export function buildPodPromptRecipeFromBrief(
     stylePreset: preset.id,
     safetyNotes: [
       ...base.warnings,
+      ...(chromaKey ? [`Chroma key cleanup expected with ${chromaKey.keyColor}; provider is not expected to return true alpha.`] : []),
       ...(textRequested ? ["AI-generated text may be unreliable; owner spelling review is required."] : [])
     ],
     textRequested,
+    chromaKey,
     basePackage: base
   };
 }

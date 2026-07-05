@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories, getDb, mockupTemplates, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
+import { defaultQaRules, resolvePrintQualityRequirements } from "@saltyfactory/image-pipeline";
 import { sanitizeProviderError } from "@saltyfactory/security";
 import { findAssetDerivative, metadataOf } from "../../_image-production";
 import {
@@ -86,6 +87,53 @@ export function evaluatePrintifyMockupProductionProof(input: { mockup: Workspace
   return { ok: true as const, status: "printify_mockup_proof_accepted", mockup };
 }
 
+function numberFromMetadata(metadata: Record<string, unknown>, key: string) {
+  const value = Number(metadata[key]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+export function evaluatePrintReadyPngForPrintify(input: { derivative: WorkspaceRow | null | undefined; productType?: string; printTarget?: string }) {
+  const derivative = input.derivative;
+  if (!derivative) {
+    return {
+      ok: false as const,
+      status: "print_png_missing",
+      message: "Upload requires the print-ready PNG derivative.",
+      blockingReasons: ["print_png_missing"]
+    };
+  }
+  const metadata = metadataOf(derivative);
+  const printTarget = text(input.printTarget ?? metadata.print_target ?? metadata.printTarget, "apparel_front_square");
+  const requirements = resolvePrintQualityRequirements({ productType: input.productType, printTarget });
+  if (!requirements.rules.requireTransparent) return { ok: true as const, derivative };
+
+  const transparentPixelRatio = numberFromMetadata(metadata, "transparent_pixel_ratio") ?? 0;
+  const hasAlpha = derivative.transparent_background === true
+    || derivative.transparentBackground === true
+    || metadata.has_alpha === true
+    || metadata.hasAlpha === true;
+  const transparentReady = metadata.transparent_background_ready === true
+    || metadata.transparentBackgroundReady === true
+    || (hasAlpha && transparentPixelRatio >= (requirements.rules.minTransparentPixelRatio ?? defaultQaRules.minTransparentPixelRatio));
+
+  if (!transparentReady) {
+    return {
+      ok: false as const,
+      status: "transparent_background_missing",
+      message: "This apparel print file has an opaque background. Run background removal and regenerate a transparent print PNG before uploading to Printify.",
+      blockingReasons: ["transparent_background_missing"],
+      evidence: {
+        printTarget,
+        hasAlpha,
+        transparentPixelRatio,
+        minTransparentPixelRatio: requirements.rules.minTransparentPixelRatio,
+        backgroundRemovalRequired: true
+      }
+    };
+  }
+  return { ok: true as const, derivative };
+}
+
 export function providerMockupUrl(row: WorkspaceRow | null | undefined) {
   const metadata = metadataOf(row);
   return text(metadata.provider_mockup_url ?? metadata.providerMockupUrl ?? metadata.public_url ?? metadata.publicUrl ?? row?.file_path ?? row?.filePath);
@@ -160,15 +208,7 @@ export function extractPrintifyMockupImages(product: unknown) {
 
 export async function getPrintReadyDerivativeOrBlock(repos: RepositoryBundle, sourceAssetId: string) {
   const derivative = await findAssetDerivative(repos, workspaceId, sourceAssetId, "print_png");
-  if (!derivative) {
-    return {
-      ok: false as const,
-      status: "print_png_missing",
-      message: "Upload requires the print-ready PNG derivative.",
-      blockingReasons: ["print_png_missing"]
-    };
-  }
-  return { ok: true as const, derivative };
+  return evaluatePrintReadyPngForPrintify({ derivative });
 }
 
 export async function uploadPrintReadyAssetToPrintify(input: {

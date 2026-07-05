@@ -9,6 +9,7 @@ import { buildPromptPackageFromBrief } from "@saltyfactory/image-pipeline";
 import { createMemoryRepositories } from "../packages/db/src/repositories/memory";
 import { validateProductDraft } from "../apps/studio/app/api/studio/drafts/_validation";
 import { AssetWorkflowClient } from "../apps/studio/app/studio/assets/AssetWorkflowClient";
+import { MockupWorkflowClient } from "../apps/studio/app/studio/mockups/MockupWorkflowClient";
 
 const originalEnv = { ...process.env };
 const workspaceId = "wks_default";
@@ -61,6 +62,9 @@ describe("POD prompt package MVP", () => {
     expect(pkg.public_prompt_summary).not.toContain("private_prompt_snapshot");
     expect(pkg.private_prompt_snapshot).toContain("Original beach rodeo badge");
     expect(pkg.generation_params.transparentBackground).toBe(true);
+    expect(pkg.generation_params.providerTransparentBackground).toBe(false);
+    expect(pkg.generation_params.chromaKey).toMatchObject({ enabled: true, keyColor: "#FF00FF" });
+    expect(pkg.positive_prompt).toContain("flat solid #FF00FF chroma key background");
   });
 
   it("blocks prompt injection before generation", () => {
@@ -290,5 +294,99 @@ describe("product draft mockup gate", () => {
     const result = await validateProductDraft({ repos, workspaceId, draftId: "draft_ready", actorId });
     expect(result.valid).toBe(true);
     expect(result.checks).toMatchObject({ approved_mockup_present: true, qa_passed: true });
+  });
+});
+
+describe("mockup print transparency status", () => {
+  it("does not present opaque apparel print PNGs as ready for Printify upload", () => {
+    const assetId = "asset_opaque_apparel";
+    const html = renderToStaticMarkup(createElement(MockupWorkflowClient, {
+      initialAssetId: assetId,
+      initialAssets: [{
+        id: assetId,
+        generator: "huggingface",
+        model: "fixture",
+        qa_status: "passed",
+        approved_for_mockup: true,
+        metadata: { print_target: "apparel_front_square" }
+      }],
+      initialDerivatives: [{
+        id: `${assetId}_print_png`,
+        asset_type: "print_png",
+        mime_type: "image/png",
+        width: 4500,
+        height: 4500,
+        transparent_background: false,
+        qa_status: "failed",
+        metadata: {
+          derivative_kind: "print_png",
+          source_asset_id: assetId,
+          print_target: "apparel_front_square",
+          transparent_background_ready: false,
+          transparent_pixel_ratio: 0,
+          near_white_opaque_pixel_ratio: 0.76,
+          background_removal_required: true
+        }
+      }],
+      initialMockups: [{
+        id: "mockup_printify_existing",
+        asset_id: assetId,
+        product_draft_id: "draft_existing",
+        approved_for_product: true,
+        metadata: {
+          provider_source: "printify",
+          provider_mockup_url: "https://images.printify.com/mockup.png",
+          printify_is_default: true,
+          is_hero: true
+        }
+      }],
+      initialDrafts: [{ id: "draft_existing", asset_id: assetId, title: "Existing draft" }],
+      initialPrintifyProducts: [{ id: "printify_ref", product_draft_id: "draft_existing", asset_id: assetId, printify_product_id: "product_existing", printify_upload_id: "upload_existing" }]
+    }));
+
+    expect(html).toContain("Transparent print file needed");
+    expect(html).toContain("This asset needs a transparent print-ready PNG before Printify upload.");
+    expect(html).not.toContain("<dd>Print file ready</dd>");
+  });
+
+  it("shows chroma cleanup status when the apparel print PNG is not transparent yet", () => {
+    const assetId = "asset_chroma_cleanup_needed";
+    const html = renderToStaticMarkup(createElement(MockupWorkflowClient, {
+      initialAssetId: assetId,
+      initialAssets: [{
+        id: assetId,
+        generator: "huggingface",
+        model: "fixture",
+        qa_status: "pending",
+        approved_for_mockup: false,
+        metadata: { print_target: "apparel_front_square", transparent_background_intent: true }
+      }],
+      initialDerivatives: [{
+        id: `${assetId}_print_png`,
+        asset_type: "print_png",
+        mime_type: "image/png",
+        width: 4500,
+        height: 4500,
+        transparent_background: false,
+        qa_status: "failed",
+        metadata: {
+          derivative_kind: "print_png",
+          source_asset_id: assetId,
+          print_target: "apparel_front_square",
+          transparent_background_ready: false,
+          transparent_pixel_ratio: 0,
+          background_removal_required: true,
+          chroma_key_enabled: true,
+          chroma_key_applied: false
+        }
+      }],
+      initialMockups: [],
+      initialDrafts: [],
+      initialPrintifyProducts: []
+    }));
+
+    expect(html).toContain("Chroma cleanup needed");
+    expect(html).toContain("Run chroma cleanup before Printify upload.");
+    expect(html).not.toContain("Print file ready");
   });
 });

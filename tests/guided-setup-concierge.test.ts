@@ -17,6 +17,7 @@ import { GET as providerConnectionsGet } from "../apps/studio/app/api/studio/pro
 import { POST as printifyValidatePost } from "../apps/studio/app/api/studio/provider-connections/printify/validate-token/route";
 import { POST as shopifyValidatePost } from "../apps/studio/app/api/studio/provider-connections/shopify/validate-admin/route";
 import { POST as shopifyClientCredentialsPost } from "../apps/studio/app/api/studio/provider-connections/shopify/exchange-client-credentials/route";
+import { POST as shopifySelectCollectionPost } from "../apps/studio/app/api/studio/provider-connections/shopify/select-collection/route";
 import { POST as imageValidatePost } from "../apps/studio/app/api/studio/provider-connections/image-generation/validate/route";
 import { POST as helpPost } from "../apps/studio/app/api/studio/onboarding/request-help/route";
 
@@ -222,6 +223,22 @@ describe("guided setup concierge APIs", () => {
     expect(body.providerMetadata.collections[0]).toMatchObject({ id: "456", title: "Beach Rodeo" });
     expect(JSON.stringify(body)).not.toContain(clientSecret);
     expect(JSON.stringify(body)).not.toContain("generated_admin_token");
+  });
+
+  it("rejects smart Shopify collections for manual draft assignment", async () => {
+    authorizeAsOwner();
+
+    const response = await shopifySelectCollectionPost(jsonPost("/api/studio/provider-connections/shopify/select-collection", {
+      collectionId: "gid://shopify/Collection/789",
+      collectionType: "smart"
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.status).toBe("blocked");
+    expect(body.safeMessage).toContain("Smart Shopify collections are rule-managed");
+    expect(body.setupRequired).toContain("Select a custom Shopify collection");
+    expect(JSON.stringify(body)).not.toMatch(/shpat_|client_secret|access_token/i);
   });
 
   it("returns a safe error for invalid Shopify Dev Dashboard credentials", async () => {

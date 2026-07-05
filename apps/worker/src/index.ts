@@ -13,6 +13,7 @@ import {
 } from "@saltyfactory/ai-free";
 import { createCommerceProviders } from "@saltyfactory/commerce";
 import { createRepositories, type RepositoryBundle } from "@saltyfactory/db";
+import { defaultQaRules, inspectImageTransparency } from "@saltyfactory/image-pipeline";
 import { createStorageProvider, resolveStorageRuntimeConfig, type StorageProvider } from "@saltyfactory/storage";
 import { DatabaseBackedQueue } from "@saltyfactory/queue";
 
@@ -86,6 +87,9 @@ async function storeWorkerDerivative(input: {
     storageBucket = "local-dev-private-assets";
   }
   const metadata = await (await import("sharp")).default(input.buffer).metadata();
+  const transparency = await inspectImageTransparency(input.buffer);
+  const transparentReady = input.kind !== "print_png"
+    || (transparency.hasAlpha && transparency.transparentPixelRatio >= defaultQaRules.minTransparentPixelRatio);
   const checksum = crypto.createHash("sha256").update(input.buffer).digest("hex");
   return input.repos.asset.create({
     id: `${sourceId}_${input.kind}`,
@@ -99,10 +103,10 @@ async function storeWorkerDerivative(input: {
     width: metadata.width ?? 0,
     height: metadata.height ?? 0,
     dpi: metadata.density ?? 300,
-    transparent_background: Boolean(metadata.hasAlpha),
+    transparent_background: transparency.hasAlpha,
     generator: input.sourceAsset.generator ?? "image_provider",
     model: input.sourceAsset.model ?? "unknown",
-    qa_status: "passed",
+    qa_status: input.kind === "print_png" && !transparentReady ? "failed" : "passed",
     risk_status: "pending",
     approved_for_mockup: false,
     checksum,
@@ -117,7 +121,12 @@ async function storeWorkerDerivative(input: {
       derivative_kind: input.kind,
       source_asset_id: sourceId,
       parent_asset_id: sourceId,
-      generated_by_worker: true
+      generated_by_worker: true,
+      has_alpha: transparency.hasAlpha,
+      transparent_pixel_ratio: transparency.transparentPixelRatio,
+      near_white_opaque_pixel_ratio: transparency.nearWhiteOpaquePixelRatio,
+      transparent_background_ready: transparentReady,
+      background_removal_required: input.kind === "print_png" && !transparentReady
     }
   });
 }
@@ -271,8 +280,14 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
     if (job.type === "publish") {
       throw Object.assign(new Error("publish blocked without approval"), { retryable: false });
     }
-    if (job.type === "background_removal") await new BackgroundRemovalProviderDisabled().removeBackground();
-    if (job.type === "upscale") await new UpscaleProviderDisabled().upscale();
+    if (job.type === "background_removal") {
+      const result = await new BackgroundRemovalProviderDisabled().removeBackground();
+      throw Object.assign(new Error(result.ok ? "background_removal_handler_missing" : result.error), { retryable: false });
+    }
+    if (job.type === "upscale") {
+      const result = await new UpscaleProviderDisabled().upscale();
+      throw Object.assign(new Error(result.ok ? "upscale_handler_missing" : result.error), { retryable: false });
+    }
     if (job.type === "generation") {
       if (!image.enabled) {
         const error = imageResolution?.status === "config_required" ? "setup_required" : imageResolution?.status ?? "provider_disabled";
@@ -302,8 +317,7 @@ export async function runWorkerOnce(queue?: WorkerQueue, deps: WorkerDeps = {}) 
       await markCompleted(queue, repos, job.id, asset.id);
       return { ok: true, processed: 1, outputAssetId: asset.id, textProvider: text.enabled, storefront: !!commerce.storefront };
     }
-    await markCompleted(queue, repos, job.id);
-    return { ok: true, processed: 1, textProvider: text.enabled, storefront: !!commerce.storefront };
+    throw Object.assign(new Error(`worker_job_type_unhandled:${job.type}`), { retryable: false });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const retryable = Boolean((error as any)?.retryable);

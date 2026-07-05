@@ -7,6 +7,7 @@ export type CommerceResult<T> = { ok: true; data: T } | { ok: false; error: stri
 
 const disabled = <T>(error = "provider_disabled", setupRequired: string[] = []): CommerceResult<T> => ({ ok: false, error, setupRequired });
 export type ShopifyCredentialMode = "legacy_admin_token" | "dev_dashboard_client_credentials";
+export type ShopifyCollectionType = "custom" | "smart" | "unknown";
 export type PrintifyRuntimeStatus = "ready" | "config_required" | "invalid" | "owner_gated";
 export type PrintifyRuntimeProvider = "printify" | "disabled";
 export type PrintifyCredentialSource = "credential_store" | "env" | "none";
@@ -329,6 +330,17 @@ function secondsFromNow(seconds: unknown) {
   return Date.now() + Math.max(value - 60, 1) * 1000;
 }
 
+export function normalizeShopifyCollectionType(value: unknown): ShopifyCollectionType {
+  const normalized = String(value ?? "").toLowerCase().trim();
+  if (normalized === "custom" || normalized === "custom_collection") return "custom";
+  if (normalized === "smart" || normalized === "smart_collection") return "smart";
+  return "unknown";
+}
+
+export function isShopifyCollectionManuallyAssignable(value: unknown) {
+  return normalizeShopifyCollectionType(value) !== "smart";
+}
+
 async function readJson(response: Response) {
   const text = await response.text();
   if (!text) return {};
@@ -412,7 +424,7 @@ export class ShopifyAdminProviderDisabled {
   async createProductDraft(_product?: any): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
   async updateProduct(_id?: string, _updates?: any): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
   async uploadProductImage(_productId?: string, _imageUrl?: string, _altText?: string): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
-  async assignCollection(_productId?: string, _collectionId?: string): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
+  async assignCollection(_productId?: string, _collectionId?: string, _options?: { collectionType?: string }): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
   async publishProductGuarded(_id?: string, _review?: PublishReview, _actor?: string): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
   async getProduct(_id?: string): Promise<CommerceResult<any>> { return disabled("shopify_admin_disabled"); }
   async isHealthy() { return false; }
@@ -515,9 +527,12 @@ export class ShopifyAdminProviderLive extends ShopifyAdminProviderDisabled {
       ...(custom.ok && Array.isArray(custom.data.custom_collections) ? custom.data.custom_collections.map((collection) => ({ ...collection, collection_type: "custom" })) : []),
       ...(smart.ok && Array.isArray(smart.data.smart_collections) ? smart.data.smart_collections.map((collection) => ({ ...collection, collection_type: "smart" })) : [])
     ].map((collection: any) => ({
+      collection_type: normalizeShopifyCollectionType(collection.collection_type),
       id: String(collection.id ?? ""),
       title: String(collection.title ?? "Shopify collection"),
-      type: String(collection.collection_type ?? "collection")
+      type: normalizeShopifyCollectionType(collection.collection_type),
+      manually_assignable: isShopifyCollectionManuallyAssignable(collection.collection_type),
+      assignment_mode: normalizeShopifyCollectionType(collection.collection_type) === "smart" ? "rule_managed" : "manual_collect"
     })).filter((collection) => collection.id);
     return { ok: true as const, data: collections };
   }
@@ -542,8 +557,11 @@ export class ShopifyAdminProviderLive extends ShopifyAdminProviderDisabled {
     });
   }
 
-  async assignCollection(productId = "", collectionId = "") {
+  async assignCollection(productId = "", collectionId = "", options: { collectionType?: string } = {}) {
     if (!productId || !collectionId) return disabled("shopify_collection_assignment_incomplete", ["shopify_product_id", "shopify_collection_id"]);
+    if (normalizeShopifyCollectionType(options.collectionType) === "smart") {
+      return disabled("shopify_smart_collection_rule_managed", ["Choose a custom Shopify collection for manual draft assignment. Smart collections are rule-managed in Shopify."]);
+    }
     return this.adminFetch<{ collect: Record<string, unknown> }>("collects.json", {
       method: "POST",
       body: JSON.stringify({ collect: { product_id: productId, collection_id: collectionId } })

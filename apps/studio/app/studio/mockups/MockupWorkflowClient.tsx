@@ -146,6 +146,44 @@ function providerVariantIds(ref: Row | null | undefined) {
   return Array.isArray(values) ? values.map(String) : [];
 }
 
+function numberFromMetadata(row: Row | null | undefined, key: string) {
+  const value = Number(metadataOf(row)[key]);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function printPngTransparencyReady(row: Row | null | undefined) {
+  if (!row) return false;
+  const metadata = metadataOf(row);
+  if (metadata.transparent_background_ready === true || metadata.transparentBackgroundReady === true) return true;
+  const hasAlpha = row.transparent_background === true
+    || row.transparentBackground === true
+    || metadata.has_alpha === true
+    || metadata.hasAlpha === true;
+  return hasAlpha && numberFromMetadata(row, "transparent_pixel_ratio") >= 0.02;
+}
+
+function printPngStatusLabel(row: Row | null | undefined, hasPrintPng: boolean) {
+  if (!hasPrintPng) return "Missing print file";
+  if (printPngTransparencyReady(row)) return "Transparent print file ready";
+  const metadata = metadataOf(row);
+  if (metadata.chroma_key_cleanup_failed === true || metadata.chromaKeyCleanupFailed === true) return "Chroma cleanup failed";
+  if ((metadata.chroma_key_enabled === true || metadata.chromaKeyEnabled === true) && !(metadata.chroma_key_applied === true || metadata.chromaKeyApplied === true)) return "Chroma cleanup needed";
+  return "Transparent print file needed";
+}
+
+function printPngBlockedReason(row: Row | null | undefined, hasPrintPng: boolean) {
+  if (!hasPrintPng) return "This asset needs a print-ready PNG.";
+  const metadata = metadataOf(row);
+  if (metadata.chroma_key_cleanup_failed === true || metadata.chromaKeyCleanupFailed === true) {
+    if (metadata.chroma_key_keyed_pixel_ratio === 0) return "Chroma cleanup did not find the expected key background.";
+    return "Chroma cleanup did not produce a production-ready transparent print PNG.";
+  }
+  if ((metadata.chroma_key_enabled === true || metadata.chromaKeyEnabled === true) && !(metadata.chroma_key_applied === true || metadata.chromaKeyApplied === true)) {
+    return "Run chroma cleanup before Printify upload.";
+  }
+  return "This asset needs a transparent print-ready PNG before Printify upload.";
+}
+
 async function postJson(url: string, body?: Record<string, unknown>) {
   const init: RequestInit = { method: "POST" };
   if (body) {
@@ -240,7 +278,11 @@ export function MockupWorkflowClient({
   } : null);
   const selectedDerivatives = useMemo(() => derivatives.filter((derivative) => derivativeParentId(derivative) === assetId), [derivatives, assetId]);
   const derivativeKindSet = useMemo(() => new Set(selectedDerivatives.map((derivative) => derivativeKindOf(derivative)).filter(Boolean)), [selectedDerivatives]);
-  const hasPrintPng = derivativeKindSet.has("print_png") || Boolean(assetId && !selectedAsset);
+  const printPngDerivative = useMemo(() => selectedDerivatives.find((derivative) => derivativeKindOf(derivative) === "print_png") ?? null, [selectedDerivatives]);
+  const hasPrintPng = derivativeKindSet.has("print_png");
+  const transparentPrintPngReady = printPngTransparencyReady(printPngDerivative);
+  const printFileReady = hasPrintPng && transparentPrintPngReady;
+  const printFileStatusLabel = printPngStatusLabel(printPngDerivative, hasPrintPng);
   const assetDrafts = useMemo(() => drafts.filter((draft) => draftAssetId(draft) === assetId), [drafts, assetId]);
   const selectedDraft = useMemo(() => assetDrafts.find((draft) => draft.id === (draftId || assetDrafts[0]?.id)) ?? assetDrafts[0] ?? null, [assetDrafts, draftId]);
   const selectedDraftId = String(selectedDraft?.id ?? "");
@@ -256,7 +298,7 @@ export function MockupWorkflowClient({
 
   const stage = !displayAsset
     ? "no_asset"
-    : !hasPrintPng
+    : !printFileReady
       ? "missing_print_file"
       : !selectedDraft
         ? "no_product_shell"
@@ -285,7 +327,9 @@ export function MockupWorkflowClient({
   const draftGateReason = !displayAsset
     ? "Select approved artwork first."
     : !hasPrintPng
-      ? "Upload the print-ready file to Printify first."
+      ? printPngBlockedReason(printPngDerivative, hasPrintPng)
+      : !transparentPrintPngReady
+        ? printPngBlockedReason(printPngDerivative, hasPrintPng)
       : !selectedDraft
         ? "Choose a Printify product shell first."
         : !uploadId
@@ -433,7 +477,7 @@ export function MockupWorkflowClient({
       <div><span>Selected asset</span><strong>{shortId(displayAsset?.id)}</strong></div>
       <div><span>Source</span><strong>{providerLabel(displayAsset)}</strong></div>
       <div><span>QA status</span><strong>{ownerLabel(assetQaStatus(displayAsset))}</strong></div>
-      <div><span>Derivative status</span><strong>{hasPrintPng ? "print PNG ready" : "print PNG missing"}</strong></div>
+      <div><span>Derivative status</span><strong>{printFileStatusLabel}</strong></div>
     </div>
 
     <div className="mockup-studio-main-grid">
@@ -444,7 +488,7 @@ export function MockupWorkflowClient({
             <h2>Source asset proof</h2>
           </div>
           <StatusChip tone={assetApproved(displayAsset) && qaPassed && hasPrintPng ? "success" : "warning"}>
-            {assetApproved(displayAsset) && qaPassed && hasPrintPng ? "Ready for Printify" : "Needs artwork proof"}
+            {assetApproved(displayAsset) && qaPassed && printFileReady ? "Ready for Printify" : "Needs artwork proof"}
           </StatusChip>
         </div>
         {displayAsset ? <PrivateImagePreview src={assetPreviewPath(displayAsset)} alt="Approved source artwork preview" aspectRatio="1 / 1" maxHeight={420} /> : null}
@@ -462,13 +506,17 @@ export function MockupWorkflowClient({
           <div><dt>Model</dt><dd>{String(displayAsset?.model ?? "Not recorded")}</dd></div>
           <div><dt>QA badge</dt><dd>{ownerLabel(assetQaStatus(displayAsset))}</dd></div>
           <div><dt>Approval</dt><dd>{assetApproved(displayAsset) ? "Artwork approved" : "Needs QA"}</dd></div>
-          <div><dt>Print file</dt><dd>{hasPrintPng ? "Print file ready" : "Missing print file"}</dd></div>
+          <div><dt>Print file</dt><dd>{printFileStatusLabel}</dd></div>
           <div><dt>Printify upload</dt><dd>{uploadId ? shortId(uploadId) : "Not uploaded"}</dd></div>
         </dl>
         <div className="mockup-derivative-row" aria-label="Derivative package status">
-          {derivativeKinds.map((kind) => <StatusChip key={kind} tone={derivativeKindSet.has(kind) ? "success" : "warning"}>
-            {kind === "print_png" ? "print PNG" : kind.replace("_", " ")} {derivativeKindSet.has(kind) ? "ready" : "missing"}
-          </StatusChip>)}
+          {derivativeKinds.map((kind) => {
+            const ready = kind === "print_png" ? printFileReady : derivativeKindSet.has(kind);
+            const label = kind === "print_png" && hasPrintPng && !printFileReady ? printFileStatusLabel : ready ? "ready" : "missing";
+            return <StatusChip key={kind} tone={ready ? "success" : "warning"}>
+              {kind === "print_png" ? "print PNG" : kind.replace("_", " ")} {label}
+            </StatusChip>;
+          })}
         </div>
       </section>
 
@@ -586,7 +634,7 @@ export function MockupWorkflowClient({
           <div><dt>Mockups</dt><dd>{printifyMockupsForDraft.length ? `${printifyMockupsForDraft.length} imported` : "Import needed"}</dd></div>
         </dl>
         <div className="action-bar">
-          <button className="btn btn-secondary" type="button" disabled={!selectedDraft || !hasPrintPng || Boolean(busy)} onClick={() => run("upload")}>Upload print-ready file</button>
+          <button className="btn btn-secondary" type="button" disabled={!selectedDraft || !printFileReady || Boolean(busy)} onClick={() => run("upload")}>Upload print-ready file</button>
           <button className="btn btn-secondary" type="button" disabled={!selectedDraft || !uploadId || Boolean(busy)} onClick={() => run("create-product")}>Create Printify Product</button>
           <button className="btn btn-secondary" type="button" disabled={!selectedPrintifyRef || Boolean(busy)} onClick={() => run("import-mockups")}>Import Mockups</button>
         </div>

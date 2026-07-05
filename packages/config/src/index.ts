@@ -191,9 +191,12 @@ export {
   primaryHuggingFaceImageModel,
   publicHuggingFaceImageModelRecommendations,
   recommendedHuggingFaceImageModels,
-  unsupportedHuggingFaceImageModelReason
+  unsupportedHuggingFaceImageModelReason,
+  huggingFaceImageModelCapabilities,
+  validateHuggingFaceImageGenerationRequest
 } from "./hugging-face-image";
 export type {
+  HuggingFaceImageGenerationCapabilities,
   HuggingFaceImageModelRecommendation,
   HuggingFaceImageProviderId,
   HuggingFaceImageValidationStatus

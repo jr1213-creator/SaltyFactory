@@ -8,7 +8,7 @@ import {
   printifySmokeProductTitlePrefix,
   requirePrintifyMockupSmokeOptIn
 } from "../scripts/smoke-printify-mockups-live";
-import { evaluatePrintifyMockupProductionProof } from "../apps/studio/app/api/studio/integrations/printify/_mockup-workflow";
+import { evaluatePrintifyMockupProductionProof, evaluatePrintReadyPngForPrintify } from "../apps/studio/app/api/studio/integrations/printify/_mockup-workflow";
 
 describe("Printify mockup live smoke harness", () => {
   afterEach(() => {
@@ -139,5 +139,59 @@ describe("Printify mockup live smoke harness", () => {
       status: "printify_mockup_required",
       blockingReasons: ["printify_mockup_required"]
     });
+  });
+
+  it("rejects opaque apparel print PNG derivatives before Printify upload", () => {
+    const proof = evaluatePrintReadyPngForPrintify({
+      productType: "tee",
+      printTarget: "apparel_front_square",
+      derivative: {
+        id: "asset_opaque_print_png",
+        asset_type: "print_png",
+        mime_type: "image/png",
+        transparent_background: false,
+        metadata: {
+          derivative_kind: "print_png",
+          print_target: "apparel_front_square",
+          transparent_background_ready: false,
+          transparent_pixel_ratio: 0,
+          near_white_opaque_pixel_ratio: 0.76,
+          background_removal_required: true,
+          provider_source: "internal"
+        }
+      } as any
+    });
+
+    expect(proof).toMatchObject({
+      ok: false,
+      status: "transparent_background_missing",
+      blockingReasons: ["transparent_background_missing"]
+    });
+  });
+
+  it("accepts chroma-keyed transparent apparel print PNG derivatives before Printify upload", () => {
+    const proof = evaluatePrintReadyPngForPrintify({
+      productType: "tee",
+      printTarget: "apparel_front_square",
+      derivative: {
+        id: "asset_chroma_print_png",
+        asset_type: "print_png",
+        mime_type: "image/png",
+        transparent_background: true,
+        metadata: {
+          derivative_kind: "print_png",
+          print_target: "apparel_front_square",
+          transparent_background_ready: true,
+          transparent_pixel_ratio: 0.72,
+          background_removal_required: false,
+          chroma_key_enabled: true,
+          chroma_key_applied: true,
+          chroma_key_keyed_pixel_ratio: 0.72,
+          chroma_key_remaining_near_key_pixel_ratio: 0
+        }
+      } as any
+    });
+
+    expect(proof).toMatchObject({ ok: true });
   });
 });

@@ -46,7 +46,8 @@ describe("f28066e provider workflow verification hardening", () => {
     const route = readFileSync(join(root, "apps/studio/app/api/studio/publish/shopify/route.ts"), "utf8");
     const readiness = readFileSync(join(root, "apps/studio/app/api/studio/publish-reviews/_readiness.ts"), "utf8");
     expect(route).toContain("shopify_collection_id_required");
-    expect(route).toContain("assignCollection(shopifyProductId, collectionId)");
+    expect(route).toContain("assignCollection(shopifyProductId, collectionId, { collectionType })");
+    expect(route).toContain("shopify_smart_collection_rule_managed");
     expect(readiness).toContain("shopify_collection_id_or_connection_missing");
     expect(readiness).toContain("shopify_collection_id");
   });

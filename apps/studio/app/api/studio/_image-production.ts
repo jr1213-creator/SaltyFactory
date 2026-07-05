@@ -3,6 +3,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseEnv } from "@saltyfactory/config";
 import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
+import {
+  createTransparentPrintPngFromChromaKey,
+  defaultPodChromaKeyConfig,
+  defaultQaRules,
+  inspectImageTransparency,
+  shouldUseChromaKeyForPrintTarget
+} from "@saltyfactory/image-pipeline";
 import { createStorageProvider, resolveStorageRuntimeConfig } from "@saltyfactory/storage";
 import sharp from "sharp";
 
@@ -91,6 +98,32 @@ export function resolvePrintTargetDimensions(printTarget = "apparel_front_square
     generic_square: { width: 3000, height: 3000 }
   };
   return targets[printTarget] ?? targets.generic_square!;
+}
+
+function numberFromMetadataValue(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveChromaKeyConfig(sourceAsset: WorkspaceRow, printTarget: string) {
+  const sourceMetadata = metadataOf(sourceAsset);
+  const raw = sourceMetadata.chroma_key && typeof sourceMetadata.chroma_key === "object"
+    ? sourceMetadata.chroma_key as Record<string, unknown>
+    : sourceMetadata.chromaKey && typeof sourceMetadata.chromaKey === "object"
+      ? sourceMetadata.chromaKey as Record<string, unknown>
+      : null;
+  const transparentIntent = sourceMetadata.transparent_background_intent === true
+    || sourceMetadata.transparentBackgroundIntent === true
+    || raw?.enabled === true;
+  if (!shouldUseChromaKeyForPrintTarget({ printTarget, transparentIntent })) return null;
+  return {
+    ...defaultPodChromaKeyConfig,
+    ...(raw ?? {}),
+    enabled: true,
+    keyColor: String(raw?.keyColor ?? raw?.key_color ?? defaultPodChromaKeyConfig.keyColor),
+    tolerance: numberFromMetadataValue(raw?.tolerance, defaultPodChromaKeyConfig.tolerance),
+    edgeSoftness: numberFromMetadataValue(raw?.edgeSoftness ?? raw?.edge_softness, defaultPodChromaKeyConfig.edgeSoftness)
+  };
 }
 
 async function writeLocalPrivateAsset(workspaceId: string, storageKey: string, buffer: Buffer) {
@@ -190,15 +223,56 @@ export async function createAssetDerivatives(input: {
   forceLocal?: boolean;
 }) {
   const sourceMetadata = await sharp(input.imageBytes, { failOn: "warning" }).metadata();
+  const sourceTransparency = await inspectImageTransparency(input.imageBytes);
   const sourceId = String(input.sourceAsset.id);
   const briefId = String(input.sourceAsset.brief_id ?? input.sourceAsset.briefId ?? "");
   const jobId = String(input.sourceAsset.job_id ?? input.sourceAsset.jobId ?? "");
   const generator = String(input.sourceAsset.generator ?? "image_provider");
   const model = String(input.sourceAsset.model ?? "unknown");
-  const target = resolvePrintTargetDimensions(input.printTarget);
-  const printBackground = sourceMetadata.hasAlpha
+  const printTarget = input.printTarget ?? "apparel_front_square";
+  const target = resolvePrintTargetDimensions(printTarget);
+  const chromaKeyConfig = resolveChromaKeyConfig(input.sourceAsset, printTarget);
+  const sourceAlphaReady = Boolean(sourceMetadata.hasAlpha)
+    && sourceTransparency.transparentPixelRatio >= defaultQaRules.minTransparentPixelRatio;
+  let printSourceBytes = input.imageBytes;
+  let chromaKeyEvidence: Awaited<ReturnType<typeof createTransparentPrintPngFromChromaKey>>["evidence"] | null = null;
+  let chromaKeyError = "";
+  if (!sourceAlphaReady && chromaKeyConfig?.enabled) {
+    try {
+      const cleaned = await createTransparentPrintPngFromChromaKey(
+        input.imageBytes,
+        chromaKeyConfig.keyColor,
+        chromaKeyConfig.tolerance,
+        {
+          edgeSoftness: chromaKeyConfig.edgeSoftness,
+          maxKeyedPixelRatio: chromaKeyConfig.maxKeyedPixelRatio,
+          maxRemainingNearKeyPixelRatio: chromaKeyConfig.maxRemainingNearKeyPixelRatio
+        }
+      );
+      printSourceBytes = cleaned.png;
+      chromaKeyEvidence = cleaned.evidence;
+    } catch (error) {
+      chromaKeyError = error instanceof Error ? error.message : "chroma_key_cleanup_failed";
+    }
+  }
+  const printSourceTransparency = await inspectImageTransparency(printSourceBytes);
+  const printSourceAlphaReady = printSourceTransparency.hasAlpha
+    && printSourceTransparency.transparentPixelRatio >= defaultQaRules.minTransparentPixelRatio;
+  const printBackground = printSourceAlphaReady
     ? { r: 255, g: 255, b: 255, alpha: 0 }
     : { r: 255, g: 255, b: 255, alpha: 1 };
+  const printPngBuffer = await sharp(printSourceBytes, { failOn: "warning" })
+    .autoOrient()
+    .resize({ width: target.width, height: target.height, fit: "contain", background: printBackground })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  const printTransparency = await inspectImageTransparency(printPngBuffer);
+  const chromaKeyRequired = Boolean(chromaKeyConfig?.enabled && !sourceAlphaReady);
+  const chromaKeyCleanupSucceeded = !chromaKeyRequired
+    || Boolean(chromaKeyEvidence && chromaKeyEvidence.keyedPixelRatio >= defaultQaRules.minTransparentPixelRatio);
+  const printTransparentReady = printTransparency.hasAlpha
+    && printTransparency.transparentPixelRatio >= defaultQaRules.minTransparentPixelRatio
+    && chromaKeyCleanupSucceeded;
   const outputs: Array<{ kind: GeneratedDerivativeKind; buffer: Buffer; contentType: string; extension: string; notes: string; metadata: Record<string, unknown> }> = [
     {
       kind: "thumbnail",
@@ -226,17 +300,38 @@ export async function createAssetDerivatives(input: {
     },
     {
       kind: "print_png",
-      buffer: await sharp(input.imageBytes, { failOn: "warning" })
-        .autoOrient()
-        .resize({ width: target.width, height: target.height, fit: "contain", background: printBackground })
-        .png({ compressionLevel: 9 })
-        .toBuffer(),
+      buffer: printPngBuffer,
       contentType: "image/png",
       extension: "png",
-      notes: sourceMetadata.hasAlpha
+      notes: printTransparentReady
         ? "Private print-ready PNG derivative with alpha preserved."
-        : "Private plain-background print PNG derivative. The model output did not include true transparency.",
-      metadata: { print_target: input.printTarget ?? "apparel_front_square", target_width: target.width, target_height: target.height, alpha_source_available: Boolean(sourceMetadata.hasAlpha) }
+        : "Private plain-background print PNG derivative. The model output did not include true transparency, so background removal is required before apparel production.",
+      metadata: {
+        print_target: printTarget,
+        target_width: target.width,
+        target_height: target.height,
+        alpha_source_available: Boolean(sourceMetadata.hasAlpha),
+        source_transparent_pixel_ratio: sourceTransparency.transparentPixelRatio,
+        source_near_white_opaque_pixel_ratio: sourceTransparency.nearWhiteOpaquePixelRatio,
+        has_alpha: printTransparency.hasAlpha,
+        transparent_pixel_ratio: printTransparency.transparentPixelRatio,
+        near_white_opaque_pixel_ratio: printTransparency.nearWhiteOpaquePixelRatio,
+        transparent_background_ready: printTransparentReady,
+        background_removal_required: !printTransparentReady,
+        chroma_key_enabled: Boolean(chromaKeyConfig?.enabled),
+        chroma_key_applied: Boolean(chromaKeyEvidence),
+        chroma_key_mode: chromaKeyConfig?.mode ?? null,
+        chroma_key_color: chromaKeyConfig?.keyColor ?? null,
+        chroma_key_tolerance: chromaKeyConfig?.tolerance ?? null,
+        chroma_key_edge_softness: chromaKeyConfig?.edgeSoftness ?? null,
+        chroma_key_keyed_pixel_ratio: chromaKeyEvidence?.keyedPixelRatio ?? 0,
+        chroma_key_transparent_pixel_ratio: chromaKeyEvidence?.transparentPixelRatio ?? 0,
+        chroma_key_remaining_near_key_pixel_ratio: chromaKeyEvidence?.remainingNearKeyPixelRatio ?? 0,
+        chroma_key_spill_detected: chromaKeyEvidence?.spillDetected ?? false,
+        chroma_key_overcut_detected: chromaKeyEvidence?.overcutDetected ?? false,
+        chroma_key_cleanup_failed: chromaKeyRequired && !chromaKeyCleanupSucceeded,
+        chroma_key_error: chromaKeyError || null
+      }
     }
   ];
 
@@ -268,7 +363,7 @@ export async function createAssetDerivatives(input: {
       generator,
       model,
       actorId: input.actorId,
-      qaStatus: "passed",
+      qaStatus: output.kind === "print_png" && output.metadata.transparent_background_ready !== true ? "failed" : "passed",
       approvedForMockup: false,
       notes: output.notes,
       metadata: {

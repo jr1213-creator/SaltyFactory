@@ -24,7 +24,7 @@ The Printify token is never returned to the browser, logs, or owner-facing error
 6. Select a provider.
 7. Load real variants and optional shipping snapshot.
 8. After a product draft exists, select variants and enter owner-reviewed pricing.
-9. Save the selection. The route persists product variants, draft metadata, and price-margin evidence.
+9. Save the selection. The route persists product variants, draft metadata, and price-margin evidence. QA should use Printify print-area dimensions when available, selected print-target dimensions when known, and safe default dimensions only when provider metadata is unavailable.
 10. Upload the `print_png` derivative to Printify only after a product draft and approved artwork exist. The API response returns the Printify upload ID and a safe asset summary only; it does not return storage bucket/path internals or provider tokens.
 11. Create a Printify draft product with the selected blueprint, print provider, variants, and `print_areas` referencing the real Printify upload ID.
 12. Fetch/import Printify product images and persist them as provider mockup rows.

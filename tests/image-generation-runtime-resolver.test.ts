@@ -224,7 +224,7 @@ describe("image generation runtime route and UI", () => {
       approved_for_generation: true,
       collection: "Runtime",
       product_targets: ["tee"],
-      style_direction: { title: "Runtime brief", suggested_phrase: "Coastal Runtime Club", product_type: "tee", background_requirement: "transparent" },
+      style_direction: { title: "Runtime brief", suggested_phrase: "Coastal Runtime Club", product_type: "tee", background_requirement: "plain" },
       generation_prompt: "Original coastal western badge art.",
       negative_prompt: "logos",
       created_by: actorId,

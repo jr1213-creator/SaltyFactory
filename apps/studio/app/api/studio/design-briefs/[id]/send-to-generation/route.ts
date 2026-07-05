@@ -131,6 +131,7 @@ async function fetchHuggingFaceImage(
     numInferenceSteps: number;
     scheduler?: string | undefined;
     seed: number;
+    transparentBackground?: boolean;
   }
 ) {
   const token = provider.serverCredential?.token ?? "";
@@ -145,6 +146,7 @@ async function fetchHuggingFaceImage(
     seed: input.seed
   };
   if (input.scheduler) parameters.scheduler = input.scheduler;
+  if (input.transparentBackground === true) parameters.transparent_background = true;
   const result = await generateHuggingFaceImage({
     token,
     model,
@@ -235,7 +237,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         seed: recipe.seed,
         style_preset: recipe.stylePreset,
         print_target: recipe.printTarget,
-        text_requested: recipe.textRequested
+        text_requested: recipe.textRequested,
+        transparent_background_intent: recipe.basePackage.generation_params.transparentBackground,
+        provider_transparent_background_requested: recipe.basePackage.generation_params.providerTransparentBackground,
+        chroma_key: recipe.chromaKey
       },
       status: canRun ? "running" : "blocked",
       error: canRun ? null : provider.status,
@@ -302,7 +307,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             guidanceScale: recipe.guidanceScale,
             numInferenceSteps: recipe.numInferenceSteps,
             scheduler: typeof body.scheduler === "string" ? body.scheduler : undefined,
-            seed
+            seed,
+            transparentBackground: recipe.basePackage.generation_params.providerTransparentBackground
           });
         if (!generated.ok) {
           failures.push({ variantIndex, seed, error: generated.error, message: generated.message, retryable: generated.retryable });
@@ -351,6 +357,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             height: recipe.height,
             guidance_scale: recipe.guidanceScale,
             num_inference_steps: recipe.numInferenceSteps,
+            transparent_background_intent: recipe.basePackage.generation_params.transparentBackground,
+            provider_transparent_background_requested: recipe.basePackage.generation_params.providerTransparentBackground,
+            chroma_key: recipe.chromaKey,
             safety_notes: recipe.safetyNotes,
             text_requested: recipe.textRequested
           }
@@ -440,7 +449,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         numInferenceSteps: recipe.numInferenceSteps,
         seed: recipe.seed,
         safetyNotes: recipe.safetyNotes,
-        textRequested: recipe.textRequested
+        textRequested: recipe.textRequested,
+        chromaKey: recipe.chromaKey
       },
       provider: publicImageGenerationProviderResolution(provider),
       ...(failures.length ? { variantFailures: failures.map((failure) => ({ variantIndex: failure.variantIndex, seed: failure.seed, error: failure.error, message: failure.message })) } : {})

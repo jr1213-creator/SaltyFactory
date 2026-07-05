@@ -138,12 +138,19 @@ async function seedApprovedPrintifyDraft(repos: RepositoryBundle, suffix: string
     original_filename: `${assetId}-print.png`,
     qa_status: "passed",
     approved_for_mockup: false,
+    transparent_background: true,
     generator: "huggingface",
     metadata: {
       derivative_package: true,
       derivative_kind: "print_png",
       source_asset_id: assetId,
       parent_asset_id: assetId,
+      has_alpha: true,
+      transparent_pixel_ratio: 0.36,
+      near_white_opaque_pixel_ratio: 0.02,
+      transparent_background_ready: true,
+      background_removal_required: false,
+      print_target: "apparel_front_square",
       public_url: `https://cdn.example/${assetId}-print.png`
     }
   } as WorkspaceRow);

@@ -3,6 +3,7 @@ import {
   primaryHuggingFaceImageModel,
   publicHuggingFaceImageModelRecommendations,
   unsupportedHuggingFaceImageModelReason,
+  validateHuggingFaceImageGenerationRequest,
   type HuggingFaceImageProviderId,
   type HuggingFaceImageValidationStatus,
   type RuntimeConfig
@@ -215,6 +216,13 @@ async function requestHuggingFaceImage(input: {
 
   const unsupportedReason = unsupportedHuggingFaceImageModelReason(model);
   if (unsupportedReason) return failure("model_not_supported", { safeMessage: unsupportedReason, retryable: false });
+  const capabilityInput: Parameters<typeof validateHuggingFaceImageGenerationRequest>[0] = {
+    model,
+    transparentBackground: input.parameters?.transparent_background ?? input.parameters?.transparentBackground
+  };
+  if (input.parameters) capabilityInput.parameters = input.parameters;
+  const capabilityCheck = validateHuggingFaceImageGenerationRequest(capabilityInput);
+  if (!capabilityCheck.ok) return failure(capabilityCheck.status, { safeMessage: capabilityCheck.safeMessage, retryable: false });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.max(1000, Math.min(input.timeoutMs ?? 60000, 120000)));
@@ -796,8 +804,68 @@ export function createImageProviderFromResolvedImageGenerationProvider(resolutio
   return new FreeImageProviderDisabled();
 }
 
-export class BackgroundRemovalProviderDisabled { readonly enabled = false; async removeBackground() { return blocked("background_removal_disabled"); } async isHealthy() { return false; } }
-export class UpscaleProviderDisabled { readonly enabled = false; async upscale() { return blocked("upscale_disabled"); } async isHealthy() { return false; } }
+export type ImageProcessingEvidence = {
+  sourceAssetId?: string;
+  processedAssetId?: string;
+  processor: "local_worker";
+  modelArtifact?: string;
+  modelLicense?: string;
+  evidenceRowsRequired: true;
+};
+
+export type ImageProcessingProviderResult = ProviderResult<{
+  bytes: Buffer;
+  contentType: string;
+  evidence: ImageProcessingEvidence;
+}>;
+
+export interface BackgroundRemovalProvider {
+  readonly enabled: boolean;
+  removeBackground(input?: { bytes?: Buffer; contentType?: string; sourceAssetId?: string }): Promise<ImageProcessingProviderResult>;
+  isHealthy(): Promise<boolean>;
+}
+
+export interface UpscaleProvider {
+  readonly enabled: boolean;
+  upscale(input?: { bytes?: Buffer; contentType?: string; sourceAssetId?: string; scale?: number }): Promise<ImageProcessingProviderResult>;
+  isHealthy(): Promise<boolean>;
+}
+
+export class BackgroundRemovalProviderDisabled implements BackgroundRemovalProvider {
+  readonly enabled = false;
+  async removeBackground(): Promise<ImageProcessingProviderResult> {
+    return {
+      ok: false,
+      error: "background_removal_disabled",
+      retryable: false,
+      sourceLabel: "rules_based",
+      setupRequired: [
+        "Configure a local worker background-removal provider.",
+        "Store provenance from original asset to processed print asset.",
+        "Do not use BRIA RMBG for commercial POD output unless a commercial license is explicitly configured."
+      ]
+    };
+  }
+  async isHealthy() { return false; }
+}
+
+export class UpscaleProviderDisabled implements UpscaleProvider {
+  readonly enabled = false;
+  async upscale(): Promise<ImageProcessingProviderResult> {
+    return {
+      ok: false,
+      error: "upscale_disabled",
+      retryable: false,
+      sourceLabel: "rules_based",
+      setupRequired: [
+        "Configure a local worker upscale provider.",
+        "Verify the exact license for the deployed model artifact, including ONNX exports.",
+        "Persist metadata extraction and provenance after processing."
+      ]
+    };
+  }
+  async isHealthy() { return false; }
+}
 export class ManualTrendSourceProvider { readonly sourceId = "manual"; readonly allowedUse = "inspiration_only" as const; async ingestSignals(input: { keyword: string; related_terms?: string[] }) { return [{ keyword: input.keyword, related_terms: input.related_terms ?? [], allowed_use: this.allowedUse, source_id: this.sourceId }]; } }
 export class TrendSourceProviderDisabled { readonly sourceId = "disabled"; readonly allowedUse = "inspiration_only" as const; async ingestSignals() { return []; } }
 

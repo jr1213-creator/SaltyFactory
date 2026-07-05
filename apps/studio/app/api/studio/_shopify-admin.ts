@@ -1,4 +1,4 @@
-import { ShopifyAdminProviderDisabled, ShopifyAdminProviderLive, type ShopifyAdminAuthConfig, type ShopifyCredentialMode } from "@saltyfactory/commerce";
+import { normalizeShopifyCollectionType, ShopifyAdminProviderDisabled, ShopifyAdminProviderLive, type ShopifyAdminAuthConfig, type ShopifyCollectionType, type ShopifyCredentialMode } from "@saltyfactory/commerce";
 import type { RuntimeConfig } from "@saltyfactory/config";
 import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
 import { decryptCredential, sanitizeProviderError } from "@saltyfactory/security";
@@ -18,6 +18,8 @@ export type ShopifyAdminProviderResolution =
     storeDomain: string;
     credentialMode: ShopifyCredentialMode;
     selectedCollectionId: string;
+    selectedCollectionType: ShopifyCollectionType;
+    selectedCollectionAssignmentMode: "manual_collect" | "rule_managed" | "unknown";
     connection: WorkspaceRow | null;
     source: "stored_connection" | "server_env";
   }
@@ -147,6 +149,15 @@ export async function createShopifyAdminProviderForWorkspace(input: {
   const configuration = (connection?.configuration ?? {}) as Record<string, unknown>;
   const storeDomain = sanitizeShopifyStoreDomain(String(configuration.storeDomain ?? input.config.SHOPIFY_STORE_DOMAIN ?? ""));
   const selectedCollectionId = String(configuration.selectedCollectionId ?? configuration.collectionId ?? input.config.SHOPIFY_DEFAULT_COLLECTION_ID ?? "");
+  const selectedCollectionType = normalizeShopifyCollectionType(configuration.selectedCollectionType ?? configuration.collectionType ?? configuration.collection_type);
+  const selectedCollectionAssignmentMode =
+    String(configuration.selectedCollectionAssignmentMode ?? configuration.collectionAssignmentMode ?? "") === "rule_managed"
+      ? "rule_managed"
+      : selectedCollectionType === "smart"
+        ? "rule_managed"
+        : selectedCollectionType === "custom"
+          ? "manual_collect"
+          : "unknown";
   const connectionEnabled = Boolean(connection?.enabled) || connection?.status === "connected";
 
   if (connection?.secret_ref || connection?.secretRef) {
@@ -175,6 +186,8 @@ export async function createShopifyAdminProviderForWorkspace(input: {
           storeDomain,
           credentialMode: stored.credentialMode,
           selectedCollectionId,
+          selectedCollectionType,
+          selectedCollectionAssignmentMode,
           connection,
           source: "stored_connection"
         };
@@ -198,6 +211,8 @@ export async function createShopifyAdminProviderForWorkspace(input: {
       storeDomain: envDomain,
       credentialMode: fallback.credentialMode,
       selectedCollectionId,
+      selectedCollectionType,
+      selectedCollectionAssignmentMode,
       connection,
       source: "server_env"
     };

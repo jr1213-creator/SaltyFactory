@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireProviderMutationPermission, requireWorkspaceMember, type StudioUser } from "@saltyfactory/auth";
-import { publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
+import { isShopifyCollectionManuallyAssignable, normalizeShopifyCollectionType, publicPrintifyProviderResolution, resolvePrintifyProvider } from "@saltyfactory/commerce";
 import { publicImageGenerationProviderResolution, resolveImageGenerationProvider, validateHuggingFaceImageProvider } from "@saltyfactory/ai-free";
 import {
   HUGGING_FACE_IMAGE_PROVIDER,
@@ -154,6 +154,8 @@ function safeConnection(row: WorkspaceRow | null) {
       selectedShopId: configuration.selectedShopId ?? configuration.shopId ?? null,
       storeDomain: configuration.storeDomain ?? null,
       selectedCollectionId: configuration.selectedCollectionId ?? configuration.collectionId ?? null,
+      selectedCollectionType: configuration.selectedCollectionType ?? configuration.collectionType ?? null,
+      selectedCollectionAssignmentMode: configuration.selectedCollectionAssignmentMode ?? configuration.collectionAssignmentMode ?? null,
       discoveredCollectionCount: configuration.discoveredCollectionCount ?? null,
       imageProvider: configuration.imageProvider ?? null,
       imageModel: configuration.imageModel ?? null
@@ -339,7 +341,21 @@ export async function handleProviderConnectionSave(req: Request, providerParam: 
     const configuration: Record<string, unknown> = { maskedDisplayValue: secret ? maskSavedCredential() : undefined };
     if (typeof body.storeDomain === "string") configuration.storeDomain = sanitizeDomain(body.storeDomain);
     if (typeof body.shopId === "string") configuration.selectedShopId = body.shopId.trim();
-    if (typeof body.collectionId === "string") configuration.selectedCollectionId = body.collectionId.trim();
+    if (typeof body.collectionId === "string") {
+      const selectedCollectionType = normalizeShopifyCollectionType(body.collectionType ?? body.type ?? body.collection_type);
+      if (selectedCollectionType === "smart") {
+        return validationResponse({
+          ok: false,
+          status: "blocked",
+          safeMessage: "Smart Shopify collections are rule-managed and cannot be selected for manual draft assignment. Choose a custom collection.",
+          setupRequired: ["Select a custom Shopify collection"],
+          nextStep: "Choose custom collection"
+        }, 409);
+      }
+      configuration.selectedCollectionId = body.collectionId.trim();
+      configuration.selectedCollectionType = selectedCollectionType;
+      configuration.selectedCollectionAssignmentMode = selectedCollectionType === "custom" ? "manual_collect" : "unknown";
+    }
     if (typeof body.imageProvider === "string") configuration.imageProvider = body.imageProvider.trim();
     if (typeof body.imageModel === "string") configuration.imageModel = body.imageModel.trim();
     const connection = await createOrUpdateConnection({ repos, provider, workspaceId, actorId: user.id, status: "configured_not_verified", enabled: false, credentialRef, configuration });
@@ -599,7 +615,17 @@ export async function handleShopifyDiscoverCollections(req: Request) {
     if (!shopify.ok) return validationResponse({ ok: false, status: shopify.status === "config_blocked" ? "config_blocked" : "missing", safeMessage: shopify.message, setupRequired: shopify.setupRequired, nextStep: "Connect Shopify" }, shopify.status === "config_blocked" ? 503 : 400);
     const discovered = await shopify.admin.getCollections();
     if (!discovered.ok) return validationResponse({ ok: false, status: "invalid", safeMessage: "Shopify collection discovery failed. Validate Shopify credentials and permissions again.", setupRequired: discovered.setupRequired ?? ["read_products/write_products permission"], nextStep: "Validate Shopify" }, 400);
-    const collections = discovered.data.map((collection: any) => ({ id: String(collection.id ?? ""), title: String(collection.title ?? "Shopify collection"), type: String(collection.type ?? "collection") })).filter((collection) => collection.id);
+    const collections = discovered.data.map((collection: any) => {
+      const collectionType = normalizeShopifyCollectionType(collection.collection_type ?? collection.type);
+      return {
+        id: String(collection.id ?? ""),
+        title: String(collection.title ?? "Shopify collection"),
+        type: collectionType,
+        collectionType,
+        manuallyAssignable: isShopifyCollectionManuallyAssignable(collectionType),
+        assignmentMode: collectionType === "smart" ? "rule_managed" : "manual_collect"
+      };
+    }).filter((collection) => collection.id);
     await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "needs_input", enabled: false, configuration: { storeDomain: shopify.storeDomain, credentialMode: shopify.credentialMode, discoveredCollectionCount: collections.length }, healthStatus: "collections_discovered" });
     return validationResponse({ ok: true, status: collections.length ? "connected" : "blocked", safeMessage: collections.length ? "Shopify collections discovered. Choose the default collection for draft products." : "No Shopify collections were returned.", setupRequired: collections.length ? ["Select Shopify collection"] : ["Create Shopify collection"], nextStep: collections.length ? "Select collection" : "Create collection", providerMetadata: { collections } });
   } catch (error) {
@@ -613,11 +639,45 @@ export async function handleShopifySelectCollection(req: Request) {
     const user = await requireProviderMutationPermission(req, workspaceId);
     const body = await parseBody(req);
     const collectionId = typeof body.collectionId === "string" ? body.collectionId.trim() : "";
+    const collectionType = normalizeShopifyCollectionType(body.collectionType ?? body.type ?? body.collection_type);
     if (!collectionId) return validationResponse({ ok: false, status: "missing", safeMessage: "Choose a Shopify collection before continuing.", setupRequired: ["Shopify collection"], nextStep: "Select collection" }, 400);
     if (!isSafeShopifyCollectionId(collectionId)) return validationResponse({ ok: false, status: "invalid", safeMessage: "The Shopify collection ID has an invalid format.", setupRequired: ["Valid Shopify collection ID"], nextStep: "Select collection" }, 400);
+    if (collectionType === "smart") {
+      return validationResponse({
+        ok: false,
+        status: "blocked",
+        safeMessage: "Smart Shopify collections are rule-managed and cannot be selected for manual draft assignment. Choose a custom collection.",
+        setupRequired: ["Select a custom Shopify collection"],
+        nextStep: "Choose custom collection",
+        providerMetadata: { selectedCollectionId: collectionId, selectedCollectionType: "smart", selectedCollectionAssignmentMode: "rule_managed" }
+      }, 409);
+    }
     const repos = createRepositories();
-    await createOrUpdateConnection({ repos, provider: "shopify", workspaceId, actorId: user.id, status: "connected", enabled: true, configuration: { selectedCollectionId: collectionId, maskedDisplayValue: maskSavedCredential() }, healthStatus: "connected" });
-    return validationResponse({ ok: true, status: "connected", safeMessage: "Shopify collection selected. Draft creation and media upload can proceed when product gates are ready. Live publish remains owner-gated.", setupRequired: ["Live publish still requires owner confirmation"], nextStep: "Open Publish Review", maskedDisplayValue: maskSavedCredential(), providerMetadata: { selectedCollectionId: collectionId } });
+    const assignmentMode = collectionType === "custom" ? "manual_collect" : "unknown";
+    await createOrUpdateConnection({
+      repos,
+      provider: "shopify",
+      workspaceId,
+      actorId: user.id,
+      status: "connected",
+      enabled: true,
+      configuration: {
+        selectedCollectionId: collectionId,
+        selectedCollectionType: collectionType,
+        selectedCollectionAssignmentMode: assignmentMode,
+        maskedDisplayValue: maskSavedCredential()
+      },
+      healthStatus: "connected"
+    });
+    return validationResponse({
+      ok: true,
+      status: "connected",
+      safeMessage: "Shopify custom collection selected. Draft creation and media upload can proceed when product gates are ready. Live publish remains owner-gated.",
+      setupRequired: ["Live publish still requires owner confirmation"],
+      nextStep: "Open Publish Review",
+      maskedDisplayValue: maskSavedCredential(),
+      providerMetadata: { selectedCollectionId: collectionId, selectedCollectionType: collectionType, selectedCollectionAssignmentMode: assignmentMode }
+    });
   } catch (error) {
     if (typeof error === "object" && error && "status" in error) return studioAuthErrorResponse(error);
     return validationResponse({ ok: false, status: "invalid", safeMessage: sanitizeProviderError(error), setupRequired: ["Try selecting the collection again"] }, 500);
