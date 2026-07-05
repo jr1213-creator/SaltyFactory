@@ -22,6 +22,20 @@ function metadataOf(row: Row | null | undefined): Row {
   return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
 }
 
+function assetDisplayName(row: Row | null | undefined) {
+  const metadata = metadataOf(row);
+  return String(metadata.original_filename ?? metadata.originalFilename ?? row?.original_filename ?? row?.originalFilename ?? row?.id ?? "asset");
+}
+
+function assetSourceLabel(row: Row | null | undefined) {
+  const metadata = metadataOf(row);
+  const provider = String(row?.generator ?? metadata.source_provider ?? metadata.sourceProvider ?? "");
+  if (/local_folder/i.test(provider)) return "Local folder import";
+  if (/huggingface|hf/i.test(provider)) return "Hugging Face";
+  if (/manual_upload/i.test(provider)) return "Owner upload";
+  return "Existing asset";
+}
+
 function isPrintifyMockup(row: Row | null | undefined) {
   const metadata = metadataOf(row);
   return metadata.provider_source === "printify" || metadata.providerSource === "printify" || Boolean(metadata.provider_mockup_url ?? metadata.providerMockupUrl);
@@ -139,7 +153,7 @@ export function ProductBuilderClient({
         setAssetId(nextAssetId);
         const nextMockup = approvedMockups.find((mockup) => String(mockup.asset_id ?? mockup.assetId ?? "") === nextAssetId);
         setMockupId(nextMockup?.id ?? "");
-      }}>{approvedAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename ?? asset.id}</option>)}</select></label>
+      }}>{approvedAssets.map((asset) => <option key={asset.id} value={asset.id}>{assetDisplayName(asset)}</option>)}</select></label>
       <label>Approved mockup<select value={mockupId} onChange={(event) => setMockupId(event.target.value)}>{mockupsForAsset.map((mockup) => <option key={mockup.id} value={mockup.id}>{mockup.id}</option>)}</select></label>
       <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Product type<select value={productType} onChange={(event) => setProductType(event.target.value)}><option value="tee">Tee</option><option value="sweatshirt">Sweatshirt</option><option value="tote">Tote</option><option value="mug">Mug</option><option value="sticker">Sticker</option></select></label>
@@ -152,8 +166,8 @@ export function ProductBuilderClient({
     <div className="layout-grid layout-grid-2">
       {selectedAsset ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
         <PrivateImagePreview src={assetPreviewPath(selectedAsset)} alt="Selected generated source artwork" />
-        <strong>Source asset {selectedAsset.id}</strong>
-        <p className="text-muted" style={{ margin: 0 }}>QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)} - approved for mockup</p>
+        <strong>{assetDisplayName(selectedAsset)}</strong>
+        <p className="text-muted" style={{ margin: 0 }}>{assetSourceLabel(selectedAsset)} - QA {ownerLabel(selectedAsset.qa_status ?? selectedAsset.qaStatus)} - approved for mockup</p>
       </article> : <article className="surface-card"><h3>Approved artwork required</h3><p className="text-muted">Generate artwork, run QA, and approve the asset before creating a product draft.</p><a className="btn btn-primary" href="/studio/assets">Open assets</a></article>}
       {selectedMockup ? <article className="surface-card" style={{ display: "grid", gap: 10 }}>
         {isPrintifyMockup(selectedMockup)

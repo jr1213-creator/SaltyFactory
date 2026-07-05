@@ -37,7 +37,8 @@
     "check:ai-factory-standard": "tsx scripts/check-ai-factory-standard.ts",
     "smoke:image-mockup-live": "tsx scripts/smoke-image-mockup-live.ts",
     "smoke:printify-mockups-live": "tsx scripts/smoke-printify-mockups-live.ts",
-    "smoke:ollama-agent-local": "tsx scripts/smoke-ollama-agent-local.ts"
+    "smoke:ollama-agent-local": "tsx scripts/smoke-ollama-agent-local.ts",
+    "smoke:local-folder-image-import": "tsx scripts/smoke-local-folder-image-import.ts"
   },
   "dependencies": {
     "@auth/core": "latest",

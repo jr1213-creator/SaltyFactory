@@ -31,6 +31,14 @@ function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
 }
 
+function providerLabel(provider: ResultRecord | null) {
+  const key = String(provider?.provider ?? "");
+  if (key === "huggingface") return "Hugging Face";
+  if (key === "local_folder") return "Local folder import";
+  if (key === "local_dev_mock") return "Local demo";
+  return key || "not connected";
+}
+
 function sanitizeDeveloperDetails(value: unknown) {
   return JSON.parse(JSON.stringify(value, (key, nestedValue) => {
     if (/token|secret|authorization|credential/i.test(key)) return "[redacted]";
@@ -67,7 +75,7 @@ function ResultPanel({ result }: { result: unknown }) {
     {job ? <dl className="result-detail-grid">
       <div><dt>Job</dt><dd>{job.id ?? "pending"}</dd></div>
       <div><dt>Status</dt><dd>{job.status ?? status}</dd></div>
-      <div><dt>Provider</dt><dd>{provider?.provider === "huggingface" ? "Hugging Face" : provider?.provider ?? job.provider ?? "not connected"}</dd></div>
+      <div><dt>Provider</dt><dd>{provider ? providerLabel(provider) : (job?.provider ?? "not connected")}</dd></div>
       <div><dt>Model</dt><dd>{provider?.model ?? job.model ?? "not selected"}</dd></div>
     </dl> : null}
     {assets.length ? <div className="layout-grid layout-grid-2">

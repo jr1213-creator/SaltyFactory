@@ -16,7 +16,7 @@ export type StudioProviderReadinessStatus =
   | "future"
   | "disabled_for_safety";
 
-export type StudioProviderCredentialSource = "credential_store" | "env" | "local_demo" | "none";
+export type StudioProviderCredentialSource = "credential_store" | "env" | "local_demo" | "local_folder" | "none";
 
 export type StudioProviderConnectionMode =
   | "secure_token"
@@ -202,16 +202,19 @@ export async function getWorkspaceProviderReadiness(
 
   const imageReady = image.status === "ready";
   const imageLocalDemo = image.status === "local_demo";
+  const imageLocalFolder = image.status === "local_folder";
   const imageGeneration: WorkspaceProviderReadinessItem = {
     providerKey: "image_generation",
     label: "Image Generation",
-    status: imageReady ? "connected" : imageLocalDemo ? "ready" : image.status === "invalid" ? "invalid" : "needs_setup",
+    status: imageReady || imageLocalFolder ? "connected" : imageLocalDemo ? "ready" : image.status === "invalid" ? "invalid" : "needs_setup",
     credentialSource: image.credentialSource,
-    connectionMode: image.credentialSource === "credential_store" ? "secure_token" : image.credentialSource === "local_demo" ? "manual" : image.credentialSource === "env" ? "server_env" : "manual",
+    connectionMode: image.credentialSource === "credential_store" ? "secure_token" : image.credentialSource === "env" ? "server_env" : "manual",
     safeMessage: imageReady && image.credentialSource === "credential_store"
       ? "Image generation connected through Launch Setup Concierge."
       : imageReady
         ? "Image generation is configured through advanced server environment fallback."
+        : imageLocalFolder
+          ? "Dev-only local folder image import is ready. Imported artwork still runs through private storage, derivatives, and QA."
         : imageLocalDemo
           ? "Local demo image mode is available for development/test workflow previews only. It is not real provider success."
           : image.safeMessage,
@@ -224,7 +227,7 @@ export async function getWorkspaceProviderReadiness(
       model: image.model ?? null,
       recommendedModels: image.recommendedModels
     },
-    dangerousActionsBlocked: ["placeholder_provider_success", "public_generation_endpoint", "production_local_dev_mock"]
+    dangerousActionsBlocked: ["placeholder_provider_success", "public_generation_endpoint", "production_local_dev_mock", "production_local_folder_import"]
   };
 
   const printifyReady = printify.status === "ready";

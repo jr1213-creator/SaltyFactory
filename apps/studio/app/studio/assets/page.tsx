@@ -10,6 +10,11 @@ function ownerLabel(value: unknown, fallback = "pending") {
   return String(value ?? fallback).replace(/_/g, " ");
 }
 
+function assetDisplayName(asset: any) {
+  const metadata = asset?.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
+  return String(metadata.original_filename ?? metadata.originalFilename ?? asset.original_filename ?? asset.originalFilename ?? asset.id);
+}
+
 export default async function Page({ searchParams }: { searchParams?: Promise<{ asset_id?: string }> } = {}) {
   const params = await searchParams;
   const { assets, assetDerivatives, jobs, mockups, setupMessage } = await getStudioLists();
@@ -68,7 +73,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
           return <article key={asset.id} className="surface-card" style={{ display: "grid", gap: 10 }}>
             <PrivateImagePreview src={assetPreviewPath(asset)} alt="Generated private asset preview" />
             <div>
-              <strong>{asset.original_filename ?? asset.id}</strong>
+              <strong>{assetDisplayName(asset)}</strong>
               <p className="text-muted" style={{ margin: "4px 0 0" }}>Asset {asset.id}</p>
             </div>
             <dl className="result-detail-grid">

@@ -7,7 +7,7 @@ const asBool = (fallback = false) => z.preprocess(
 
 const imageGenerationProvider = z.preprocess(
   (value) => value === "huggingface" ? "hugging_face" : value,
-  z.enum(["disabled", "local_dev_mock", "hugging_face"])
+  z.enum(["disabled", "local_dev_mock", "hugging_face", "local_folder"])
 );
 
 const envSchema = z.object({
@@ -42,6 +42,15 @@ const envSchema = z.object({
   IMAGE_GENERATION_ENABLED: asBool(false),
   IMAGE_GENERATION_PROVIDER: imageGenerationProvider.default("disabled"),
   LOCAL_DEV_IMAGE_GENERATION: asBool(false),
+  LOCAL_IMAGE_SOURCE_ENABLED: asBool(false),
+  LOCAL_IMAGE_SOURCE_DIR: z.string().optional().default(""),
+  LOCAL_IMAGE_ARCHIVE_DIR: z.string().optional().default(""),
+  LOCAL_IMAGE_REJECTED_DIR: z.string().optional().default(""),
+  LOCAL_IMAGE_ALLOWED_EXTENSIONS: z.string().optional().default("png,jpg,jpeg,webp"),
+  LOCAL_IMAGE_PICK_MODE: z.enum(["oldest", "newest"]).default("oldest"),
+  LOCAL_IMAGE_IMPORT_LIMIT: z.string().optional().default("5"),
+  LOCAL_IMAGE_REQUIRE_CHROMA: asBool(true),
+  LOCAL_IMAGE_CHROMA_KEY: z.string().optional().default("#FF00FF"),
   IMAGE_GENERATION_TIMEOUT_MS: z.string().optional().default("60000"),
   IMAGE_GENERATION_MAX_OUTPUT_BYTES: z.string().optional().default("15000000"),
   BACKGROUND_REMOVAL_ENABLED: asBool(false),
@@ -179,6 +188,7 @@ export function validateProductionReadiness(config = parseEnv()) {
     if (!has(config.NEXT_PUBLIC_SUPABASE_ANON_KEY) && !has(config.SUPABASE_ANON_KEY)) failures.push("Supabase anon key required for Studio auth");
     if (config.BANKING_MONEY_MOVEMENT_ENABLED) failures.push("BANKING_MONEY_MOVEMENT_ENABLED must remain false in production");
     if (config.EXTERNAL_ORDER_SUBMISSION_ENABLED) failures.push("EXTERNAL_ORDER_SUBMISSION_ENABLED must remain false in production");
+    if (config.IMAGE_GENERATION_PROVIDER === "local_folder") failures.push("IMAGE_GENERATION_PROVIDER=local_folder is dev-only and forbidden in production");
   }
   return { ok: failures.length === 0, failures, warnings: collectProductionWarnings(config) };
 }

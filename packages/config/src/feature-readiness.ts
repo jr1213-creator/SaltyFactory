@@ -41,10 +41,10 @@ export type FeatureReadinessReport = {
 };
 
 export type ImageGenerationRuntimeReadiness = {
-  status: "ready" | "local_demo" | "config_required" | "invalid" | "owner_gated";
-  provider: "huggingface" | "local_dev_mock" | "disabled";
+  status: "ready" | "local_demo" | "local_folder" | "config_required" | "invalid" | "owner_gated";
+  provider: "huggingface" | "local_dev_mock" | "local_folder" | "disabled";
   model?: string;
-  credentialSource: "credential_store" | "env" | "local_demo" | "none";
+  credentialSource: "credential_store" | "env" | "local_demo" | "local_folder" | "none";
   safeMessage: string;
   setupAction: string;
   setupRequired: string[];
@@ -116,6 +116,15 @@ export const featureReadinessEnvVars = [
   "IMAGE_GENERATION_ENABLED",
   "IMAGE_GENERATION_PROVIDER",
   "LOCAL_DEV_IMAGE_GENERATION",
+  "LOCAL_IMAGE_SOURCE_ENABLED",
+  "LOCAL_IMAGE_SOURCE_DIR",
+  "LOCAL_IMAGE_ARCHIVE_DIR",
+  "LOCAL_IMAGE_REJECTED_DIR",
+  "LOCAL_IMAGE_ALLOWED_EXTENSIONS",
+  "LOCAL_IMAGE_PICK_MODE",
+  "LOCAL_IMAGE_IMPORT_LIMIT",
+  "LOCAL_IMAGE_REQUIRE_CHROMA",
+  "LOCAL_IMAGE_CHROMA_KEY",
   "IMAGE_GENERATION_TIMEOUT_MS",
   "IMAGE_GENERATION_MAX_OUTPUT_BYTES",
   "BACKGROUND_REMOVAL_ENABLED",
@@ -199,6 +208,10 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
   const supabaseAuthReady = (has(env, "NEXT_PUBLIC_SUPABASE_URL") || has(env, "SUPABASE_URL")) && (has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY") || has(env, "SUPABASE_ANON_KEY"));
   const storageReady = has(env, "SUPABASE_URL") && has(env, "SUPABASE_SERVICE_ROLE_KEY");
   const localImageReady = flagEnabled(env, "IMAGE_GENERATION_ENABLED") && env.IMAGE_GENERATION_PROVIDER === "local_dev_mock" && flagEnabled(env, "LOCAL_DEV_IMAGE_GENERATION") && nonProduction;
+  const localFolderReady = flagEnabled(env, "IMAGE_GENERATION_ENABLED")
+    && env.IMAGE_GENERATION_PROVIDER === "local_folder"
+    && has(env, "LOCAL_IMAGE_SOURCE_DIR")
+    && nonProduction;
   const hfImageModel = env.HUGGING_FACE_IMAGE_MODEL || env.HF_IMAGE_MODEL || "";
   const hfImageConfigPresent = (flagEnabled(env, "AI_IMAGE_ENABLED") && has(env, "HF_API_TOKEN") && has(env, "HF_IMAGE_MODEL"))
     || (flagEnabled(env, "IMAGE_GENERATION_ENABLED") && env.IMAGE_GENERATION_PROVIDER === "hugging_face" && (has(env, "HUGGING_FACE_API_TOKEN") || has(env, "HF_API_TOKEN")) && (has(env, "HUGGING_FACE_IMAGE_MODEL") || has(env, "HF_IMAGE_MODEL")));
@@ -265,30 +278,34 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       env,
       featureKey: "storage",
       label: "Supabase Private/Public Storage",
-      status: storageReady ? "ready" : localImageReady ? "partial" : "config_blocked",
+      status: storageReady ? "ready" : localImageReady || localFolderReady ? "partial" : "config_blocked",
       requiredEnv: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET", "SUPABASE_PUBLIC_ASSETS_BUCKET"],
       enabledFlags: storageReady ? ["server_storage_config_present"] : [],
       disabledFlags: storageReady ? [] : ["storage_provider_disabled"],
       setupRequired: storageReady ? [] : ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PRIVATE_ASSETS_BUCKET", "SUPABASE_PUBLIC_ASSETS_BUCKET"],
-      canTestWithoutProvider: localImageReady,
+      canTestWithoutProvider: localImageReady || localFolderReady,
       safeLocalRoute: "/studio/assets",
       dangerousActionsBlocked: ["public_url_for_unapproved_asset"],
-      notes: ["Private generated assets require signed/private storage. Local dev image fixtures can write local private files outside production."]
+      notes: ["Private generated assets require signed/private storage. Local dev image fixtures or local folder imports can write local private files outside production."]
     }),
     feature({
       env,
       featureKey: "imageGeneration",
       label: "Image Generation",
-      status: hfImageReady || localImageReady ? "ready" : "config_blocked",
-      requiredEnv: localImageReady ? ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_DEV_IMAGE_GENERATION"] : ["AI_IMAGE_ENABLED", "HF_API_TOKEN", "HF_IMAGE_MODEL"],
-      enabledFlags: unique([flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=true", flagEnabled(env, "IMAGE_GENERATION_ENABLED") && "IMAGE_GENERATION_ENABLED=true", localImageReady && "LOCAL_DEV_IMAGE_GENERATION=true"]),
+      status: hfImageReady || localImageReady || localFolderReady ? "ready" : "config_blocked",
+      requiredEnv: localFolderReady
+        ? ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_IMAGE_SOURCE_DIR"]
+        : localImageReady
+          ? ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_DEV_IMAGE_GENERATION"]
+          : ["AI_IMAGE_ENABLED", "HF_API_TOKEN", "HF_IMAGE_MODEL"],
+      enabledFlags: unique([flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=true", flagEnabled(env, "IMAGE_GENERATION_ENABLED") && "IMAGE_GENERATION_ENABLED=true", localImageReady && "LOCAL_DEV_IMAGE_GENERATION=true", localFolderReady && "IMAGE_GENERATION_PROVIDER=local_folder"]),
       disabledFlags: unique([!flagEnabled(env, "AI_IMAGE_ENABLED") && "AI_IMAGE_ENABLED=false", !flagEnabled(env, "IMAGE_GENERATION_ENABLED") && "IMAGE_GENERATION_ENABLED=false"]),
-      setupRequired: hfImageReady || localImageReady ? [] : hfImageModelSetupRequired.length ? hfImageModelSetupRequired : ["AI_IMAGE_ENABLED=true", "HF_API_TOKEN", "HF_IMAGE_MODEL", "or local dev only: IMAGE_GENERATION_ENABLED=true, IMAGE_GENERATION_PROVIDER=local_dev_mock, LOCAL_DEV_IMAGE_GENERATION=true"],
-      canTestWithoutProvider: localImageReady,
+      setupRequired: hfImageReady || localImageReady || localFolderReady ? [] : hfImageModelSetupRequired.length ? hfImageModelSetupRequired : ["AI_IMAGE_ENABLED=true", "HF_API_TOKEN", "HF_IMAGE_MODEL", "or local dev only: IMAGE_GENERATION_ENABLED=true, IMAGE_GENERATION_PROVIDER=local_dev_mock, LOCAL_DEV_IMAGE_GENERATION=true, or IMAGE_GENERATION_PROVIDER=local_folder with LOCAL_IMAGE_SOURCE_DIR"],
+      canTestWithoutProvider: localImageReady || localFolderReady,
       safeLocalRoute: "/studio/image-generation",
       dangerousActionsBlocked: ["placeholder_provider_success", "public_generation_endpoint", "production_local_dev_mock"],
       notes: [
-        "Core provider path is Hugging Face Inference Providers or local dev fixture. No OpenAI or Anthropic provider is allowed.",
+        "Core provider path is Hugging Face Inference Providers, local dev fixture, or dev-only local folder import. No OpenAI or Anthropic provider is allowed.",
         `Recommended HF Inference text-to-image models: ${publicHuggingFaceImageModelRecommendations().map((item) => item.model).join(", ")}.`
       ]
     }),
@@ -296,15 +313,15 @@ export function buildFeatureReadiness(config: RuntimeConfig, env: Record<string,
       env,
       featureKey: "worker",
       label: "Worker Generation",
-      status: hfImageReady && storageReady ? "ready" : localImageReady ? "partial" : "config_blocked",
+      status: hfImageReady && storageReady ? "ready" : localImageReady || localFolderReady ? "partial" : "config_blocked",
       requiredEnv: ["AI_IMAGE_ENABLED", "HF_API_TOKEN", "HF_IMAGE_MODEL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
-      enabledFlags: unique([hfImageReady && "hugging_face_image_ready", localImageReady && "local_dev_image_fixture_ready"]),
+      enabledFlags: unique([hfImageReady && "hugging_face_image_ready", localImageReady && "local_dev_image_fixture_ready", localFolderReady && "local_folder_image_import_ready"]),
       disabledFlags: unique([!hfImageReady && "worker_image_provider_blocked", !storageReady && "private_storage_blocked"]),
       setupRequired: hfImageReady && storageReady ? [] : ["HF_API_TOKEN/HF_IMAGE_MODEL for provider generation", "SUPABASE_SERVICE_ROLE_KEY for private asset storage"],
-      canTestWithoutProvider: localImageReady,
+      canTestWithoutProvider: localImageReady || localFolderReady,
       safeLocalRoute: "/studio/generate",
       dangerousActionsBlocked: ["complete_job_without_asset", "publish_worker_job"],
-      notes: ["Worker marks generation complete only after an asset exists."]
+      notes: ["Worker marks generation complete only after an asset exists.", "Dev-only local folder import uses the same derivative and QA pipeline without calling Hugging Face."]
     }),
     feature({
       env,
@@ -574,6 +591,19 @@ export function applyImageGenerationRuntimeReadiness(
           notes: [runtime.safeMessage]
         };
       }
+      if (runtime.status === "local_folder") {
+        return {
+          ...feature,
+          status: "ready" as const,
+          requiredEnv: ["IMAGE_GENERATION_ENABLED", "IMAGE_GENERATION_PROVIDER", "LOCAL_IMAGE_SOURCE_DIR"],
+          missingEnv: [],
+          enabledFlags: ["IMAGE_GENERATION_PROVIDER=local_folder"],
+          disabledFlags: [],
+          setupRequired: [],
+          canTestWithoutProvider: true,
+          notes: [runtime.safeMessage]
+        };
+      }
       if (runtime.status === "invalid") {
         return {
           ...feature,
@@ -603,6 +633,18 @@ export function applyImageGenerationRuntimeReadiness(
             : "Worker can use the advanced server fallback image provider.",
           storageReady ? "Private storage is ready." : "Private storage is still required before real provider bytes can be persisted."
         ]
+      };
+    }
+    if (feature.featureKey === "worker" && runtime.status === "local_folder") {
+      return {
+        ...feature,
+        status: "partial" as const,
+        requiredEnv: ["LOCAL_IMAGE_SOURCE_DIR"],
+        missingEnv: [],
+        enabledFlags: ["IMAGE_GENERATION_PROVIDER=local_folder"],
+        disabledFlags: [],
+        setupRequired: [],
+        notes: ["Dev-only local folder import can create persisted assets without calling Hugging Face.", "Private storage remains required for production-like persistence."]
       };
     }
     return feature;

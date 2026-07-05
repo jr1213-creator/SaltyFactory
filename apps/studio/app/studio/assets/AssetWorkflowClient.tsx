@@ -16,6 +16,11 @@ function assetMetadata(asset: Asset) {
     : {};
 }
 
+function assetDisplayName(asset: Asset) {
+  const metadata = assetMetadata(asset);
+  return String(metadata.original_filename ?? metadata.originalFilename ?? asset.original_filename ?? asset.originalFilename ?? asset.file_path ?? asset.id);
+}
+
 function derivativeKind(asset: Asset) {
   const metadata = assetMetadata(asset);
   return String(metadata.derivative_kind ?? metadata.derivativeKind ?? asset.asset_type ?? asset.assetType ?? "");
@@ -171,7 +176,7 @@ export function AssetWorkflowClient({
       <button className="btn btn-primary" disabled={busy}>Upload Private Asset</button>
     </form>
     <div className="form-grid">
-      <label>Asset<select value={selectedAssetId} onChange={(event) => setSelectedAssetId(event.target.value)}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename ?? asset.file_path ?? asset.id}</option>)}</select></label>
+      <label>Asset<select value={selectedAssetId} onChange={(event) => setSelectedAssetId(event.target.value)}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{assetDisplayName(asset)}</option>)}</select></label>
       <div className="action-bar">
         <button className="btn btn-secondary" disabled={!selected || busy} onClick={() => runAction("qa")}>Run QA</button>
         <button className="btn btn-primary" disabled={!selected || busy || selected?.qa_status !== "passed"} onClick={() => runAction("approve")}>Approve Asset</button>

@@ -198,6 +198,36 @@ describe("image generation runtime resolver", () => {
     expect(local).toMatchObject({ status: "local_demo", provider: "local_dev_mock", credentialSource: "local_demo" });
     expect(production).toMatchObject({ status: "invalid", blockingReasons: ["local_demo_blocked_in_production"] });
   });
+
+  it("allows dev-only local folder import and blocks it in production", async () => {
+    const local = await resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories() as unknown as RepositoryBundle,
+      config: parseEnv({
+        NODE_ENV: "development",
+        APP_ENV: "development",
+        IMAGE_GENERATION_ENABLED: "true",
+        IMAGE_GENERATION_PROVIDER: "local_folder",
+        LOCAL_IMAGE_SOURCE_ENABLED: "true",
+        LOCAL_IMAGE_SOURCE_DIR: "C:\\data\\SaltyFactoryImageDrop"
+      })
+    });
+    const production = await resolveImageGenerationProvider({
+      workspaceId,
+      repos: createMemoryRepositories() as unknown as RepositoryBundle,
+      config: parseEnv({
+        NODE_ENV: "production",
+        APP_ENV: "production",
+        IMAGE_GENERATION_ENABLED: "true",
+        IMAGE_GENERATION_PROVIDER: "local_folder",
+        LOCAL_IMAGE_SOURCE_ENABLED: "true",
+        LOCAL_IMAGE_SOURCE_DIR: "C:\\data\\SaltyFactoryImageDrop"
+      })
+    });
+
+    expect(local).toMatchObject({ status: "local_folder", provider: "local_folder", credentialSource: "local_folder" });
+    expect(production).toMatchObject({ status: "invalid", blockingReasons: ["local_folder_source_not_allowed_in_production"] });
+  });
 });
 
 describe("image generation runtime route and UI", () => {

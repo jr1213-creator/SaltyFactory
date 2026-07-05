@@ -62,8 +62,11 @@ function ownerLabel(value: unknown, fallback = "Pending") {
 }
 
 function providerLabel(asset: Row | null | undefined) {
-  const provider = String(asset?.generator ?? asset?.provider ?? metadataOf(asset).provider ?? "");
+  const metadata = metadataOf(asset);
+  const provider = String(asset?.generator ?? asset?.provider ?? metadata.provider ?? metadata.source_provider ?? metadata.sourceProvider ?? "");
   if (/huggingface|hf/i.test(provider)) return "Hugging Face";
+  if (/local_folder/i.test(provider)) return "Local folder import";
+  if (/manual_upload/i.test(provider)) return "Owner upload";
   if (/local|manual/i.test(provider)) return "Internal asset";
   return provider ? ownerLabel(provider) : "Internal asset";
 }

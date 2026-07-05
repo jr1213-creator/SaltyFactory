@@ -428,9 +428,9 @@ export class HuggingFaceImageProvider extends FreeImageProviderDisabled {
 
 export const createFreeImageProvider = (config: RuntimeConfig, fetcher?: typeof fetch) => config.providers.aiImage.enabled ? new HuggingFaceImageProvider(config.HF_API_TOKEN, config.HF_IMAGE_MODEL, fetcher) : new FreeImageProviderDisabled();
 
-export type ImageGenerationRuntimeStatus = "ready" | "local_demo" | "config_required" | "invalid" | "owner_gated";
-export type ImageGenerationRuntimeProvider = "huggingface" | "local_dev_mock" | "disabled";
-export type ImageGenerationCredentialSource = "credential_store" | "env" | "local_demo" | "none";
+export type ImageGenerationRuntimeStatus = "ready" | "local_demo" | "local_folder" | "config_required" | "invalid" | "owner_gated";
+export type ImageGenerationRuntimeProvider = "huggingface" | "local_dev_mock" | "local_folder" | "disabled";
+export type ImageGenerationCredentialSource = "credential_store" | "env" | "local_demo" | "local_folder" | "none";
 
 export type PublicImageGenerationProviderResolution = {
   status: ImageGenerationRuntimeStatus;
@@ -693,6 +693,47 @@ function resolveLocalDemoImageProvider(config: RuntimeConfig) {
   });
 }
 
+function resolveLocalFolderImageProvider(config: RuntimeConfig) {
+  const localRequested = config.IMAGE_GENERATION_PROVIDER === "local_folder";
+  if (!localRequested) return null;
+  if (isProductionRuntime(config)) {
+    return publicResolution({
+      status: "invalid",
+      provider: "local_folder",
+      model: "none",
+      credentialSource: "local_folder",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Local folder image import is dev-only and cannot be used in production.",
+      setupRequired: ["Use Hugging Face or another real server provider in production."],
+      blockingReasons: ["local_folder_source_not_allowed_in_production"],
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    });
+  }
+  if (!config.LOCAL_IMAGE_SOURCE_DIR.trim()) {
+    return publicResolution({
+      status: "config_required",
+      provider: "disabled",
+      credentialSource: "none",
+      setupAction: IMAGE_GENERATION_SETUP_ACTION,
+      safeMessage: "Local folder image import is enabled but no source directory is configured.",
+      setupRequired: ["Set LOCAL_IMAGE_SOURCE_DIR to the approved local import folder."],
+      blockingReasons: ["local_folder_source_missing"],
+      recommendedModels: publicHuggingFaceImageModelRecommendations()
+    });
+  }
+  return publicResolution({
+    status: "local_folder",
+    provider: "local_folder",
+    model: "none",
+    credentialSource: "local_folder",
+    setupAction: IMAGE_GENERATION_SETUP_ACTION,
+    safeMessage: "Dev-only local folder image import is ready. Imported files still run through private storage, derivative creation, and QA.",
+    setupRequired: [],
+    blockingReasons: [],
+    recommendedModels: publicHuggingFaceImageModelRecommendations()
+  });
+}
+
 function resolveEnvImageProvider(config: RuntimeConfig) {
   const token = config.HUGGING_FACE_API_TOKEN || config.HF_API_TOKEN;
   const model = config.HUGGING_FACE_IMAGE_MODEL || config.HF_IMAGE_MODEL;
@@ -739,6 +780,8 @@ export async function resolveImageGenerationProvider(input: {
   repos?: RepositoryBundle | undefined;
   config: RuntimeConfig;
 }): Promise<ImageGenerationProviderResolution> {
+  const localFolder = resolveLocalFolderImageProvider(input.config);
+  if (localFolder) return localFolder;
   const credentialStore = await resolveCredentialStoreImageProvider(input);
   if (credentialStore) return credentialStore;
   const localDemo = resolveLocalDemoImageProvider(input.config);
@@ -750,7 +793,7 @@ export async function resolveImageGenerationProvider(input: {
     provider: "disabled",
     credentialSource: "none",
     setupAction: IMAGE_GENERATION_SETUP_ACTION,
-    safeMessage: "Image generation is not connected. Connect Hugging Face in Launch Setup Concierge or use local demo mode in development/test.",
+    safeMessage: "Image generation is not connected. Connect Hugging Face in Launch Setup Concierge, or use local demo or local folder mode in development/test.",
     setupRequired: ["Connect Hugging Face image generation", "Check token permission: Inference Providers", "Try a recommended model"],
     blockingReasons: ["image_generation_provider_not_connected"],
     recommendedModels: publicHuggingFaceImageModelRecommendations()

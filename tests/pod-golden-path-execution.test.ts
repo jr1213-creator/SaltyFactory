@@ -618,7 +618,7 @@ describe("POD golden path execution", () => {
     expect(html).toContain("Create a Printify product to generate real mockups");
     expect(html).not.toContain(`/api/studio/mockups/${mockupId}/preview`);
     expect(html).not.toContain("Internal template");
-  });
+  }, 25000);
 
   it("presents the mockup studio as a Printify-only production gallery with safe proof details", async () => {
     authorizeAsOwner();

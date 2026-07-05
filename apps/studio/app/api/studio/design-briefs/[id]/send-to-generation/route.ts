@@ -20,6 +20,7 @@ import {
   storePrivateImageBuffer,
   type GeneratedDerivativeKind
 } from "../../../_image-production";
+import { importLocalFolderImages } from "../../../_local-folder-image-source";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,7 @@ function safeAsset(asset: any) {
     assetType: asset.asset_type ?? asset.assetType ?? null,
     generator: asset.generator ?? null,
     model: asset.model ?? null,
+    originalFilename: asset.metadata?.original_filename ?? asset.metadata?.originalFilename ?? null,
     visibility: asset.visibility ?? "private",
     createdAt: asset.created_at ?? asset.createdAt ?? null,
     previewUrl: `/api/studio/assets/${encodeURIComponent(String(asset.id))}/preview`,
@@ -182,7 +184,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ ok: false, status: "blocked", message: "Only approved design briefs can be sent to image generation.", blockingReasons: ["brief_not_approved"] }, { status: 409 });
     }
 
-    const variantCount = clampInt(body.variantCount ?? body.variant_count, 4, 1, 4);
+    const variantCount = clampInt(body.variantCount ?? body.variant_count, 4, 1, 5);
     const recipeOptions: Parameters<typeof buildPodPromptRecipeFromBrief>[1] = { variantCount };
     const requestedStylePreset = typeof body.stylePreset === "string" ? body.stylePreset : typeof body.style_preset === "string" ? body.style_preset : "";
     const requestedPrintTarget = typeof body.printTarget === "string" ? body.printTarget : typeof body.print_target === "string" ? body.print_target : "";
@@ -213,7 +215,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const config = parseEnv();
     const provider = await resolveImageGenerationProvider({ workspaceId: studioWorkspaceId, repos, config });
-    const canRun = provider.status === "ready" || provider.status === "local_demo";
+    const canRun = provider.status === "ready" || provider.status === "local_demo" || provider.status === "local_folder";
     const job = await repos.job.create({
       id: `job_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
       workspace_id: studioWorkspaceId,
@@ -284,6 +286,83 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           job: safeJob(failed)
         }, { status: 503 });
       }
+    }
+
+    if (provider.status === "local_folder") {
+      const imported = await importLocalFolderImages({
+        repos,
+        workspaceId: studioWorkspaceId,
+        briefId: id,
+        jobId: job.id,
+        actorId: user.id,
+        config,
+        variantCount,
+        printTarget: recipe.printTarget,
+        productType: String((brief as any).style_direction?.product_type ?? (brief as any).product_type ?? "apparel"),
+        forceLocal: true
+      });
+      if (!imported.ok) {
+        const failed = await repos.job.update(job.id, {
+          parameters: {
+            ...(job.parameters as Record<string, unknown>),
+            completed_variant_count: 0,
+            failed_variant_count: 0,
+            import_failures: imported.failures ?? []
+          },
+          updated_by: user.id
+        });
+        const finalFailed = await repos.job.markFailed(failed.id, imported.code, false);
+        return NextResponse.json({
+          ok: false,
+          status: imported.code,
+          safeMessage: imported.message,
+          message: imported.message,
+          blockingReasons: (imported.failures ?? []).map((failure) => failure.code),
+          warnings: imported.warnings ?? [],
+          provider: publicImageGenerationProviderResolution(provider),
+          job: safeJob(finalFailed)
+        }, { status: 503 });
+      }
+
+      const derivativeKinds: GeneratedDerivativeKind[] = ["thumbnail", "web_preview", "print_png"];
+      await repos.job.update(job.id, {
+        parameters: {
+          ...(job.parameters as Record<string, unknown>),
+          completed_variant_count: imported.imported.length,
+          failed_variant_count: 0,
+          asset_ids: imported.imported.map((item) => item.asset.id),
+          derivative_kinds: derivativeKinds,
+          imported: true,
+          generated: false
+        },
+        updated_by: user.id
+      });
+      const completed = await repos.job.markCompleted(job.id, imported.imported[0]!.asset.id);
+      await repos.brief.update(id, { status: "generation_completed", updated_by: user.id });
+      const safeAssets = imported.imported.map((item) => ({
+        ...safeAsset(item.asset),
+        derivatives: item.derivatives.map(safeDerivative)
+      }));
+      return NextResponse.json({
+        ok: true,
+        status: "imported",
+        safeMessage: `Imported ${imported.imported.length} local folder image${imported.imported.length === 1 ? "" : "s"} and created the private derivative package.`,
+        job: safeJob(completed),
+        asset: safeAssets[0],
+        assets: safeAssets,
+        completedVariantCount: imported.imported.length,
+        failedVariantCount: 0,
+        derivativeKinds,
+        provider: publicImageGenerationProviderResolution(provider),
+        workflowResult: {
+          provider: "local_folder",
+          model: "none",
+          source: "local_folder_import",
+          generated: false,
+          imported: true
+        },
+        warnings: imported.warnings
+      });
     }
 
     const successes: GenerationVariantSuccess[] = [];
