@@ -13,6 +13,8 @@ describe("Ollama agent smoke harness", () => {
     expect(source).toContain("/api/chat");
     expect(source).toContain("agentRunId");
     expect(source).toContain("transcriptEventCount");
+    expect(source).toContain("fixture_setup_failed");
+    expect(source).toContain("prepareOllamaSmokeDraft");
     expect(source).not.toMatch(/Authorization|Bearer|service_role|SUPABASE_SERVICE_ROLE_KEY|PRINTIFY_API_TOKEN|HF_API_TOKEN/);
   });
 });
