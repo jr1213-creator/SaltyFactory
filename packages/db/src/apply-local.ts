@@ -18,6 +18,7 @@ export const aiEmployeeTables = [
   "ai_employee_tasks",
   "ai_employee_runs",
   "ai_employee_outputs",
+  "ai_employee_transcript_events",
   "ai_employee_permissions",
   "ai_employee_audit_events"
 ];

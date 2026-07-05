@@ -29,20 +29,67 @@ export type ProviderCheck = {
 
 export type ModelTextInput = {
   prompt: string;
+  messages?: ModelRuntimeMessage[];
+  tools?: ModelRuntimeTool[];
   modelKey?: string;
   taskType: string;
   riskLevel: ModelRiskLevel;
   inputSensitivity: ModelInputSensitivity;
+  timeoutMs?: number;
+  keepAlive?: string;
+  think?: boolean;
 };
 
 export type ModelTextResult = {
   ok: boolean;
+  providerUsed?: "ollama" | "disabled";
   text?: string;
   modelUsed?: string;
+  toolCalls?: ModelRuntimeToolCall[];
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  error?: {
+    code:
+      | "ollama_unavailable"
+      | "ollama_http_error"
+      | "ollama_invalid_response"
+      | "ollama_tool_call_parse_failed"
+      | "model_runtime_unavailable"
+      | "model_not_configured"
+      | "disabled";
+    message: string;
+    retryable?: boolean;
+  };
   tokensIn?: number;
   tokensOut?: number;
   errorCode?: string;
   setupRequired?: string[];
+};
+
+export type ModelRuntimeMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  toolCallId?: string;
+  name?: string;
+};
+
+export type ModelRuntimeTool = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
+export type ModelRuntimeToolCall = {
+  id?: string | undefined;
+  name: string;
+  arguments: unknown;
+  raw?: unknown;
 };
 
 export type ModelStructuredInput<T> = ModelTextInput & {
@@ -158,7 +205,7 @@ export const defaultModelProviderCatalog: Array<Pick<WorkspaceRow, "id"> & Recor
     provider_type: "local",
     enabled: false,
     configured_status: "not_configured",
-    supports_tools: false,
+    supports_tools: true,
     supports_json: true,
     supports_vision: false,
     supports_long_context: false,
@@ -270,6 +317,58 @@ const sensitivityRank: Record<ModelInputSensitivity, number> = { public: 1, inte
 const id = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const value = (row: WorkspaceRow, snake: string, camel = snake.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())) => row[snake] ?? row[camel];
 const estimateRuntimeTokens = (text: string) => Math.ceil(text.length / 4);
+const numberOrUndefined = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+const ollamaBaseUrl = () => process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
+const ollamaDefaultModel = () => process.env.OLLAMA_MODEL || "qwen3:8b";
+const ollamaDefaultTimeoutMs = () => Number(process.env.OLLAMA_AGENT_TIMEOUT_MS || 120000);
+const ollamaDefaultKeepAlive = () => process.env.OLLAMA_AGENT_KEEP_ALIVE || "5m";
+
+function sanitizeRuntimeMessage(message: string) {
+  return message.replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]").replace(/(token|secret|key)=([^&\s]+)/gi, "$1=[redacted]");
+}
+
+function parseOllamaToolArguments(raw: unknown): { ok: true; value: unknown } | { ok: false; message: string } {
+  if (raw == null) return { ok: true, value: {} };
+  if (typeof raw === "string") {
+    try {
+      return { ok: true, value: raw.trim() ? JSON.parse(raw) : {} };
+    } catch {
+      return { ok: false, message: "Ollama returned tool call arguments that were not valid JSON." };
+    }
+  }
+  if (typeof raw === "object") return { ok: true, value: raw };
+  return { ok: false, message: "Ollama returned tool call arguments in an unsupported format." };
+}
+
+function normalizeOllamaToolCalls(rawToolCalls: unknown): { ok: true; calls: ModelRuntimeToolCall[] } | { ok: false; message: string } {
+  if (!Array.isArray(rawToolCalls) || rawToolCalls.length === 0) return { ok: true, calls: [] };
+  const calls: ModelRuntimeToolCall[] = [];
+  for (const rawCall of rawToolCalls) {
+    const call = rawCall && typeof rawCall === "object" ? rawCall as Record<string, unknown> : {};
+    const fn = call.function && typeof call.function === "object" ? call.function as Record<string, unknown> : {};
+    const name = typeof fn.name === "string" ? fn.name : typeof call.name === "string" ? call.name : "";
+    if (!name) return { ok: false, message: "Ollama returned a tool call without a function name." };
+    const parsed = parseOllamaToolArguments(fn.arguments ?? call.arguments);
+    if (!parsed.ok) return parsed;
+    calls.push({
+      ...(typeof call.id === "string" ? { id: call.id } : {}),
+      name,
+      arguments: parsed.value,
+      raw: rawCall
+    });
+  }
+  return { ok: true, calls };
+}
+
+function mapOllamaMessages(input: ModelTextInput) {
+  const messages = input.messages?.length ? input.messages : [{ role: "user" as const, content: input.prompt }];
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+    ...(message.role === "tool" && message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
+    ...(message.name ? { name: message.name } : {})
+  }));
+}
 
 export class DisabledModelRuntimeProvider implements ModelRuntimeProvider {
   constructor(
@@ -289,6 +388,11 @@ export class DisabledModelRuntimeProvider implements ModelRuntimeProvider {
   async generateText(_input?: ModelTextInput): Promise<ModelTextResult> {
     return {
       ok: false,
+      providerUsed: "disabled",
+      error: {
+        code: "disabled",
+        message: this.setupRequired[0] ?? "Model runtime is disabled."
+      },
       errorCode: `${this.providerKey}_not_configured`,
       setupRequired: this.setupRequired
     };
@@ -336,20 +440,128 @@ export class HttpModelRuntimeProvider implements ModelRuntimeProvider {
   }
 
   async generateText(input: ModelTextInput): Promise<ModelTextResult> {
+    if (this.providerKey !== "ollama") {
+      return {
+        ok: false,
+        providerUsed: "disabled",
+        errorCode: "model_runtime_unavailable",
+        error: {
+          code: "model_runtime_unavailable",
+          message: "Only local Ollama model execution is enabled for real AI employees."
+        },
+        setupRequired: ["Configure AI_EMPLOYEES_MODEL_PROVIDER=ollama for local AI employee execution."]
+      };
+    }
     const check = await this.verifyConnection();
     if (!check.ok) {
       return {
         ok: false,
+        providerUsed: "ollama",
+        modelUsed: input.modelKey || ollamaDefaultModel(),
+        error: {
+          code: check.blockingReasons[0]?.includes("unreachable") ? "ollama_unavailable" : "model_runtime_unavailable",
+          message: check.setupRequired[0] ?? "Local Ollama is not available.",
+          retryable: true
+        },
         errorCode: check.blockingReasons[0] ?? "model_provider_not_ready",
         setupRequired: check.setupRequired
       };
     }
-    return {
-      ok: false,
-      errorCode: "model_generation_adapter_not_enabled_for_runtime",
-      setupRequired: ["Text generation adapters are intentionally disabled until provider-specific policies are approved."],
-      tokensIn: estimateRuntimeTokens(input.prompt)
-    };
+    const model = input.modelKey || ollamaDefaultModel();
+    if (!model.trim()) {
+      return {
+        ok: false,
+        providerUsed: "ollama",
+        errorCode: "model_not_configured",
+        error: { code: "model_not_configured", message: "No local Ollama model is configured." },
+        setupRequired: ["Set OLLAMA_MODEL server-side or approve an Ollama model in the runtime catalog."]
+      };
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? ollamaDefaultTimeoutMs());
+    const url = `${this.baseUrl.replace(/\/$/, "")}/api/chat`;
+    try {
+      const response = await this.fetcher(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model,
+          messages: mapOllamaMessages(input),
+          ...(input.tools?.length ? { tools: input.tools } : {}),
+          stream: false,
+          keep_alive: input.keepAlive ?? ollamaDefaultKeepAlive(),
+          think: input.think === true
+        })
+      });
+      if (!response.ok) {
+        return {
+          ok: false,
+          providerUsed: "ollama",
+          modelUsed: model,
+          errorCode: "ollama_http_error",
+          error: {
+            code: "ollama_http_error",
+            message: `Ollama returned HTTP ${response.status}.`,
+            retryable: response.status === 429 || response.status >= 500
+          },
+          tokensIn: estimateRuntimeTokens(input.prompt)
+        };
+      }
+      const data = await response.json().catch(() => null) as Record<string, unknown> | null;
+      const message = data?.message && typeof data.message === "object" ? data.message as Record<string, unknown> : null;
+      if (!message) {
+        return {
+          ok: false,
+          providerUsed: "ollama",
+          modelUsed: model,
+          errorCode: "ollama_invalid_response",
+          error: { code: "ollama_invalid_response", message: "Ollama returned a response without a message." }
+        };
+      }
+      const toolCallParse = normalizeOllamaToolCalls(message.tool_calls);
+      if (!toolCallParse.ok) {
+        return {
+          ok: false,
+          providerUsed: "ollama",
+          modelUsed: model,
+          errorCode: "ollama_tool_call_parse_failed",
+          error: { code: "ollama_tool_call_parse_failed", message: toolCallParse.message }
+        };
+      }
+      const text = typeof message.content === "string" ? message.content : "";
+      const promptTokens = numberOrUndefined(data?.prompt_eval_count);
+      const completionTokens = numberOrUndefined(data?.eval_count);
+      const usage: ModelTextResult["usage"] = {};
+      if (promptTokens != null) usage.promptTokens = promptTokens;
+      if (completionTokens != null) usage.completionTokens = completionTokens;
+      if (promptTokens != null || completionTokens != null) usage.totalTokens = Number(promptTokens ?? 0) + Number(completionTokens ?? 0);
+      return {
+        ok: true,
+        providerUsed: "ollama",
+        modelUsed: typeof data?.model === "string" ? data.model : model,
+        text,
+        toolCalls: toolCallParse.calls,
+        usage,
+        tokensIn: promptTokens ?? estimateRuntimeTokens(input.prompt),
+        tokensOut: completionTokens ?? estimateRuntimeTokens(text)
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        providerUsed: "ollama",
+        modelUsed: model,
+        errorCode: "ollama_unavailable",
+        error: {
+          code: "ollama_unavailable",
+          message: sanitizeRuntimeMessage(error instanceof Error && error.name === "AbortError" ? "Ollama request timed out." : "Local Ollama is not available."),
+          retryable: true
+        },
+        setupRequired: ["Start Ollama locally and make sure the configured model is pulled."]
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async generateStructured<T>(input: ModelStructuredInput<T>): Promise<ModelStructuredResult<T>> {
@@ -362,7 +574,7 @@ export function createModelRuntimeProvider(provider: WorkspaceRow, fetcher?: typ
   const providerKey = String(value(provider, "provider_key") ?? "disabled");
   const configuredStatus = String(value(provider, "configured_status") ?? "not_configured");
   const enabled = value(provider, "enabled") === true;
-  const baseUrl = String(value(provider, "base_url") ?? "");
+  const baseUrl = String(value(provider, "base_url") ?? (providerKey === "ollama" ? ollamaBaseUrl() : ""));
   const providerType = String(value(provider, "provider_type") ?? "disabled");
 
   if (!enabled || configuredStatus !== "configured") {

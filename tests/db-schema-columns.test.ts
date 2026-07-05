@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getTableColumns } from "drizzle-orm";
-import { aiEmployeeRuns, printifyProductRefs, productBatchItems, productBatches, productDrafts, publishReviews, shopifyProductRefs, trendSignals, workspaceProviderConnections } from "@saltyfactory/db";
+import { aiEmployeeRuns, aiEmployeeTranscriptEvents, printifyProductRefs, productBatchItems, productBatches, productDrafts, publishReviews, shopifyProductRefs, trendSignals, workspaceProviderConnections } from "@saltyfactory/db";
 
 const columnKeys = (table: Parameters<typeof getTableColumns>[0]) => Object.keys(getTableColumns(table));
 
@@ -29,6 +29,10 @@ describe("db schema key columns", () => {
 
   it("ai_employee_runs includes required run fields", () => {
     expect(columnKeys(aiEmployeeRuns)).toEqual(expect.arrayContaining(["workspaceId", "employeeType", "taskType", "inputRefType", "inputRefId", "status", "providerUsed", "modelUsed", "promptRef", "outputJson", "blockedReasons", "requiresHumanReview", "approvedBy", "approvedAt"]));
+  });
+
+  it("ai_employee_transcript_events stores visible agent proof events", () => {
+    expect(columnKeys(aiEmployeeTranscriptEvents)).toEqual(expect.arrayContaining(["workspaceId", "runId", "turnIndex", "eventType", "role", "toolName", "content", "metadata"]));
   });
 
   it("workspace_provider_connections uses secret references", () => {

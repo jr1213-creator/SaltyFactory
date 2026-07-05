@@ -417,6 +417,7 @@ export class AiEmployeeRepository extends BaseRepository {
   readonly tasks = new BaseRepository("ai_employee_tasks", this.store, this.audit);
   readonly runs = new BaseRepository("ai_employee_runs", this.store, this.audit);
   readonly outputs = new BaseRepository("ai_employee_outputs", this.store, this.audit);
+  readonly transcriptEvents = new BaseRepository("ai_employee_transcript_events", this.store, this.audit);
   readonly permissions = new BaseRepository("ai_employee_permissions", this.store, this.audit);
   async createRun(row: WorkspaceRow) { return this.runs.create(row); }
   async listRunsByStatus(workspaceId: string, status: string) { return this.runs.listByStatus(workspaceId, status); }

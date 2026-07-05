@@ -502,6 +502,22 @@ export const aiEmployeeOutputs = pgTable("ai_employee_outputs", {
   workspaceStatusIdx: index("ai_employee_outputs_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
+export const aiEmployeeTranscriptEvents = pgTable("ai_employee_transcript_events", {
+  id,
+  ...ownership(),
+  runId: text("run_id").notNull().references(() => aiEmployeeRuns.id),
+  turnIndex: integer("turn_index").notNull().default(0),
+  eventType: text("event_type").notNull(),
+  role: text("role"),
+  toolName: text("tool_name"),
+  content: jsonb("content").$type<Record<string, unknown>>().notNull().default({}),
+  metadata
+}, (table) => ({
+  runIdx: index("ai_employee_transcript_events_run_idx").on(table.runId),
+  workspaceRunIdx: index("ai_employee_transcript_events_workspace_run_idx").on(table.workspaceId, table.runId),
+  eventTypeIdx: index("ai_employee_transcript_events_type_idx").on(table.eventType)
+}));
+
 export const aiEmployeePermissions = pgTable("ai_employee_permissions", {
   id,
   ...ownership(),
@@ -2895,6 +2911,7 @@ export const tables = {
   aiEmployeeTasks,
   aiEmployeeRuns,
   aiEmployeeOutputs,
+  aiEmployeeTranscriptEvents,
   aiEmployeePermissions,
   aiEmployeeAuditEvents,
   aiEmployeeHireRequests,

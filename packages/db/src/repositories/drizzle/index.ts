@@ -60,6 +60,7 @@ const tableExportByDbName: Record<string, TableName> = {
   ai_employee_tasks: "aiEmployeeTasks",
   ai_employee_runs: "aiEmployeeRuns",
   ai_employee_outputs: "aiEmployeeOutputs",
+  ai_employee_transcript_events: "aiEmployeeTranscriptEvents",
   ai_employee_permissions: "aiEmployeePermissions",
   ai_employee_hire_requests: "aiEmployeeHireRequests",
   ai_employee_role_specs: "aiEmployeeRoleSpecs",
@@ -440,12 +441,14 @@ export class DrizzleAiEmployeeRepository extends DrizzleBaseRepository {
   readonly tasks: DrizzleBaseRepository;
   readonly runs: DrizzleBaseRepository;
   readonly outputs: DrizzleBaseRepository;
+  readonly transcriptEvents: DrizzleBaseRepository;
   readonly permissions: DrizzleBaseRepository;
   constructor(db?: DbClient, audit?: AuditWriter) {
     super("ai_employees", db, audit);
     this.tasks = new DrizzleBaseRepository("ai_employee_tasks", this.db, this.audit);
     this.runs = new DrizzleBaseRepository("ai_employee_runs", this.db, this.audit);
     this.outputs = new DrizzleBaseRepository("ai_employee_outputs", this.db, this.audit);
+    this.transcriptEvents = new DrizzleBaseRepository("ai_employee_transcript_events", this.db, this.audit);
     this.permissions = new DrizzleBaseRepository("ai_employee_permissions", this.db, this.audit);
   }
   async createRun(row: WorkspaceRow) { return this.runs.create(row); }

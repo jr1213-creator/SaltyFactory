@@ -901,3 +901,22 @@ export {
   type ModelTextResult,
   type ProviderCheck
 } from "./model-runtime";
+export {
+  forbiddenAgentToolNamePatterns,
+  getAgentToolsForRole,
+  productListingAssistantTools,
+  registryHasForbiddenToolNames,
+  toModelRuntimeTools,
+  validateToolArguments,
+  type AgentToolContext,
+  type AgentToolDefinition,
+  type AgentToolResult
+} from "./agent-tools";
+export {
+  assertToolIsAllowedForRole,
+  listAgentTranscript,
+  runLocalOllamaAgentTask,
+  summarizeTranscriptEvents,
+  type AgentTaskResult,
+  type RunLocalOllamaAgentTaskInput
+} from "./agent-runtime";

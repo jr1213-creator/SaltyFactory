@@ -232,6 +232,7 @@ export interface RepositoryBundle {
     tasks: BaseRepositoryContract;
     runs: BaseRepositoryContract;
     outputs: BaseRepositoryContract;
+    transcriptEvents: BaseRepositoryContract;
     permissions: BaseRepositoryContract;
     createRun(row: WorkspaceRow): Promise<WorkspaceRow>;
     listRunsByStatus(workspaceId: string, status: string): Promise<WorkspaceRow[]>;
