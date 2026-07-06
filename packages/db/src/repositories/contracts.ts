@@ -61,13 +61,55 @@ export interface TrendIntelligenceRepositoryContract {
   profiles: BaseRepositoryContract;
   sources: BaseRepositoryContract;
   runs: BaseRepositoryContract;
+  clusters: BaseRepositoryContract;
+  clusterSignals: BaseRepositoryContract;
+  scores: BaseRepositoryContract;
+  reports: BaseRepositoryContract;
+  concepts: BaseRepositoryContract;
   citations: BaseRepositoryContract;
   rejectedSignals: BaseRepositoryContract;
   getSourceByKey(workspaceId: string, sourceKey: string): Promise<WorkspaceRow | null>;
   listSourcesByKeys(workspaceId: string, sourceKeys: string[]): Promise<WorkspaceRow[]>;
+  listSignalsByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
   listRunsByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
   listSignalsByRun(workspaceId: string, runId: string): Promise<WorkspaceRow[]>;
+  listClustersByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
+  listScoresByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
+  listScoresByCluster(workspaceId: string, clusterId: string): Promise<WorkspaceRow[]>;
+  listReportsByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
+  getReportByAgentRunId(workspaceId: string, agentRunId: string): Promise<WorkspaceRow | null>;
+  listConceptsByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
   listCitationsForEntity(workspaceId: string, entityType: string, entityId: string): Promise<WorkspaceRow[]>;
+}
+
+export interface MarketingRepositoryContract {
+  campaigns: BaseRepositoryContract;
+  assets: BaseRepositoryContract;
+  brandVoiceProfiles: BaseRepositoryContract;
+  sources: BaseRepositoryContract;
+  sourceRuns: BaseRepositoryContract;
+  readiness: BaseRepositoryContract;
+  launchPlans: BaseRepositoryContract;
+  positioningStatements: BaseRepositoryContract;
+  offerHypotheses: BaseRepositoryContract;
+  audienceHypotheses: BaseRepositoryContract;
+  adAngles: BaseRepositoryContract;
+  adCopyVariants: BaseRepositoryContract;
+  organicContentDrafts: BaseRepositoryContract;
+  lifecycleCampaignFlows: BaseRepositoryContract;
+  creativeBriefs: BaseRepositoryContract;
+  landingPageRecommendations: BaseRepositoryContract;
+  channelRecommendations: BaseRepositoryContract;
+  mediaPlanDrafts: BaseRepositoryContract;
+  campaignDrafts: BaseRepositoryContract;
+  approvalRequests: BaseRepositoryContract;
+  policyReviewResults: BaseRepositoryContract;
+  budgetRecommendations: BaseRepositoryContract;
+  getSourceByKey(workspaceId: string, sourceKey: string): Promise<WorkspaceRow | null>;
+  getBrandVoiceProfileByName(workspaceId: string, brandName: string): Promise<WorkspaceRow | null>;
+  listLaunchPlansBySourceEntity(workspaceId: string, sourceEntityType: string, sourceEntityId: string): Promise<WorkspaceRow[]>;
+  listApprovalRequestsByLaunchPlan(workspaceId: string, launchPlanId: string): Promise<WorkspaceRow[]>;
+  listApprovalRequestsByStatus(workspaceId: string, ownerDecision: string): Promise<WorkspaceRow[]>;
 }
 
 export interface CrmRepositoryContract {
@@ -251,7 +293,7 @@ export interface RepositoryBundle {
     createRun(row: WorkspaceRow): Promise<WorkspaceRow>;
     listRunsByStatus(workspaceId: string, status: string): Promise<WorkspaceRow[]>;
   };
-  marketing: BaseRepositoryContract & { assets: BaseRepositoryContract };
+  marketing: MarketingRepositoryContract;
   support: BaseRepositoryContract & { drafts: BaseRepositoryContract };
   billing: BaseRepositoryContract & { plans: BaseRepositoryContract; events: BaseRepositoryContract; featureLimits: BaseRepositoryContract };
   crm: CrmRepositoryContract;

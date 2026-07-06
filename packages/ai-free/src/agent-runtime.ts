@@ -28,6 +28,14 @@ export type RunLocalOllamaAgentTaskInput = {
     productDraftId?: string | undefined;
     assetId?: string | undefined;
     mockupId?: string | undefined;
+    profileId?: string | undefined;
+    launchPlanId?: string | undefined;
+    sourceEntityType?: string | undefined;
+    sourceEntityId?: string | undefined;
+    brandVoiceProfileId?: string | undefined;
+    sourceKeys?: string[] | undefined;
+    maxSignals?: number | undefined;
+    maxConcepts?: number | undefined;
     instructions?: string | undefined;
   };
   maxTurns?: number | undefined;
@@ -49,6 +57,14 @@ export type AgentRunJobPayload = {
     productDraftId?: string | undefined;
     assetId?: string | undefined;
     mockupId?: string | undefined;
+    profileId?: string | undefined;
+    launchPlanId?: string | undefined;
+    sourceEntityType?: string | undefined;
+    sourceEntityId?: string | undefined;
+    brandVoiceProfileId?: string | undefined;
+    sourceKeys?: string[] | undefined;
+    maxSignals?: number | undefined;
+    maxConcepts?: number | undefined;
     instructions?: string | undefined;
   };
   maxTurns?: number | undefined;
@@ -137,6 +153,8 @@ function agentInputRef(taskInput: RunLocalOllamaAgentTaskInput["taskInput"], wor
   if (taskInput.productDraftId) return { inputRefType: "product_draft", inputRefId: taskInput.productDraftId };
   if (taskInput.assetId) return { inputRefType: "asset", inputRefId: taskInput.assetId };
   if (taskInput.mockupId) return { inputRefType: "mockup", inputRefId: taskInput.mockupId };
+  if (taskInput.profileId) return { inputRefType: "trend_watch_profile", inputRefId: taskInput.profileId };
+  if (taskInput.launchPlanId) return { inputRefType: "marketing_launch_plan", inputRefId: taskInput.launchPlanId };
   return { inputRefType: "workspace", inputRefId: workspaceId };
 }
 
@@ -146,6 +164,14 @@ function buildUserMessage(input: Pick<RunLocalOllamaAgentTaskInput, "taskType" |
     productDraftId: input.taskInput.productDraftId ?? null,
     assetId: input.taskInput.assetId ?? null,
     mockupId: input.taskInput.mockupId ?? null,
+    profileId: input.taskInput.profileId ?? null,
+    launchPlanId: input.taskInput.launchPlanId ?? null,
+    sourceEntityType: input.taskInput.sourceEntityType ?? null,
+    sourceEntityId: input.taskInput.sourceEntityId ?? null,
+    brandVoiceProfileId: input.taskInput.brandVoiceProfileId ?? null,
+    sourceKeys: input.taskInput.sourceKeys ?? [],
+    maxSignals: input.taskInput.maxSignals ?? null,
+    maxConcepts: input.taskInput.maxConcepts ?? null,
     instructions: input.taskInput.instructions ?? "Draft title, description, SEO metadata, and readiness blockers for human review.",
     requirement: "Use the available tools before producing the final draft."
   });
@@ -167,6 +193,14 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
     }
   }
   return null;
+}
+
+function buildJsonRepairMessage(roleDefinition: AgentRoleDefinition) {
+  return [
+    "Your previous response was not valid JSON.",
+    "Return valid JSON only with no markdown, no commentary, and no extra prose.",
+    `Follow the ${roleDefinition.roleKey} final output schema exactly.`
+  ].join(" ");
 }
 
 function buildRunMetadata(base: Record<string, unknown>, patch: Record<string, unknown> = {}) {
@@ -239,17 +273,19 @@ async function persistFinalOutput(input: {
   workspaceId: string;
   runId: string;
   actorId?: string | undefined;
-  productDraftId?: string | undefined;
+  roleDefinition: AgentRoleDefinition;
+  taskInput: RunLocalOllamaAgentTaskInput["taskInput"];
   finalText: string;
   parsed: Record<string, unknown> | null;
 }) {
+  const ref = input.roleDefinition.resolveDefaultOutputRef(input.taskInput, input.workspaceId);
   return input.repos.aiEmployee.outputs.create({
     id: id("aiout_ollama_listing"),
     workspace_id: input.workspaceId,
     run_id: input.runId,
-    output_type: "product_listing_draft",
-    ref_type: input.productDraftId ? "product_draft" : "workspace",
-    ref_id: input.productDraftId ?? input.workspaceId,
+    output_type: input.roleDefinition.defaultOutputType,
+    ref_type: ref.refType,
+    ref_id: ref.refIdFromTask,
     output_json: {
       ...(input.parsed ?? { rawFinalText: input.finalText }),
       source: "local_ollama_agent",
@@ -564,6 +600,7 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
   const validation = validateAgentInput({ roleKey: input.roleKey, taskType: input.taskType });
   const toolCallsExecuted: string[] = [];
   let turnCount = 0;
+  let jsonRepairAttempted = false;
 
   if (!validation.ok) {
     await persistBlockedRun({
@@ -722,6 +759,8 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
       workspaceId: input.workspaceId,
       agentRunId: runId,
       roleKey: input.roleKey,
+      taskType: input.taskType,
+      taskInput: input.taskInput as Record<string, unknown>,
       repos,
       state: { savedOutputIds: [] },
       ...(input.actorId ? { actorId: input.actorId } : {})
@@ -906,7 +945,85 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
       const finalText = result.text?.trim() ?? "";
       if (finalText) {
         const parsed = extractJsonObject(finalText);
+        if (!parsed && roleDefinition.finalOutputMode === "require_valid_json") {
+          if (!jsonRepairAttempted) {
+            jsonRepairAttempted = true;
+            modelMessages.push({ role: "assistant", content: finalText });
+            modelMessages.push({ role: "user", content: buildJsonRepairMessage(roleDefinition) });
+            continue;
+          }
+          const invalidJsonCode = roleDefinition.invalidJsonErrorCode ?? "ollama_invalid_json";
+          await appendTranscriptEvent({
+            repos,
+            workspaceId: input.workspaceId,
+            runId,
+            turnIndex: turn,
+            eventType: "blocked",
+            content: { code: invalidJsonCode, message: "Model did not return valid JSON after one repair attempt." }
+          });
+          await updateRun(repos, runId, {
+            status: "failed",
+            provider_used: "ollama",
+            model_used: result.modelUsed ?? runtime.modelKey,
+            blocked_reasons: [],
+            error: "Model returned invalid JSON after one repair attempt.",
+            completed_at: now(),
+            metadata: {
+              maxTurns,
+              turnCount: turn,
+              blockingReason: invalidJsonCode,
+              errorCode: invalidJsonCode
+            }
+          });
+          return {
+            ok: false,
+            status: "failed",
+            agentRunId: runId,
+            providerUsed: "ollama",
+            modelUsed: result.modelUsed ?? runtime.modelKey,
+            turnCount: turn,
+            toolCallsExecuted,
+            blockingReason: invalidJsonCode,
+            errorCode: invalidJsonCode
+          };
+        }
         const savedOutputId = ctx.state?.savedOutputIds?.[0];
+        if (!savedOutputId && roleDefinition.requiresSavedOutput) {
+          const code = "required_output_not_saved";
+          await appendTranscriptEvent({
+            repos,
+            workspaceId: input.workspaceId,
+            runId,
+            turnIndex: turn,
+            eventType: "blocked",
+            content: { code, message: "The role completed without saving a required reviewable output." }
+          });
+          await updateRun(repos, runId, {
+            status: "failed",
+            provider_used: "ollama",
+            model_used: result.modelUsed ?? runtime.modelKey,
+            blocked_reasons: [],
+            error: "The role completed without saving a required reviewable output.",
+            completed_at: now(),
+            metadata: {
+              maxTurns,
+              turnCount: turn,
+              blockingReason: code,
+              errorCode: code
+            }
+          });
+          return {
+            ok: false,
+            status: "failed",
+            agentRunId: runId,
+            providerUsed: "ollama",
+            modelUsed: result.modelUsed ?? runtime.modelKey,
+            turnCount: turn,
+            toolCallsExecuted,
+            blockingReason: code,
+            errorCode: code
+          };
+        }
         const output = savedOutputId
           ? await repos.aiEmployee.outputs.getById(savedOutputId, input.workspaceId)
           : await persistFinalOutput({
@@ -914,7 +1031,8 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
             workspaceId: input.workspaceId,
             runId,
             ...(input.actorId ? { actorId: input.actorId } : {}),
-            ...(input.taskInput.productDraftId ? { productDraftId: input.taskInput.productDraftId } : {}),
+            roleDefinition,
+            taskInput: input.taskInput,
             finalText,
             parsed
           });

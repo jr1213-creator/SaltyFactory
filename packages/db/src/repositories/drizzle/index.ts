@@ -24,6 +24,30 @@ const tableExportByDbName: Record<string, TableName> = {
   brand_profiles: "brandProfiles",
   trend_signals: "trendSignals",
   trend_clusters: "trendClusters",
+  trend_cluster_signals: "trendClusterSignals",
+  trend_scores: "trendScores",
+  trend_analysis_reports: "trendAnalysisReports",
+  product_concept_candidates: "productConceptCandidates",
+  brand_voice_profiles: "brandVoiceProfiles",
+  marketing_sources: "marketingSources",
+  marketing_source_runs: "marketingSourceRuns",
+  product_marketing_readiness: "productMarketingReadiness",
+  marketing_launch_plans: "marketingLaunchPlans",
+  positioning_statements: "positioningStatements",
+  offer_hypotheses: "offerHypotheses",
+  audience_hypotheses: "audienceHypotheses",
+  ad_angles: "adAngles",
+  ad_copy_variants: "adCopyVariants",
+  organic_content_drafts: "organicContentDrafts",
+  lifecycle_campaign_flows: "lifecycleCampaignFlows",
+  creative_briefs: "creativeBriefs",
+  landing_page_recommendations: "landingPageRecommendations",
+  channel_recommendations: "channelRecommendations",
+  media_plan_drafts: "mediaPlanDrafts",
+  campaign_drafts: "campaignDrafts",
+  campaign_approval_requests: "campaignApprovalRequests",
+  policy_review_results: "policyReviewResults",
+  budget_recommendations: "budgetRecommendations",
   phrase_candidates: "phraseCandidates",
   risk_reviews: "riskReviews",
   design_briefs: "designBriefs",
@@ -385,6 +409,11 @@ export class DrizzleTrendIntelligenceRepository {
   readonly profiles: DrizzleBaseRepository;
   readonly sources: DrizzleBaseRepository;
   readonly runs: DrizzleBaseRepository;
+  readonly clusters: DrizzleBaseRepository;
+  readonly clusterSignals: DrizzleBaseRepository;
+  readonly scores: DrizzleBaseRepository;
+  readonly reports: DrizzleBaseRepository;
+  readonly concepts: DrizzleBaseRepository;
   readonly citations: DrizzleBaseRepository;
   readonly rejectedSignals: DrizzleBaseRepository;
   private readonly trendSignals: DrizzleBaseRepository;
@@ -393,6 +422,11 @@ export class DrizzleTrendIntelligenceRepository {
     this.profiles = new DrizzleBaseRepository("trend_watch_profiles", db, audit);
     this.sources = new DrizzleBaseRepository("trend_sources", db, audit);
     this.runs = new DrizzleBaseRepository("trend_signal_runs", db, audit);
+    this.clusters = new DrizzleBaseRepository("trend_clusters", db, audit);
+    this.clusterSignals = new DrizzleBaseRepository("trend_cluster_signals", db, audit);
+    this.scores = new DrizzleBaseRepository("trend_scores", db, audit);
+    this.reports = new DrizzleBaseRepository("trend_analysis_reports", db, audit);
+    this.concepts = new DrizzleBaseRepository("product_concept_candidates", db, audit);
     this.citations = new DrizzleBaseRepository("source_citations", db, audit);
     this.rejectedSignals = new DrizzleBaseRepository("rejected_signals", db, audit);
     this.trendSignals = new DrizzleBaseRepository("trend_signals", db, audit);
@@ -415,8 +449,36 @@ export class DrizzleTrendIntelligenceRepository {
     return (await this.runs.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
   }
 
+  async listSignalsByProfile(workspaceId: string, profileId: string) {
+    return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
   async listSignalsByRun(workspaceId: string, runId: string) {
     return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.run_id === runId || row.runId === runId);
+  }
+
+  async listClustersByProfile(workspaceId: string, profileId: string) {
+    return (await this.clusters.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listScoresByProfile(workspaceId: string, profileId: string) {
+    return (await this.scores.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listScoresByCluster(workspaceId: string, clusterId: string) {
+    return (await this.scores.listByWorkspace(workspaceId)).filter((row) => row.cluster_id === clusterId || row.clusterId === clusterId);
+  }
+
+  async listReportsByProfile(workspaceId: string, profileId: string) {
+    return (await this.reports.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async getReportByAgentRunId(workspaceId: string, agentRunId: string) {
+    return (await this.reports.listByWorkspace(workspaceId)).find((row) => row.agent_run_id === agentRunId || row.agentRunId === agentRunId) ?? null;
+  }
+
+  async listConceptsByProfile(workspaceId: string, profileId: string) {
+    return (await this.concepts.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
   }
 
   async listCitationsForEntity(workspaceId: string, entityType: string, entityId: string) {
@@ -547,11 +609,85 @@ export class DrizzleAiModelRuntimeRepository {
   }
 }
 
-export class DrizzleMarketingRepository extends DrizzleBaseRepository {
+export class DrizzleMarketingRepository {
+  readonly campaigns: DrizzleBaseRepository;
   readonly assets: DrizzleBaseRepository;
+  readonly brandVoiceProfiles: DrizzleBaseRepository;
+  readonly sources: DrizzleBaseRepository;
+  readonly sourceRuns: DrizzleBaseRepository;
+  readonly readiness: DrizzleBaseRepository;
+  readonly launchPlans: DrizzleBaseRepository;
+  readonly positioningStatements: DrizzleBaseRepository;
+  readonly offerHypotheses: DrizzleBaseRepository;
+  readonly audienceHypotheses: DrizzleBaseRepository;
+  readonly adAngles: DrizzleBaseRepository;
+  readonly adCopyVariants: DrizzleBaseRepository;
+  readonly organicContentDrafts: DrizzleBaseRepository;
+  readonly lifecycleCampaignFlows: DrizzleBaseRepository;
+  readonly creativeBriefs: DrizzleBaseRepository;
+  readonly landingPageRecommendations: DrizzleBaseRepository;
+  readonly channelRecommendations: DrizzleBaseRepository;
+  readonly mediaPlanDrafts: DrizzleBaseRepository;
+  readonly campaignDrafts: DrizzleBaseRepository;
+  readonly approvalRequests: DrizzleBaseRepository;
+  readonly policyReviewResults: DrizzleBaseRepository;
+  readonly budgetRecommendations: DrizzleBaseRepository;
+
   constructor(db?: DbClient, audit?: AuditWriter) {
-    super("marketing_campaigns", db, audit);
-    this.assets = new DrizzleBaseRepository("marketing_assets", this.db, this.audit);
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.campaigns = repo("marketing_campaigns");
+    this.assets = repo("marketing_assets");
+    this.brandVoiceProfiles = repo("brand_voice_profiles");
+    this.sources = repo("marketing_sources");
+    this.sourceRuns = repo("marketing_source_runs");
+    this.readiness = repo("product_marketing_readiness");
+    this.launchPlans = repo("marketing_launch_plans");
+    this.positioningStatements = repo("positioning_statements");
+    this.offerHypotheses = repo("offer_hypotheses");
+    this.audienceHypotheses = repo("audience_hypotheses");
+    this.adAngles = repo("ad_angles");
+    this.adCopyVariants = repo("ad_copy_variants");
+    this.organicContentDrafts = repo("organic_content_drafts");
+    this.lifecycleCampaignFlows = repo("lifecycle_campaign_flows");
+    this.creativeBriefs = repo("creative_briefs");
+    this.landingPageRecommendations = repo("landing_page_recommendations");
+    this.channelRecommendations = repo("channel_recommendations");
+    this.mediaPlanDrafts = repo("media_plan_drafts");
+    this.campaignDrafts = repo("campaign_drafts");
+    this.approvalRequests = repo("campaign_approval_requests");
+    this.policyReviewResults = repo("policy_review_results");
+    this.budgetRecommendations = repo("budget_recommendations");
+  }
+
+  async getSourceByKey(workspaceId: string, sourceKey: string) {
+    return (await this.sources.listByWorkspace(workspaceId)).find((row) =>
+      row.source_key === sourceKey || row.sourceKey === sourceKey
+    ) ?? null;
+  }
+
+  async getBrandVoiceProfileByName(workspaceId: string, brandName: string) {
+    return (await this.brandVoiceProfiles.listByWorkspace(workspaceId)).find((row) =>
+      row.brand_name === brandName || row.brandName === brandName
+    ) ?? null;
+  }
+
+  async listLaunchPlansBySourceEntity(workspaceId: string, sourceEntityType: string, sourceEntityId: string) {
+    return (await this.launchPlans.listByWorkspace(workspaceId)).filter((row) =>
+      (row.source_entity_type === sourceEntityType || row.sourceEntityType === sourceEntityType) &&
+      (row.source_entity_id === sourceEntityId || row.sourceEntityId === sourceEntityId)
+    );
+  }
+
+  async listApprovalRequestsByLaunchPlan(workspaceId: string, launchPlanId: string) {
+    return (await this.approvalRequests.listByWorkspace(workspaceId)).filter((row) =>
+      row.launch_plan_id === launchPlanId || row.launchPlanId === launchPlanId
+    );
+  }
+
+  async listApprovalRequestsByStatus(workspaceId: string, ownerDecision: string) {
+    return (await this.approvalRequests.listByWorkspace(workspaceId)).filter((row) =>
+      row.owner_decision === ownerDecision || row.ownerDecision === ownerDecision
+    );
   }
 }
 

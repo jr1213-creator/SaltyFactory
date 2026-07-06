@@ -319,6 +319,11 @@ export class TrendIntelligenceRepository {
   readonly profiles: BaseRepository;
   readonly sources: BaseRepository;
   readonly runs: BaseRepository;
+  readonly clusters: BaseRepository;
+  readonly clusterSignals: BaseRepository;
+  readonly scores: BaseRepository;
+  readonly reports: BaseRepository;
+  readonly concepts: BaseRepository;
   readonly citations: BaseRepository;
   readonly rejectedSignals: BaseRepository;
   private readonly trendSignals: BaseRepository;
@@ -327,6 +332,11 @@ export class TrendIntelligenceRepository {
     this.profiles = new BaseRepository("trend_watch_profiles", store, audit);
     this.sources = new BaseRepository("trend_sources", store, audit);
     this.runs = new BaseRepository("trend_signal_runs", store, audit);
+    this.clusters = new BaseRepository("trend_clusters", store, audit);
+    this.clusterSignals = new BaseRepository("trend_cluster_signals", store, audit);
+    this.scores = new BaseRepository("trend_scores", store, audit);
+    this.reports = new BaseRepository("trend_analysis_reports", store, audit);
+    this.concepts = new BaseRepository("product_concept_candidates", store, audit);
     this.citations = new BaseRepository("source_citations", store, audit);
     this.rejectedSignals = new BaseRepository("rejected_signals", store, audit);
     this.trendSignals = new BaseRepository("trend_signals", store, audit);
@@ -349,8 +359,36 @@ export class TrendIntelligenceRepository {
     return (await this.runs.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
   }
 
+  async listSignalsByProfile(workspaceId: string, profileId: string) {
+    return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
   async listSignalsByRun(workspaceId: string, runId: string) {
     return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.run_id === runId || row.runId === runId);
+  }
+
+  async listClustersByProfile(workspaceId: string, profileId: string) {
+    return (await this.clusters.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listScoresByProfile(workspaceId: string, profileId: string) {
+    return (await this.scores.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listScoresByCluster(workspaceId: string, clusterId: string) {
+    return (await this.scores.listByWorkspace(workspaceId)).filter((row) => row.cluster_id === clusterId || row.clusterId === clusterId);
+  }
+
+  async listReportsByProfile(workspaceId: string, profileId: string) {
+    return (await this.reports.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async getReportByAgentRunId(workspaceId: string, agentRunId: string) {
+    return (await this.reports.listByWorkspace(workspaceId)).find((row) => row.agent_run_id === agentRunId || row.agentRunId === agentRunId) ?? null;
+  }
+
+  async listConceptsByProfile(workspaceId: string, profileId: string) {
+    return (await this.concepts.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
   }
 
   async listCitationsForEntity(workspaceId: string, entityType: string, entityId: string) {
@@ -511,9 +549,86 @@ export class AiModelRuntimeRepository {
   }
 }
 
-export class MarketingRepository extends BaseRepository {
-  constructor(store?: RepositoryStore, audit?: AuditWriter) { super("marketing_campaigns", store, audit); }
-  readonly assets = new BaseRepository("marketing_assets", this.store, this.audit);
+export class MarketingRepository {
+  readonly campaigns: BaseRepository;
+  readonly assets: BaseRepository;
+  readonly brandVoiceProfiles: BaseRepository;
+  readonly sources: BaseRepository;
+  readonly sourceRuns: BaseRepository;
+  readonly readiness: BaseRepository;
+  readonly launchPlans: BaseRepository;
+  readonly positioningStatements: BaseRepository;
+  readonly offerHypotheses: BaseRepository;
+  readonly audienceHypotheses: BaseRepository;
+  readonly adAngles: BaseRepository;
+  readonly adCopyVariants: BaseRepository;
+  readonly organicContentDrafts: BaseRepository;
+  readonly lifecycleCampaignFlows: BaseRepository;
+  readonly creativeBriefs: BaseRepository;
+  readonly landingPageRecommendations: BaseRepository;
+  readonly channelRecommendations: BaseRepository;
+  readonly mediaPlanDrafts: BaseRepository;
+  readonly campaignDrafts: BaseRepository;
+  readonly approvalRequests: BaseRepository;
+  readonly policyReviewResults: BaseRepository;
+  readonly budgetRecommendations: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.campaigns = repo("marketing_campaigns");
+    this.assets = repo("marketing_assets");
+    this.brandVoiceProfiles = repo("brand_voice_profiles");
+    this.sources = repo("marketing_sources");
+    this.sourceRuns = repo("marketing_source_runs");
+    this.readiness = repo("product_marketing_readiness");
+    this.launchPlans = repo("marketing_launch_plans");
+    this.positioningStatements = repo("positioning_statements");
+    this.offerHypotheses = repo("offer_hypotheses");
+    this.audienceHypotheses = repo("audience_hypotheses");
+    this.adAngles = repo("ad_angles");
+    this.adCopyVariants = repo("ad_copy_variants");
+    this.organicContentDrafts = repo("organic_content_drafts");
+    this.lifecycleCampaignFlows = repo("lifecycle_campaign_flows");
+    this.creativeBriefs = repo("creative_briefs");
+    this.landingPageRecommendations = repo("landing_page_recommendations");
+    this.channelRecommendations = repo("channel_recommendations");
+    this.mediaPlanDrafts = repo("media_plan_drafts");
+    this.campaignDrafts = repo("campaign_drafts");
+    this.approvalRequests = repo("campaign_approval_requests");
+    this.policyReviewResults = repo("policy_review_results");
+    this.budgetRecommendations = repo("budget_recommendations");
+  }
+
+  async getSourceByKey(workspaceId: string, sourceKey: string) {
+    return (await this.sources.listByWorkspace(workspaceId)).find((row) =>
+      row.source_key === sourceKey || row.sourceKey === sourceKey
+    ) ?? null;
+  }
+
+  async getBrandVoiceProfileByName(workspaceId: string, brandName: string) {
+    return (await this.brandVoiceProfiles.listByWorkspace(workspaceId)).find((row) =>
+      row.brand_name === brandName || row.brandName === brandName
+    ) ?? null;
+  }
+
+  async listLaunchPlansBySourceEntity(workspaceId: string, sourceEntityType: string, sourceEntityId: string) {
+    return (await this.launchPlans.listByWorkspace(workspaceId)).filter((row) =>
+      (row.source_entity_type === sourceEntityType || row.sourceEntityType === sourceEntityType) &&
+      (row.source_entity_id === sourceEntityId || row.sourceEntityId === sourceEntityId)
+    );
+  }
+
+  async listApprovalRequestsByLaunchPlan(workspaceId: string, launchPlanId: string) {
+    return (await this.approvalRequests.listByWorkspace(workspaceId)).filter((row) =>
+      row.launch_plan_id === launchPlanId || row.launchPlanId === launchPlanId
+    );
+  }
+
+  async listApprovalRequestsByStatus(workspaceId: string, ownerDecision: string) {
+    return (await this.approvalRequests.listByWorkspace(workspaceId)).filter((row) =>
+      row.owner_decision === ownerDecision || row.ownerDecision === ownerDecision
+    );
+  }
 }
 
 export class SupportRepository extends BaseRepository {

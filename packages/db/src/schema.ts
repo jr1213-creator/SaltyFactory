@@ -1263,13 +1263,26 @@ export const trendClusters = pgTable("trend_clusters", {
   id,
   ...ownership(),
   ...optionalActors(),
+  profileId: text("profile_id").references(() => trendWatchProfiles.id),
   name: text("name").notNull(),
+  label: text("label"),
+  summary: text("summary"),
   signalIds: jsonb("signal_ids").$type<string[]>().notNull().default([]),
+  memberSignalIds: jsonb("member_signal_ids").$type<string[]>().notNull().default([]),
+  sourceKeys: jsonb("source_keys").$type<string[]>().notNull().default([]),
   keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
+  keywordTerms: jsonb("keyword_terms").$type<string[]>().notNull().default([]),
   aestheticTags: jsonb("aesthetic_tags").$type<string[]>().notNull().default([]),
+  motifTerms: jsonb("motif_terms").$type<string[]>().notNull().default([]),
   seasonality: jsonb("seasonality").$type<string[]>().notNull().default([]),
+  citationIds: jsonb("citation_ids").$type<string[]>().notNull().default([]),
   targetCustomer: text("target_customer").notNull(),
   confidence: confidence().notNull(),
+  signalCount: integer("signal_count").notNull().default(0),
+  crossSourceCount: integer("cross_source_count").notNull().default(0),
+  firstObservedAt: timestamp("first_observed_at", { withTimezone: true }),
+  lastObservedAt: timestamp("last_observed_at", { withTimezone: true }),
+  createdByKind: text("created_by_kind"),
   status: text("status").notNull().default("pending_approval"),
   approvedForGeneration: boolean("approved_for_generation").notNull().default(false),
   approvedBy: text("approved_by").references(() => users.id),
@@ -1277,7 +1290,8 @@ export const trendClusters = pgTable("trend_clusters", {
   notes: text("notes")
 }, (table) => ({
   workspaceStatusIdx: index("trend_clusters_workspace_status_idx").on(table.workspaceId, table.status),
-  nameIdx: index("trend_clusters_name_idx").on(table.name)
+  nameIdx: index("trend_clusters_name_idx").on(table.name),
+  workspaceProfileIdx: index("trend_clusters_workspace_profile_idx").on(table.workspaceId, table.profileId)
 }));
 
 export const trendSignals = pgTable("trend_signals", {
@@ -1335,6 +1349,448 @@ export const trendClusterSignals = pgTable("trend_cluster_signals", {
 }, (table) => ({
   clusterSignalUnique: uniqueIndex("trend_cluster_signals_unique").on(table.clusterId, table.signalId),
   workspaceIdx: index("trend_cluster_signals_workspace_idx").on(table.workspaceId)
+}));
+
+export const trendScores = pgTable("trend_scores", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  profileId: text("profile_id").notNull().references(() => trendWatchProfiles.id),
+  clusterId: text("cluster_id").notNull().references(() => trendClusters.id),
+  totalScore: numeric("total_score", { precision: 6, scale: 2 }).notNull().default("0"),
+  confidenceScore: numeric("confidence_score", { precision: 6, scale: 2 }).notNull().default("0"),
+  componentScores: jsonb("component_scores").$type<Record<string, number>>().notNull().default({}),
+  reasons: jsonb("reasons").$type<string[]>().notNull().default([]),
+  warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  recommendedAction: text("recommended_action").notNull().default("watch_longer")
+}, (table) => ({
+  workspaceProfileIdx: index("trend_scores_workspace_profile_idx").on(table.workspaceId, table.profileId),
+  workspaceClusterIdx: index("trend_scores_workspace_cluster_idx").on(table.workspaceId, table.clusterId)
+}));
+
+export const trendAnalysisReports = pgTable("trend_analysis_reports", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  profileId: text("profile_id").notNull().references(() => trendWatchProfiles.id),
+  agentRunId: text("agent_run_id").references(() => aiEmployeeRuns.id),
+  sourceSignalCount: integer("source_signal_count").notNull().default(0),
+  clusterCount: integer("cluster_count").notNull().default(0),
+  conceptCandidateCount: integer("concept_candidate_count").notNull().default(0),
+  summary: text("summary").notNull().default(""),
+  warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceProfileIdx: index("trend_analysis_reports_workspace_profile_idx").on(table.workspaceId, table.profileId),
+  workspaceRunIdx: index("trend_analysis_reports_workspace_run_idx").on(table.workspaceId, table.agentRunId)
+}));
+
+export const productConceptCandidates = pgTable("product_concept_candidates", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  profileId: text("profile_id").notNull().references(() => trendWatchProfiles.id),
+  clusterId: text("cluster_id").notNull().references(() => trendClusters.id),
+  trendScoreId: text("trend_score_id").references(() => trendScores.id),
+  title: text("title").notNull(),
+  customerSegment: text("customer_segment").notNull(),
+  productCategory: text("product_category").notNull(),
+  suggestedProductTypes: jsonb("suggested_product_types").$type<string[]>().notNull().default([]),
+  personalizationPotential: text("personalization_potential").notNull(),
+  phrases: jsonb("phrases").$type<string[]>().notNull().default([]),
+  visualMotifs: jsonb("visual_motifs").$type<string[]>().notNull().default([]),
+  palette: jsonb("palette").$type<string[]>().notNull().default([]),
+  printStyle: text("print_style").notNull(),
+  recommendedBlankOrBaseProduct: text("recommended_blank_or_base_product"),
+  marginHypothesis: text("margin_hypothesis"),
+  sourceEvidence: jsonb("source_evidence").$type<Record<string, unknown>>().notNull().default({}),
+  reasonItMaySell: text("reason_it_may_sell").notNull(),
+  riskNotes: text("risk_notes").notNull().default(""),
+  ownerActionNeeded: text("owner_action_needed").notNull().default("watch_longer"),
+  reviewStatus: text("review_status").notNull().default("pending_review"),
+  createdByKind: text("created_by_kind").notNull().default("ollama_agent"),
+  ownerNotes: text("owner_notes")
+}, (table) => ({
+  workspaceProfileIdx: index("product_concept_candidates_workspace_profile_idx").on(table.workspaceId, table.profileId),
+  workspaceClusterIdx: index("product_concept_candidates_workspace_cluster_idx").on(table.workspaceId, table.clusterId),
+  workspaceReviewIdx: index("product_concept_candidates_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
+}));
+
+export const brandVoiceProfiles = pgTable("brand_voice_profiles", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  brandName: text("brand_name").notNull(),
+  toneDescriptors: jsonb("tone_descriptors").$type<string[]>().notNull().default([]),
+  vocabularyPreferences: jsonb("vocabulary_preferences").$type<string[]>().notNull().default([]),
+  bannedPhrases: jsonb("banned_phrases").$type<string[]>().notNull().default([]),
+  approvedPhrases: jsonb("approved_phrases").$type<string[]>().notNull().default([]),
+  exampleApprovedCopy: jsonb("example_approved_copy").$type<string[]>().notNull().default([]),
+  claimRules: jsonb("claim_rules").$type<Record<string, unknown>>().notNull().default({}),
+  ipBlocklist: jsonb("ip_blocklist").$type<string[]>().notNull().default([])
+}, (table) => ({
+  workspaceBrandUnique: uniqueIndex("brand_voice_profiles_workspace_brand_unique").on(table.workspaceId, table.brandName),
+  workspaceIdx: index("brand_voice_profiles_workspace_idx").on(table.workspaceId)
+}));
+
+export const marketingSources = pgTable("marketing_sources", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceKey: text("source_key").notNull(),
+  displayName: text("display_name").notNull(),
+  sourceType: text("source_type").notNull(),
+  credentialStatus: text("credential_status").notNull().default("not_configured"),
+  accessMode: text("access_mode").notNull().default("read_only"),
+  capabilities: jsonb("capabilities").$type<string[]>().notNull().default([]),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  isTrusted: boolean("is_trusted").notNull().default(false),
+  riskLevel: text("risk_level").notNull().default("low"),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  accessNotes: text("access_notes")
+}, (table) => ({
+  workspaceSourceUnique: uniqueIndex("marketing_sources_workspace_source_unique").on(table.workspaceId, table.sourceKey),
+  workspaceIdx: index("marketing_sources_workspace_idx").on(table.workspaceId),
+  workspaceEnabledIdx: index("marketing_sources_workspace_enabled_idx").on(table.workspaceId, table.isEnabled)
+}));
+
+export const marketingSourceRuns = pgTable("marketing_source_runs", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceKey: text("source_key").notNull(),
+  status: text("status").notNull().default("queued"),
+  failureCode: text("failure_code"),
+  recordsRead: integer("records_read").notNull().default(0),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true })
+}, (table) => ({
+  workspaceSourceIdx: index("marketing_source_runs_workspace_source_idx").on(table.workspaceId, table.sourceKey),
+  workspaceStatusIdx: index("marketing_source_runs_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const productMarketingReadiness = pgTable("product_marketing_readiness", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  titlePresent: boolean("title_present").notNull().default(false),
+  descriptionPresent: boolean("description_present").notNull().default(false),
+  pricePresent: boolean("price_present").notNull().default(false),
+  mockupPresent: boolean("mockup_present").notNull().default(false),
+  assetStatus: text("asset_status").notNull().default("unknown"),
+  variantStatus: text("variant_status").notNull().default("unknown"),
+  costPresent: boolean("cost_present").notNull().default(false),
+  estimatedMargin: money("estimated_margin"),
+  shippingAssumptionStatus: text("shipping_assumption_status").notNull().default("unknown"),
+  pdpUrl: text("pdp_url"),
+  policyStatus: text("policy_status").notNull().default("pending_review"),
+  ipRiskStatus: text("ip_risk_status").notNull().default("unknown"),
+  marketabilityScore: integer("marketability_score").notNull().default(0),
+  blockers: jsonb("blockers").$type<string[]>().notNull().default([]),
+  warnings: jsonb("warnings").$type<string[]>().notNull().default([])
+}, (table) => ({
+  workspaceEntityIdx: index("product_marketing_readiness_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceScoreIdx: index("product_marketing_readiness_workspace_score_idx").on(table.workspaceId, table.marketabilityScore)
+}));
+
+export const marketingLaunchPlans = pgTable("marketing_launch_plans", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  brandVoiceProfileId: text("brand_voice_profile_id").notNull().references(() => brandVoiceProfiles.id),
+  readinessId: text("readiness_id").references(() => productMarketingReadiness.id),
+  launchName: text("launch_name").notNull(),
+  campaignType: text("campaign_type").notNull().default("organic"),
+  spendType: text("spend_type").notNull().default("no_spend"),
+  estimatedCashCost: money("estimated_cash_cost").notNull().default("0"),
+  ownerTimeEstimateMinutes: integer("owner_time_estimate_minutes"),
+  requiresAdBudget: boolean("requires_ad_budget").notNull().default(false),
+  status: text("status").notNull().default("draft"),
+  summary: text("summary").notNull().default("")
+}, (table) => ({
+  workspaceSourceIdx: index("marketing_launch_plans_workspace_source_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceStatusIdx: index("marketing_launch_plans_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const positioningStatements = pgTable("positioning_statements", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  primaryPromise: text("primary_promise").notNull(),
+  customerMoment: text("customer_moment").notNull(),
+  differentiators: jsonb("differentiators").$type<string[]>().notNull().default([]),
+  objections: jsonb("objections").$type<string[]>().notNull().default([]),
+  evidenceRefs: jsonb("evidence_refs").$type<string[]>().notNull().default([]),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("positioning_statements_workspace_launch_idx").on(table.workspaceId, table.launchPlanId)
+}));
+
+export const offerHypotheses = pgTable("offer_hypotheses", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  offerType: text("offer_type").notNull(),
+  offerDetails: jsonb("offer_details").$type<Record<string, unknown>>().notNull().default({}),
+  marginCalculation: jsonb("margin_calculation").$type<Record<string, unknown> | null>(),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("offer_hypotheses_workspace_launch_idx").on(table.workspaceId, table.launchPlanId)
+}));
+
+export const audienceHypotheses = pgTable("audience_hypotheses", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  channel: text("channel").notNull(),
+  segmentName: text("segment_name").notNull(),
+  description: text("description").notNull(),
+  rationale: text("rationale").notNull(),
+  targetingParameters: jsonb("targeting_parameters").$type<Record<string, unknown> | null>(),
+  exclusionRules: jsonb("exclusion_rules").$type<string[]>().notNull().default([]),
+  sensitiveTargetingFlags: jsonb("sensitive_targeting_flags").$type<string[]>().notNull().default([]),
+  evidenceRefs: jsonb("evidence_refs").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("audience_hypotheses_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceChannelIdx: index("audience_hypotheses_workspace_channel_idx").on(table.workspaceId, table.channel)
+}));
+
+export const adAngles = pgTable("ad_angles", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  angleType: text("angle_type").notNull(),
+  angleTitle: text("angle_title").notNull(),
+  hook: text("hook").notNull(),
+  promise: text("promise").notNull(),
+  proofPoints: jsonb("proof_points").$type<string[]>().notNull().default([]),
+  trendEvidenceRefs: jsonb("trend_evidence_refs").$type<string[]>().notNull().default([]),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("ad_angles_workspace_launch_idx").on(table.workspaceId, table.launchPlanId)
+}));
+
+export const policyReviewResults = pgTable("policy_review_results", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  platform: text("platform"),
+  verdict: text("verdict").notNull().default("pass"),
+  severity: text("severity").notNull().default("low"),
+  policyCodes: jsonb("policy_codes").$type<string[]>().notNull().default([]),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull().default({}),
+  fixSuggestions: jsonb("fix_suggestions").$type<string[]>().notNull().default([]),
+  ownerOverride: jsonb("owner_override").$type<Record<string, unknown> | null>(),
+  blocked: boolean("blocked").notNull().default(false)
+}, (table) => ({
+  workspaceTargetIdx: index("policy_review_results_workspace_target_idx").on(table.workspaceId, table.targetType, table.targetId),
+  workspaceVerdictIdx: index("policy_review_results_workspace_verdict_idx").on(table.workspaceId, table.verdict)
+}));
+
+export const adCopyVariants = pgTable("ad_copy_variants", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  adAngleId: text("ad_angle_id").references(() => adAngles.id),
+  channel: text("channel").notNull(),
+  headline: text("headline").notNull(),
+  primaryText: text("primary_text").notNull(),
+  description: text("description"),
+  cta: text("cta"),
+  platformConstraints: jsonb("platform_constraints").$type<Record<string, unknown> | null>(),
+  policyReviewResultId: text("policy_review_result_id").references(() => policyReviewResults.id),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("ad_copy_variants_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceChannelIdx: index("ad_copy_variants_workspace_channel_idx").on(table.workspaceId, table.channel)
+}));
+
+export const organicContentDrafts = pgTable("organic_content_drafts", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  contentType: text("content_type").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  estimatedCashCost: money("estimated_cash_cost").notNull().default("0"),
+  ownerTimeEstimateMinutes: integer("owner_time_estimate_minutes"),
+  publishApprovalRequired: boolean("publish_approval_required").notNull().default(true),
+  sendApprovalRequired: boolean("send_approval_required").notNull().default(true),
+  outreachApprovalRequired: boolean("outreach_approval_required").notNull().default(true),
+  policyReviewResultId: text("policy_review_result_id").references(() => policyReviewResults.id),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("organic_content_drafts_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceTypeIdx: index("organic_content_drafts_workspace_type_idx").on(table.workspaceId, table.contentType)
+}));
+
+export const lifecycleCampaignFlows = pgTable("lifecycle_campaign_flows", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").references(() => marketingLaunchPlans.id),
+  flowTrigger: text("flow_trigger").notNull(),
+  sequenceStep: integer("sequence_step").notNull().default(1),
+  subjectLine: text("subject_line"),
+  previewText: text("preview_text"),
+  bodyMarkdown: text("body_markdown"),
+  smsVariantText: text("sms_variant_text"),
+  segmentNotes: text("segment_notes"),
+  consentRequired: boolean("consent_required").notNull().default(true),
+  sendStatus: text("send_status").notNull().default("draft_only")
+}, (table) => ({
+  workspaceLaunchIdx: index("lifecycle_campaign_flows_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceTriggerIdx: index("lifecycle_campaign_flows_workspace_trigger_idx").on(table.workspaceId, table.flowTrigger)
+}));
+
+export const creativeBriefs = pgTable("creative_briefs", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  adAngleId: text("ad_angle_id").references(() => adAngles.id),
+  creativeType: text("creative_type").notNull(),
+  promptOrBrief: text("prompt_or_brief").notNull(),
+  textOverlay: text("text_overlay"),
+  aspectRatio: text("aspect_ratio"),
+  assetRequirements: jsonb("asset_requirements").$type<Record<string, unknown>>().notNull().default({}),
+  sourceEvidenceRefs: jsonb("source_evidence_refs").$type<string[]>().notNull().default([]),
+  forbiddenMotifs: jsonb("forbidden_motifs").$type<string[]>().notNull().default([]),
+  notCopyingWarning: text("not_copying_warning").notNull().default("Do not copy competitor ads, listings, captions, or layouts."),
+  policyReviewResultId: text("policy_review_result_id").references(() => policyReviewResults.id),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("creative_briefs_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceTypeIdx: index("creative_briefs_workspace_type_idx").on(table.workspaceId, table.creativeType)
+}));
+
+export const landingPageRecommendations = pgTable("landing_page_recommendations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  recommendationType: text("recommendation_type").notNull(),
+  beforeText: text("before_text"),
+  afterText: text("after_text"),
+  supportingMetrics: jsonb("supporting_metrics").$type<Record<string, unknown> | null>(),
+  expectedImpact: text("expected_impact").notNull(),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("landing_page_recommendations_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceEntityIdx: index("landing_page_recommendations_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId)
+}));
+
+export const channelRecommendations = pgTable("channel_recommendations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  channel: text("channel").notNull(),
+  priorityScore: integer("priority_score").notNull().default(0),
+  rationale: text("rationale").notNull(),
+  requiredAssets: jsonb("required_assets").$type<string[]>().notNull().default([]),
+  cashCostEstimate: money("cash_cost_estimate").notNull().default("0"),
+  ownerTimeEstimateMinutes: integer("owner_time_estimate_minutes"),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("channel_recommendations_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspacePriorityIdx: index("channel_recommendations_workspace_priority_idx").on(table.workspaceId, table.priorityScore)
+}));
+
+export const budgetRecommendations = pgTable("budget_recommendations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  recommendedDailyBudget: money("recommended_daily_budget").notNull().default("0"),
+  recommendedTotalTestBudget: money("recommended_total_test_budget").notNull().default("0"),
+  breakEvenCpa: money("break_even_cpa"),
+  targetCpa: money("target_cpa"),
+  calculationBasis: jsonb("calculation_basis").$type<Record<string, unknown>>().notNull().default({}),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
+  requiresApproval: boolean("requires_approval").notNull().default(true),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("budget_recommendations_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceReviewIdx: index("budget_recommendations_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
+}));
+
+export const mediaPlanDrafts = pgTable("media_plan_drafts", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  objective: text("objective").notNull(),
+  campaignType: text("campaign_type").notNull(),
+  spendType: text("spend_type").notNull(),
+  channelAllocations: jsonb("channel_allocations").$type<Record<string, unknown>>().notNull().default({}),
+  totalBudgetRecommended: money("total_budget_recommended").notNull().default("0"),
+  dailyBudgetCap: money("daily_budget_cap"),
+  breakEvenCpa: money("break_even_cpa"),
+  testDurationDays: integer("test_duration_days"),
+  status: text("status").notNull().default("draft")
+}, (table) => ({
+  workspaceLaunchIdx: index("media_plan_drafts_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceStatusIdx: index("media_plan_drafts_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const campaignDrafts = pgTable("campaign_drafts", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").notNull().references(() => marketingLaunchPlans.id),
+  mediaPlanDraftId: text("media_plan_draft_id").references(() => mediaPlanDrafts.id),
+  platform: text("platform").notNull(),
+  campaignName: text("campaign_name").notNull(),
+  objective: text("objective").notNull(),
+  platformObjectStructure: jsonb("platform_object_structure").$type<Record<string, unknown>>().notNull().default({}),
+  platformObjectIds: jsonb("platform_object_ids").$type<Record<string, unknown> | null>(),
+  writeMode: text("write_mode").notNull().default("live_write_blocked"),
+  utmSchema: jsonb("utm_schema").$type<Record<string, unknown>>().notNull().default({}),
+  riskSummary: jsonb("risk_summary").$type<Record<string, unknown>>().notNull().default({}),
+  approvalStatus: text("approval_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceLaunchIdx: index("campaign_drafts_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspacePlatformIdx: index("campaign_drafts_workspace_platform_idx").on(table.workspaceId, table.platform)
+}));
+
+export const campaignApprovalRequests = pgTable("campaign_approval_requests", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  launchPlanId: text("launch_plan_id").references(() => marketingLaunchPlans.id),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  requestedAction: text("requested_action").notNull(),
+  riskSummary: jsonb("risk_summary").$type<Record<string, unknown> | null>(),
+  ownerDecision: text("owner_decision").notNull().default("pending"),
+  reviewer: text("reviewer"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  notes: text("notes")
+}, (table) => ({
+  workspaceLaunchIdx: index("campaign_approval_requests_workspace_launch_idx").on(table.workspaceId, table.launchPlanId),
+  workspaceDecisionIdx: index("campaign_approval_requests_workspace_decision_idx").on(table.workspaceId, table.ownerDecision)
 }));
 
 export const sourceCitations = pgTable("source_citations", {
@@ -3066,10 +3522,30 @@ export const tables = {
   businessAuthorityRequests,
   setupAssistanceRequests,
   brandProfiles,
+  brandVoiceProfiles,
   productCollectionPlans,
   dropCalendars,
   marketingAssets,
   marketingCampaigns,
+  marketingSources,
+  marketingSourceRuns,
+  productMarketingReadiness,
+  marketingLaunchPlans,
+  positioningStatements,
+  offerHypotheses,
+  audienceHypotheses,
+  adAngles,
+  adCopyVariants,
+  organicContentDrafts,
+  lifecycleCampaignFlows,
+  creativeBriefs,
+  landingPageRecommendations,
+  channelRecommendations,
+  mediaPlanDrafts,
+  campaignDrafts,
+  campaignApprovalRequests,
+  policyReviewResults,
+  budgetRecommendations,
   supportMacros,
   customerSupportDrafts,
   workspaceMetrics,
@@ -3173,6 +3649,9 @@ export const tables = {
   rejectedSignals,
   trendClusters,
   trendClusterSignals,
+  trendScores,
+  trendAnalysisReports,
+  productConceptCandidates,
   phraseCandidates,
   riskReviews,
   designBriefs,

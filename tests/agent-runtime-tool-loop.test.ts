@@ -208,7 +208,11 @@ describe("local Ollama agent runtime tool loop", () => {
       buildSystemPrompt: () => "REGISTRY TEST SYSTEM PROMPT",
       tools: [testTool],
       defaultRiskLevel: "medium",
-      defaultInputSensitivity: "sensitive"
+      defaultInputSensitivity: "sensitive",
+      finalOutputMode: "allow_non_json_fallback",
+      requiresSavedOutput: false,
+      defaultOutputType: "registry_test_output",
+      resolveDefaultOutputRef: (_task, workspaceId) => ({ refType: "workspace", refIdFromTask: workspaceId })
     };
     setAgentRoleDefinitionsForTests([testRole]);
     const provider = new ScriptedProvider([

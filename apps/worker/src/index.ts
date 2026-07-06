@@ -358,6 +358,14 @@ function parseAgentRunJobPayload(task: WorkspaceRow): AgentRunJobPayload | null 
       ...(typeof taskInput.productDraftId === "string" ? { productDraftId: taskInput.productDraftId } : {}),
       ...(typeof taskInput.assetId === "string" ? { assetId: taskInput.assetId } : {}),
       ...(typeof taskInput.mockupId === "string" ? { mockupId: taskInput.mockupId } : {}),
+      ...(typeof taskInput.profileId === "string" ? { profileId: taskInput.profileId } : {}),
+      ...(typeof taskInput.launchPlanId === "string" ? { launchPlanId: taskInput.launchPlanId } : {}),
+      ...(typeof taskInput.sourceEntityType === "string" ? { sourceEntityType: taskInput.sourceEntityType } : {}),
+      ...(typeof taskInput.sourceEntityId === "string" ? { sourceEntityId: taskInput.sourceEntityId } : {}),
+      ...(typeof taskInput.brandVoiceProfileId === "string" ? { brandVoiceProfileId: taskInput.brandVoiceProfileId } : {}),
+      ...(Array.isArray(taskInput.sourceKeys) ? { sourceKeys: taskInput.sourceKeys.map(String) } : {}),
+      ...(Number.isFinite(Number(taskInput.maxSignals)) ? { maxSignals: Number(taskInput.maxSignals) } : {}),
+      ...(Number.isFinite(Number(taskInput.maxConcepts)) ? { maxConcepts: Number(taskInput.maxConcepts) } : {}),
       ...(typeof taskInput.instructions === "string" ? { instructions: taskInput.instructions } : {})
     },
     ...(maxTurns ? { maxTurns } : {})

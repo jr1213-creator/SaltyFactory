@@ -1,4 +1,46 @@
 import type { RepositoryBundle, WorkspaceRow } from "@saltyfactory/db";
+import {
+  clusterPersistedTrendSignals,
+  draftProductConceptCandidates,
+  readPersistedTrendSignals,
+  readTrendWatchProfile,
+  saveProductConceptCandidates,
+  saveTrendAnalysisReport,
+  scoreTrendCluster,
+  toSafeTrendAnalysisError,
+  trendAnalysisTaskOptions
+} from "./trend-analysis";
+import {
+  calculateBudgetRecommendation,
+  calculateProductMargin,
+  compileCampaignBuildSheet,
+  createApprovalRequest,
+  createMarketingLaunchPlan,
+  draftAdAngles,
+  draftAdCopyVariants,
+  draftAudienceHypotheses,
+  draftCreativeBriefs,
+  draftEmailSmsDrafts,
+  draftMarketplaceSeoSuggestions,
+  draftOfferHypotheses,
+  draftOrganicLaunchPlan,
+  draftOutreachDrafts,
+  draftPinterestOrganicPlan,
+  draftPositioningStatement,
+  draftSeoPdpRecommendations,
+  draftSocialContent,
+  getMarketingLaunchPlanDetail,
+  MARKETING_LAUNCH_PLAN_INVALID,
+  MARKETING_POLICY_BLOCKED,
+  marketingLaunchTaskOptions,
+  readApprovedProductOrConcept,
+  readBrandVoiceProfile,
+  readProductReadinessData,
+  readTrendEvidenceForProduct,
+  runPolicyReview,
+  saveMarketingOutputForReview,
+  toSafeMarketingLaunchError
+} from "./marketing-launch";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -17,6 +59,8 @@ export type AgentToolContext = {
   actorId?: string | undefined;
   agentRunId: string;
   roleKey: string;
+  taskType?: string | undefined;
+  taskInput?: Record<string, unknown> | undefined;
   repos: RepositoryBundle;
   state?: {
     savedOutputIds?: string[];
@@ -37,6 +81,8 @@ export type ToolArgumentValidationResult =
   | { ok: false; code: "invalid_tool_arguments"; message: string };
 
 const productListingRole = "product_listing_assistant";
+const trendIntelligenceRole = "trend_intelligence_agent";
+const marketingLaunchRole = "marketing_launch_planner";
 
 const objectSchema = (properties: Record<string, JsonSchema>, required: string[] = []): JsonSchema => ({
   type: "object",
@@ -47,6 +93,7 @@ const objectSchema = (properties: Record<string, JsonSchema>, required: string[]
 
 const stringProperty = (description: string): JsonSchema => ({ type: "string", minLength: 1, description });
 const stringArrayProperty = (description: string): JsonSchema => ({ type: "array", items: { type: "string" }, description });
+const numberProperty = (description: string): JsonSchema => ({ type: "number", description });
 
 const value = (row: WorkspaceRow | null | undefined, snake: string, camel = snake.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())) =>
   row ? row[snake] ?? row[camel] : undefined;
@@ -61,6 +108,21 @@ const safeShortRow = (row: WorkspaceRow | null | undefined, fields: string[]) =>
   for (const field of fields) out[field] = value(row, field);
   return out;
 };
+
+const taskOptions = (ctx: AgentToolContext) => trendAnalysisTaskOptions(ctx.taskInput);
+const marketingOptions = (ctx: AgentToolContext) => marketingLaunchTaskOptions(ctx.taskInput);
+
+function errorResult(code: string, message: string): AgentToolResult {
+  return { ok: false, error: { code, message } };
+}
+
+function trendErrorCode(error: unknown, fallback = "trend_analysis_failed") {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function marketingErrorCode(error: unknown, fallback = "marketing_launch_failed") {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export function validateToolArguments(schema: JsonSchema, args: unknown): ToolArgumentValidationResult {
   const input = asRecord(args);
@@ -279,6 +341,779 @@ export const productListingAssistantTools: AgentToolDefinition[] = [
   }
 ];
 
+export const trendIntelligenceAgentTools: AgentToolDefinition[] = [
+  {
+    name: "read_trend_watch_profile",
+    description: "Read the saved trend watch profile that defines keywords, motifs, exclusions, and score weights for analysis.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." }
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[0]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const profileId = text(validated.value.profileId) || taskOptions(ctx).profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return { ok: true, data: await readTrendWatchProfile({ repos: ctx.repos, workspaceId: ctx.workspaceId, profileId }) };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_profile_missing");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "read_persisted_trend_signals",
+    description: "Read persisted trend signals for a profile. This never calls external source APIs and only reads saved workspace data.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      sourceKeys: stringArrayProperty("Optional source-key subset to read from persisted trend signals."),
+      maxSignals: numberProperty("Maximum number of persisted signals to read.")
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[1]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = taskOptions(ctx);
+      const profileId = text(validated.value.profileId) || defaults.profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return {
+          ok: true,
+          data: await readPersistedTrendSignals({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            profileId,
+            sourceKeys: Array.isArray(validated.value.sourceKeys) ? validated.value.sourceKeys.map(String) : defaults.sourceKeys,
+            maxSignals: Number.isFinite(Number(validated.value.maxSignals)) ? Number(validated.value.maxSignals) : defaults.maxSignals
+          })
+        };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_analysis_failed");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "cluster_persisted_trend_signals",
+    description: "Deterministically cluster persisted trend signals into stable trend groups and save the cluster rows for later scoring.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      signalIds: stringArrayProperty("Optional specific persisted signal IDs to cluster."),
+      sourceKeys: stringArrayProperty("Optional source-key subset to cluster."),
+      maxSignals: numberProperty("Maximum number of persisted signals to cluster.")
+    }, []),
+    riskLevel: "draft_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[2]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = taskOptions(ctx);
+      const profileId = text(validated.value.profileId) || defaults.profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return {
+          ok: true,
+          data: {
+            clusters: await clusterPersistedTrendSignals({
+              repos: ctx.repos,
+              workspaceId: ctx.workspaceId,
+              actorId: ctx.actorId,
+              profileId,
+              signalIds: Array.isArray(validated.value.signalIds) ? validated.value.signalIds.map(String) : undefined,
+              sourceKeys: Array.isArray(validated.value.sourceKeys) ? validated.value.sourceKeys.map(String) : defaults.sourceKeys,
+              maxSignals: Number.isFinite(Number(validated.value.maxSignals)) ? Number(validated.value.maxSignals) : defaults.maxSignals,
+              agentRunId: ctx.agentRunId
+            })
+          }
+        };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_analysis_failed");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "score_trend_cluster",
+    description: "Run the transparent deterministic scoring model for a persisted trend cluster and save the score row.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      clusterId: stringProperty("Trend cluster ID to score.")
+    }, ["clusterId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[3]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const profileId = text(validated.value.profileId) || taskOptions(ctx).profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return {
+          ok: true,
+          data: await scoreTrendCluster({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            actorId: ctx.actorId,
+            profileId,
+            clusterId: text(validated.value.clusterId),
+            agentRunId: ctx.agentRunId
+          })
+        };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_analysis_failed");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "draft_product_concept_candidates",
+    description: "Draft deterministic concept scaffolds from scored trend clusters. This only reads saved signals, clusters, and scores.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      clusterIds: stringArrayProperty("Trend cluster IDs to turn into owner-reviewable concept scaffolds."),
+      maxConcepts: numberProperty("Maximum number of concept drafts to prepare.")
+    }, ["clusterIds"]),
+    riskLevel: "read_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[4]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = taskOptions(ctx);
+      const profileId = text(validated.value.profileId) || defaults.profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return {
+          ok: true,
+          data: await draftProductConceptCandidates({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            profileId,
+            clusterIds: asArray(validated.value.clusterIds).map(String),
+            maxConcepts: Number.isFinite(Number(validated.value.maxConcepts)) ? Number(validated.value.maxConcepts) : defaults.maxConcepts,
+            agentRunId: ctx.agentRunId
+          })
+        };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_analysis_failed");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "save_trend_analysis_report",
+    description: "Save or update the trend analysis report summary for the current agent run and persist the reviewable report output.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      summary: stringProperty("Concise owner-facing summary of the trend analysis."),
+      warnings: { type: "array", items: { type: "string" }, description: "Warnings or caveats for owner review." },
+      status: { type: "string", description: "Report status: pending_review, reviewed, failed, or blocked." },
+      clusterSummaries: { type: "array", items: { type: "object" }, description: "Optional refined cluster labels and summaries." }
+    }, ["summary"]),
+    riskLevel: "draft_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[5]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const profileId = text(validated.value.profileId) || taskOptions(ctx).profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        const saved = await saveTrendAnalysisReport({
+          repos: ctx.repos,
+          workspaceId: ctx.workspaceId,
+          actorId: ctx.actorId,
+          profileId,
+          agentRunId: ctx.agentRunId,
+          payload: validated.value
+        });
+        ctx.state ??= {};
+        ctx.state.savedOutputIds ??= [];
+        if (!ctx.state.savedOutputIds.includes(saved.aiOutputId)) ctx.state.savedOutputIds.push(saved.aiOutputId);
+        return { ok: true, data: saved };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_analysis_report_invalid");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  },
+  {
+    name: "save_product_concept_candidates",
+    description: "Save owner-reviewable product concept candidates grounded in persisted trend clusters and source citations. This never creates product drafts or provider records.",
+    parameters: objectSchema({
+      profileId: { type: "string", description: "Trend watch profile ID. Defaults to the current task profile when omitted." },
+      candidates: { type: "array", items: { type: "object" }, description: "Schema-valid concept candidates grounded in source evidence." }
+    }, ["candidates"]),
+    riskLevel: "draft_only",
+    allowedRoles: [trendIntelligenceRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(trendIntelligenceAgentTools[6]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const profileId = text(validated.value.profileId) || taskOptions(ctx).profileId;
+      if (!profileId) return errorResult("trend_profile_missing", "Trend watch profile ID is required.");
+      try {
+        return {
+          ok: true,
+          data: await saveProductConceptCandidates({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            actorId: ctx.actorId,
+            profileId,
+            agentRunId: ctx.agentRunId,
+            candidates: asArray(validated.value.candidates)
+          })
+        };
+      } catch (error) {
+        const code = trendErrorCode(error, "trend_concept_candidate_invalid");
+        return errorResult(code, toSafeTrendAnalysisError(error));
+      }
+    }
+  }
+];
+
+export const marketingLaunchPlannerTools: AgentToolDefinition[] = [
+  {
+    name: "read_brand_voice_profile",
+    description: "Read the saved brand voice profile and claim guardrails for the current workspace.",
+    parameters: objectSchema({
+      brandVoiceProfileId: { type: "string", description: "Optional brand voice profile ID. Defaults to the current launch plan profile when omitted." }
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[0]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return {
+          ok: true,
+          data: await readBrandVoiceProfile({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            brandVoiceProfileId: text(validated.value.brandVoiceProfileId) || marketingOptions(ctx).brandVoiceProfileId || undefined
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "brand_voice_profile_missing"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "read_approved_product_or_concept",
+    description: "Read the approved product concept, product draft, or listing draft that the launch package should be built around.",
+    parameters: objectSchema({
+      launchPlanId: { type: "string", description: "Optional launch plan ID. Defaults to the current task launch plan." },
+      sourceEntityType: { type: "string", description: "Optional source entity type." },
+      sourceEntityId: { type: "string", description: "Optional source entity ID." }
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[1]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = marketingOptions(ctx);
+      try {
+        return {
+          ok: true,
+          data: await readApprovedProductOrConcept({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            launchPlanId: text(validated.value.launchPlanId) || defaults.launchPlanId || undefined,
+            sourceEntityType: text(validated.value.sourceEntityType) || defaults.sourceEntityType || undefined,
+            sourceEntityId: text(validated.value.sourceEntityId) || defaults.sourceEntityId || undefined
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "marketing_source_entity_missing"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "read_trend_evidence_for_product",
+    description: "Read persisted trend evidence attached to the approved product concept or listing input. This never calls external source APIs.",
+    parameters: objectSchema({
+      launchPlanId: { type: "string", description: "Optional launch plan ID. Defaults to the current task launch plan." },
+      sourceEntityType: { type: "string", description: "Optional source entity type." },
+      sourceEntityId: { type: "string", description: "Optional source entity ID." }
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[2]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = marketingOptions(ctx);
+      try {
+        return {
+          ok: true,
+          data: await readTrendEvidenceForProduct({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            launchPlanId: text(validated.value.launchPlanId) || defaults.launchPlanId || undefined,
+            sourceEntityType: text(validated.value.sourceEntityType) || defaults.sourceEntityType || undefined,
+            sourceEntityId: text(validated.value.sourceEntityId) || defaults.sourceEntityId || undefined
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "trend_evidence_missing"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "read_product_readiness_data",
+    description: "Calculate and persist marketing readiness for the selected source entity. This does not mutate providers or publish content.",
+    parameters: objectSchema({
+      launchPlanId: { type: "string", description: "Optional launch plan ID. Defaults to the current task launch plan." },
+      sourceEntityType: { type: "string", description: "Optional source entity type." },
+      sourceEntityId: { type: "string", description: "Optional source entity ID." }
+    }, []),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[3]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = marketingOptions(ctx);
+      try {
+        return {
+          ok: true,
+          data: await readProductReadinessData({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            actorId: ctx.actorId,
+            launchPlanId: text(validated.value.launchPlanId) || defaults.launchPlanId || undefined,
+            sourceEntityType: text(validated.value.sourceEntityType) || defaults.sourceEntityType || undefined,
+            sourceEntityId: text(validated.value.sourceEntityId) || defaults.sourceEntityId || undefined
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "marketing_readiness_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "calculate_product_margin",
+    description: "Read or derive the current margin estimate without changing product pricing or storefront content.",
+    parameters: objectSchema({
+      launchPlanId: { type: "string", description: "Optional launch plan ID. Defaults to the current task launch plan." },
+      sourceEntityType: { type: "string", description: "Optional source entity type." },
+      sourceEntityId: { type: "string", description: "Optional source entity ID." }
+    }, []),
+    riskLevel: "read_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[4]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = marketingOptions(ctx);
+      try {
+        return {
+          ok: true,
+          data: await calculateProductMargin({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            launchPlanId: text(validated.value.launchPlanId) || defaults.launchPlanId || undefined,
+            sourceEntityType: text(validated.value.sourceEntityType) || defaults.sourceEntityType || undefined,
+            sourceEntityId: text(validated.value.sourceEntityId) || defaults.sourceEntityId || undefined
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "marketing_margin_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "save_marketing_launch_plan",
+    description: "Create the root marketing launch plan or refresh it for the current approved source entity. This only persists internal draft records.",
+    parameters: objectSchema({
+      launchPlanId: { type: "string", description: "Optional existing launch plan ID to inspect." },
+      brandVoiceProfileId: { type: "string", description: "Optional brand voice profile ID." },
+      sourceEntityType: { type: "string", description: "Optional source entity type." },
+      sourceEntityId: { type: "string", description: "Optional source entity ID." },
+      launchName: { type: "string", description: "Optional launch plan name." },
+      campaignType: { type: "string", description: "organic, paid, marketplace, outreach, or hybrid." },
+      spendType: { type: "string", description: "no_spend, owner_time_only, commission_only, paid_media, or paid_tooling." }
+    }, []),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[5]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      const defaults = marketingOptions(ctx);
+      try {
+        if (text(validated.value.launchPlanId) || defaults.launchPlanId) {
+          const detail = await getMarketingLaunchPlanDetail({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            launchPlanId: text(validated.value.launchPlanId) || defaults.launchPlanId
+          });
+          if (!detail) return errorResult("marketing_launch_plan_invalid", "Marketing launch plan was not found.");
+          return { ok: true, data: detail.launchPlan };
+        }
+        return {
+          ok: true,
+          data: await createMarketingLaunchPlan({
+            repos: ctx.repos,
+            workspaceId: ctx.workspaceId,
+            actorId: ctx.actorId,
+            brandVoiceProfileId: text(validated.value.brandVoiceProfileId) || defaults.brandVoiceProfileId || undefined,
+            sourceEntityType: text(validated.value.sourceEntityType) || defaults.sourceEntityType || undefined,
+            sourceEntityId: text(validated.value.sourceEntityId) || defaults.sourceEntityId || undefined,
+            launchName: text(validated.value.launchName) || undefined,
+            campaignType: text(validated.value.campaignType) || "hybrid",
+            spendType: text(validated.value.spendType) || "owner_time_only"
+          })
+        };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "marketing_launch_plan_invalid"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_organic_launch_plan",
+    description: "Create the no-spend 7-day, 14-day, and 30-day organic launch plan drafts for owner review.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[6]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftOrganicLaunchPlan({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "organic_launch_plan_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_seo_pdp_recommendations",
+    description: "Create SEO metadata, PDP recommendations, and landing-page recommendation drafts without mutating Shopify.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[7]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftSeoPdpRecommendations({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "seo_pdp_recommendations_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_social_content",
+    description: "Create Instagram, Facebook, and short-form social draft content without posting or scheduling.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[8]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftSocialContent({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "social_content_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_pinterest_organic_plan",
+    description: "Create Pinterest organic pin ideas and board recommendations without publishing pins.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[9]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftPinterestOrganicPlan({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "pinterest_plan_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_email_sms_drafts",
+    description: "Create no-send email and SMS drafts plus lifecycle-flow draft rows.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[10]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftEmailSmsDrafts({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "email_sms_drafts_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_marketplace_seo_suggestions",
+    description: "Create marketplace SEO title, tag, and photo-order suggestion drafts without mutating any marketplace listing.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[11]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftMarketplaceSeoSuggestions({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "marketplace_seo_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_outreach_drafts",
+    description: "Create outreach and collaboration pitch drafts without sending them.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[12]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftOutreachDrafts({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "outreach_drafts_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_positioning_statement",
+    description: "Create the launch positioning statement for owner review.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[13]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftPositioningStatement({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "positioning_statement_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_offer_hypotheses",
+    description: "Create owner-reviewable offer and bundle hypotheses without configuring live discounts.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[14]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftOfferHypotheses({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "offer_hypotheses_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_audience_hypotheses",
+    description: "Create audience hypotheses without sensitive-attribute targeting or live ad-platform mutation.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[15]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftAudienceHypotheses({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "audience_hypotheses_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_ad_angles",
+    description: "Create owner-reviewable ad angles grounded in existing product and trend evidence.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[16]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftAdAngles({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "ad_angles_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_ad_copy_variants",
+    description: "Create ad-copy variants for review without creating live ad-platform objects.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[17]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftAdCopyVariants({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "ad_copy_variants_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "draft_creative_briefs",
+    description: "Create creative briefs only. This does not trigger image generation or asset mutation.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[18]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await draftCreativeBriefs({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "creative_briefs_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "run_policy_review",
+    description: "Run deterministic policy, claims, and IP review against all current launch outputs and persist the results.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[19]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await runPolicyReview({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, MARKETING_POLICY_BLOCKED), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "calculate_budget_recommendation",
+    description: "Create the no-spend/paid-draft budget recommendation and channel-priority records without spending money.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[20]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await calculateBudgetRecommendation({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "budget_recommendation_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "compile_campaign_build_sheet",
+    description: "Create media-plan and campaign-draft build sheets in manual/export-only mode with null live platform object IDs.",
+    parameters: objectSchema({ launchPlanId: stringProperty("Launch plan ID.") }, ["launchPlanId"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[21]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        return { ok: true, data: await compileCampaignBuildSheet({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId) }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "campaign_build_sheet_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "save_marketing_output_for_review",
+    description: "Finalize the launch package summary, persist the reviewable AI output, and create missing owner approval requests.",
+    parameters: objectSchema({
+      launchPlanId: stringProperty("Launch plan ID."),
+      summary: stringProperty("Owner-facing launch summary."),
+      warnings: { type: "array", items: { type: "string" }, description: "Warnings or manual follow-up notes." }
+    }, ["launchPlanId", "summary"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[22]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        const saved = await saveMarketingOutputForReview({
+          repos: ctx.repos,
+          workspaceId: ctx.workspaceId,
+          actorId: ctx.actorId,
+          launchPlanId: text(validated.value.launchPlanId),
+          agentRunId: ctx.agentRunId,
+          summary: text(validated.value.summary),
+          warnings: asArray(validated.value.warnings).map(String)
+        });
+        ctx.state ??= {};
+        ctx.state.savedOutputIds ??= [];
+        if (!ctx.state.savedOutputIds.includes(saved.aiOutputId)) ctx.state.savedOutputIds.push(saved.aiOutputId);
+        return { ok: true, data: saved };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, MARKETING_LAUNCH_PLAN_INVALID), toSafeMarketingLaunchError(error));
+      }
+    }
+  },
+  {
+    name: "create_approval_request",
+    description: "Create one or more owner approval requests for launch artifacts. This does not approve or publish anything.",
+    parameters: objectSchema({
+      launchPlanId: stringProperty("Launch plan ID."),
+      targets: { type: "array", items: { type: "object" }, description: "Target rows that require owner review." }
+    }, ["launchPlanId", "targets"]),
+    riskLevel: "draft_only",
+    allowedRoles: [marketingLaunchRole],
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(marketingLaunchPlannerTools[23]!.parameters, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      try {
+        const targets = asArray(validated.value.targets).map((entry) => {
+          const row = asRecord(entry);
+          return {
+            targetType: text(row.targetType ?? row.target_type),
+            targetId: text(row.targetId ?? row.target_id),
+            ...(text(row.requestedAction ?? row.requested_action) ? { requestedAction: text(row.requestedAction ?? row.requested_action) } : {}),
+            ...(Object.keys(asRecord(row.riskSummary ?? row.risk_summary)).length ? { riskSummary: asRecord(row.riskSummary ?? row.risk_summary) } : {})
+          };
+        }).filter((entry) => entry.targetType && entry.targetId);
+        return { ok: true, data: await createApprovalRequest({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, launchPlanId: text(validated.value.launchPlanId), targets }) };
+      } catch (error) {
+        return errorResult(marketingErrorCode(error, "approval_request_failed"), toSafeMarketingLaunchError(error));
+      }
+    }
+  }
+];
+
 export const forbiddenAgentToolNamePatterns = [
   /(^|_)publish($|_live|_product)/i,
   /go[_-]?live/i,
@@ -297,8 +1132,14 @@ export const forbiddenAgentToolNamePatterns = [
   /http[_-]?fetch/i
 ];
 
+export const allAgentTools: AgentToolDefinition[] = [
+  ...productListingAssistantTools,
+  ...trendIntelligenceAgentTools,
+  ...marketingLaunchPlannerTools
+];
+
 export function getAgentToolsForRole(roleKey: string) {
-  return productListingAssistantTools.filter((tool) => tool.allowedRoles.includes(roleKey));
+  return allAgentTools.filter((tool) => tool.allowedRoles.includes(roleKey));
 }
 
 export function toModelRuntimeTools(tools: AgentToolDefinition[]) {
@@ -312,6 +1153,6 @@ export function toModelRuntimeTools(tools: AgentToolDefinition[]) {
   }));
 }
 
-export function registryHasForbiddenToolNames(tools: AgentToolDefinition[] = productListingAssistantTools) {
+export function registryHasForbiddenToolNames(tools: AgentToolDefinition[] = allAgentTools) {
   return tools.filter((tool) => forbiddenAgentToolNamePatterns.some((pattern) => pattern.test(tool.name)));
 }
