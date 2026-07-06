@@ -41,6 +41,40 @@ import {
   saveMarketingOutputForReview,
   toSafeMarketingLaunchError
 } from "./marketing-launch";
+import {
+  calculateBudgetRecommendation as calculateCommerceBudgetRecommendation,
+  commerceAgentRoleCatalog,
+  commerceAgentToolNames,
+  consultBehavioralPsychology,
+  createApprovalPrediction,
+  createProcessImprovementFinding,
+  createQualityCheck as createCommerceQualityCheck,
+  createShopManagerBrief,
+  draftAdAngles as draftCommerceAdAngles,
+  draftAdCopyVariants as draftCommerceAdCopyVariants,
+  draftAudienceHypotheses as draftCommerceAudienceHypotheses,
+  draftCampaignBuildSheet as draftCommerceCampaignBuildSheet,
+  draftCatalogMerchandisingRecommendation,
+  draftEmailSmsDrafts as draftCommerceEmailSmsDrafts,
+  draftMarketplaceSeoSuggestions as draftCommerceMarketplaceSeoSuggestions,
+  draftOrganicLaunchPlan as draftCommerceOrganicLaunchPlan,
+  draftOutreachDrafts as draftCommerceOutreachDrafts,
+  draftPinterestOrganicPlan as draftCommercePinterestOrganicPlan,
+  draftSeoGeoPdpRecommendation,
+  draftSocialContent as draftCommerceSocialContent,
+  prioritizeApprovalQueue,
+  readAssetQaData,
+  readMarketingLaunchPlan as readCommerceMarketingLaunchPlan,
+  readMockupData,
+  recordOwnerApprovalFeedback,
+  runCreativeQaCheck,
+  runIpTrademarkCheck,
+  runPolicyReview as runCommercePolicyReview,
+  runProductReadinessCheck,
+  saveCommerceOutputForReview,
+  saveCommerceRecommendation,
+  updateOwnerDecisionPatterns
+} from "./shop-manager-agent-os";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -1114,6 +1148,134 @@ export const marketingLaunchPlannerTools: AgentToolDefinition[] = [
   }
 ];
 
+const commerceToolSchema = objectSchema({
+  sourceEntityType: { type: "string", description: "Optional source entity type." },
+  sourceEntityId: { type: "string", description: "Optional exact source entity ID." },
+  launchPlanId: { type: "string", description: "Optional marketing launch plan ID." },
+  approvalItemId: { type: "string", description: "Optional shop-manager approval queue item ID." },
+  recommendationId: { type: "string", description: "Optional commerce recommendation ID." },
+  assetId: { type: "string", description: "Optional asset ID." },
+  mockupId: { type: "string", description: "Optional mockup ID." },
+  content: { type: "string", description: "Optional owner-reviewable draft copy or content to check." },
+  audienceContext: { type: "string", description: "Optional audience context for behavioral consultation." },
+  consultationType: { type: "string", description: "Optional consultation type." },
+  ownerDecision: { type: "string", description: "Optional owner decision value." },
+  ownerNotes: { type: "string", description: "Optional owner notes." },
+  rejectionReason: { type: "string", description: "Optional rejection reason." },
+  recommendationType: { type: "string", description: "Optional recommendation type." },
+  title: { type: "string", description: "Optional title." },
+  summary: { type: "string", description: "Optional summary." },
+  rationale: { type: "string", description: "Optional rationale." },
+  checkType: { type: "string", description: "Optional quality check type." },
+  verdict: { type: "string", description: "Optional quality check verdict." },
+  severity: { type: "string", description: "Optional severity." },
+  evidenceRefs: { type: "array", description: "Optional evidence references." },
+  reasons: { type: "array", description: "Optional quality check reasons." },
+  fixSuggestions: { type: "array", description: "Optional quality check fixes." },
+  outputJson: { type: "object", description: "Optional output JSON." },
+  editedFields: { type: "object", description: "Optional edited fields." },
+  preferenceSignal: { type: "object", description: "Optional preference signal." }
+});
+
+const commerceToolInput = (ctx: AgentToolContext, args: Record<string, unknown>) => ({
+  repos: ctx.repos,
+  workspaceId: ctx.workspaceId,
+  actorId: ctx.actorId,
+  roleKey: ctx.roleKey,
+  sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType,
+  sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId,
+  launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId,
+  approvalItemId: text(args.approvalItemId),
+  recommendationId: text(args.recommendationId),
+  content: text(args.content),
+  audienceContext: text(args.audienceContext),
+  consultationType: text(args.consultationType),
+  agentRunId: ctx.agentRunId
+});
+
+function commerceErrorCode(error: unknown, fallback = "commerce_agent_tool_failed") {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function commerceTool(name: string, description: string, execute: (ctx: AgentToolContext, args: Record<string, unknown>) => Promise<unknown>): AgentToolDefinition {
+  const allowedRoles = commerceAgentRoleCatalog
+    .filter((role) => role.is_enabled && role.allowed_tools.includes(name))
+    .map((role) => role.role_key);
+  return {
+    name,
+    description,
+    parameters: commerceToolSchema,
+    riskLevel: "draft_only",
+    allowedRoles,
+    forbidden: false,
+    execute: async (ctx, args) => {
+      const validated = validateToolArguments(commerceToolSchema, args);
+      if (!validated.ok) return errorResult(validated.code, validated.message);
+      if (!commerceAgentToolNames.includes(name)) return errorResult("commerce_agent_tool_not_allowlisted", "Commerce agent tool is not allowlisted.");
+      if (!allowedRoles.includes(ctx.roleKey)) return errorResult("commerce_agent_tool_not_allowed_for_role", "Commerce agent tool is not allowed for this role.");
+      try {
+        return { ok: true, data: await execute(ctx, validated.value) };
+      } catch (error) {
+        return errorResult(commerceErrorCode(error), error instanceof Error ? error.message : "Commerce agent tool failed.");
+      }
+    }
+  };
+}
+
+export const shopManagerAgentTools: AgentToolDefinition[] = [
+  commerceTool("readApprovedProductOrConcept", "Read an exact approved product/concept/listing source entity. This never falls back when an exact ID is supplied.", async (ctx, args) =>
+    readApprovedProductOrConcept({ repos: ctx.repos, workspaceId: ctx.workspaceId, sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType, sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId, launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId })),
+  commerceTool("readTrendEvidenceForProduct", "Read persisted trend evidence attached to the approved source entity. This never calls external source APIs.", async (ctx, args) =>
+    readTrendEvidenceForProduct({ repos: ctx.repos, workspaceId: ctx.workspaceId, sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType, sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId, launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId })),
+  commerceTool("readMarketingLaunchPlan", "Read persisted marketing launch plan detail and its draft outputs.", async (ctx, args) => readCommerceMarketingLaunchPlan(commerceToolInput(ctx, args))),
+  commerceTool("readProductReadinessData", "Read and persist product readiness data through the existing marketing readiness path.", async (ctx, args) =>
+    readProductReadinessData({ repos: ctx.repos, workspaceId: ctx.workspaceId, actorId: ctx.actorId, sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType, sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId, launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId })),
+  commerceTool("readAssetQaData", "Read existing asset QA data. This does not generate or edit images.", async (ctx, args) => readAssetQaData({ ...commerceToolInput(ctx, args), assetId: text(args.assetId) })),
+  commerceTool("readMockupData", "Read existing mockup data. This does not create Printify mockups or mutate providers.", async (ctx, args) => readMockupData({ ...commerceToolInput(ctx, args), mockupId: text(args.mockupId) })),
+  commerceTool("calculateProductMargin", "Read margin data or margin hypotheses. This does not change prices or discounts.", async (ctx, args) =>
+    calculateProductMargin({ repos: ctx.repos, workspaceId: ctx.workspaceId, sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType, sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId, launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId })),
+  commerceTool("runProductReadinessCheck", "Persist a product readiness quality check and recommendation.", async (ctx, args) => runProductReadinessCheck(commerceToolInput(ctx, args))),
+  commerceTool("runCreativeQaCheck", "Persist a creative QA/print-risk quality check from existing asset and mockup data.", async (ctx, args) => runCreativeQaCheck(commerceToolInput(ctx, args))),
+  commerceTool("runIpTrademarkCheck", "Run rule-based IP, trademark, claims, and copycat checks before any LLM explanation.", async (ctx, args) => runIpTrademarkCheck(commerceToolInput(ctx, args))),
+  commerceTool("draftCatalogMerchandisingRecommendation", "Persist collection, bundle, cross-sell, and merchandising recommendations without Shopify mutation.", async (ctx, args) => draftCatalogMerchandisingRecommendation(commerceToolInput(ctx, args))),
+  commerceTool("draftSeoGeoPdpRecommendation", "Persist SEO/GEO/PDP recommendations without Shopify mutation or unsupported claims.", async (ctx, args) => draftSeoGeoPdpRecommendation(commerceToolInput(ctx, args))),
+  commerceTool("draftOrganicLaunchPlan", "Draft no-spend organic launch outputs for owner review.", async (ctx, args) => draftCommerceOrganicLaunchPlan(commerceToolInput(ctx, args))),
+  commerceTool("draftSocialContent", "Draft social content for owner manual posting review only.", async (ctx, args) => draftCommerceSocialContent(commerceToolInput(ctx, args))),
+  commerceTool("draftPinterestOrganicPlan", "Draft Pinterest organic outputs for owner manual publishing review only.", async (ctx, args) => draftCommercePinterestOrganicPlan(commerceToolInput(ctx, args))),
+  commerceTool("draftEmailSmsDrafts", "Draft email/SMS outputs in no-send mode only.", async (ctx, args) => draftCommerceEmailSmsDrafts(commerceToolInput(ctx, args))),
+  commerceTool("draftMarketplaceSeoSuggestions", "Draft marketplace SEO suggestions without marketplace mutation.", async (ctx, args) => draftCommerceMarketplaceSeoSuggestions(commerceToolInput(ctx, args))),
+  commerceTool("draftOutreachDrafts", "Draft outreach templates for owner review without sending messages.", async (ctx, args) => draftCommerceOutreachDrafts(commerceToolInput(ctx, args))),
+  commerceTool("draftAudienceHypotheses", "Draft owner-reviewed audience hypotheses without launching campaigns.", async (ctx, args) => draftCommerceAudienceHypotheses(commerceToolInput(ctx, args))),
+  commerceTool("draftAdAngles", "Draft ad angles without ad platform writes.", async (ctx, args) => draftCommerceAdAngles(commerceToolInput(ctx, args))),
+  commerceTool("draftAdCopyVariants", "Draft ad copy variants without ad platform writes.", async (ctx, args) => draftCommerceAdCopyVariants(commerceToolInput(ctx, args))),
+  commerceTool("draftCampaignBuildSheet", "Draft manual campaign build sheets only; no ad platform writes.", async (ctx, args) => draftCommerceCampaignBuildSheet(commerceToolInput(ctx, args))),
+  commerceTool("consultBehavioralPsychology", "Persist an ethical behavioral/customer-empathy consultation that always requires policy review.", async (ctx, args) => consultBehavioralPsychology(commerceToolInput(ctx, args))),
+  commerceTool("runPolicyReview", "Run policy review after draft or behavioral consultation work.", async (ctx, args) => runCommercePolicyReview(commerceToolInput(ctx, args))),
+  commerceTool("calculateBudgetRecommendation", "Persist recommendation-only budget guidance without changing budgets.", async (ctx, args) => calculateCommerceBudgetRecommendation(commerceToolInput(ctx, args))),
+  commerceTool("prioritizeApprovalQueue", "Persist and prioritize internal approval queue items.", async (ctx, args) => prioritizeApprovalQueue(commerceToolInput(ctx, args))),
+  commerceTool("createApprovalPrediction", "Persist advisory approval prediction records. Predictions never approve anything.", async (ctx, args) => createApprovalPrediction(commerceToolInput(ctx, args))),
+  commerceTool("recordOwnerApprovalFeedback", "Record real owner decision feedback and update advisory learning records.", async (ctx, args) =>
+    recordOwnerApprovalFeedback({ ...commerceToolInput(ctx, args), ownerDecision: text(args.ownerDecision), ownerNotes: text(args.ownerNotes), rejectionReason: text(args.rejectionReason), editedFields: asRecord(args.editedFields), preferenceSignal: asRecord(args.preferenceSignal) })),
+  commerceTool("updateOwnerDecisionPatterns", "Update tentative owner decision patterns from real feedback evidence.", async (ctx, args) => updateOwnerDecisionPatterns(commerceToolInput(ctx, args))),
+  commerceTool("createShopManagerBrief", "Persist a daily shop-manager brief for owner review.", async (ctx, args) => createShopManagerBrief(commerceToolInput(ctx, args))),
+  commerceTool("createQualityCheck", "Persist a generic commerce quality check.", async (ctx, args) =>
+    createCommerceQualityCheck({ ...commerceToolInput(ctx, args), checkType: text(args.checkType, "manual_quality_check"), verdict: text(args.verdict, "warning"), reasons: asArray(args.reasons), fixSuggestions: asArray(args.fixSuggestions), evidenceRefs: asArray(args.evidenceRefs) })),
+  commerceTool("createProcessImprovementFinding", "Persist process improvement findings without applying code, schema, prompt, or tool changes.", async (ctx, args) =>
+    createProcessImprovementFinding({ ...commerceToolInput(ctx, args), findingType: text(args.recommendationType), title: text(args.title), summary: text(args.summary) })),
+  commerceTool("saveCommerceRecommendation", "Persist a generic owner-reviewable commerce recommendation.", async (ctx, args) =>
+    saveCommerceRecommendation({ ...commerceToolInput(ctx, args), recommendationType: text(args.recommendationType, ctx.roleKey), title: text(args.title, ctx.roleKey), summary: text(args.summary, "Owner review required."), rationale: text(args.rationale, "Recommendation created from existing workspace data only."), evidenceRefs: asArray(args.evidenceRefs), severity: text(args.severity, "medium") })),
+  commerceTool("saveCommerceOutputForReview", "Persist the final commerce agent output to AI employee outputs for owner review.", async (ctx, args) =>
+    {
+      const saved = await saveCommerceOutputForReview({ ...commerceToolInput(ctx, args), outputJson: asRecord(args.outputJson) });
+      if (saved?.id) {
+        ctx.state ??= {};
+        ctx.state.savedOutputIds ??= [];
+        if (!ctx.state.savedOutputIds.includes(saved.id)) ctx.state.savedOutputIds.push(saved.id);
+      }
+      return saved;
+    })
+];
+
 export const forbiddenAgentToolNamePatterns = [
   /(^|_)publish($|_live|_product)/i,
   /go[_-]?live/i,
@@ -1135,7 +1297,8 @@ export const forbiddenAgentToolNamePatterns = [
 export const allAgentTools: AgentToolDefinition[] = [
   ...productListingAssistantTools,
   ...trendIntelligenceAgentTools,
-  ...marketingLaunchPlannerTools
+  ...marketingLaunchPlannerTools,
+  ...shopManagerAgentTools
 ];
 
 export function getAgentToolsForRole(roleKey: string) {

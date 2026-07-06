@@ -33,6 +33,11 @@ export type RunLocalOllamaAgentTaskInput = {
     sourceEntityType?: string | undefined;
     sourceEntityId?: string | undefined;
     brandVoiceProfileId?: string | undefined;
+    approvalItemId?: string | undefined;
+    recommendationId?: string | undefined;
+    content?: string | undefined;
+    audienceContext?: string | undefined;
+    consultationType?: string | undefined;
     sourceKeys?: string[] | undefined;
     maxSignals?: number | undefined;
     maxConcepts?: number | undefined;
@@ -62,6 +67,11 @@ export type AgentRunJobPayload = {
     sourceEntityType?: string | undefined;
     sourceEntityId?: string | undefined;
     brandVoiceProfileId?: string | undefined;
+    approvalItemId?: string | undefined;
+    recommendationId?: string | undefined;
+    content?: string | undefined;
+    audienceContext?: string | undefined;
+    consultationType?: string | undefined;
     sourceKeys?: string[] | undefined;
     maxSignals?: number | undefined;
     maxConcepts?: number | undefined;
@@ -155,6 +165,8 @@ function agentInputRef(taskInput: RunLocalOllamaAgentTaskInput["taskInput"], wor
   if (taskInput.mockupId) return { inputRefType: "mockup", inputRefId: taskInput.mockupId };
   if (taskInput.profileId) return { inputRefType: "trend_watch_profile", inputRefId: taskInput.profileId };
   if (taskInput.launchPlanId) return { inputRefType: "marketing_launch_plan", inputRefId: taskInput.launchPlanId };
+  if (taskInput.approvalItemId) return { inputRefType: "approval_queue_item", inputRefId: taskInput.approvalItemId };
+  if (taskInput.recommendationId) return { inputRefType: "commerce_recommendation", inputRefId: taskInput.recommendationId };
   return { inputRefType: "workspace", inputRefId: workspaceId };
 }
 
@@ -169,6 +181,11 @@ function buildUserMessage(input: Pick<RunLocalOllamaAgentTaskInput, "taskType" |
     sourceEntityType: input.taskInput.sourceEntityType ?? null,
     sourceEntityId: input.taskInput.sourceEntityId ?? null,
     brandVoiceProfileId: input.taskInput.brandVoiceProfileId ?? null,
+    approvalItemId: input.taskInput.approvalItemId ?? null,
+    recommendationId: input.taskInput.recommendationId ?? null,
+    content: input.taskInput.content ?? null,
+    audienceContext: input.taskInput.audienceContext ?? null,
+    consultationType: input.taskInput.consultationType ?? null,
     sourceKeys: input.taskInput.sourceKeys ?? [],
     maxSignals: input.taskInput.maxSignals ?? null,
     maxConcepts: input.taskInput.maxConcepts ?? null,

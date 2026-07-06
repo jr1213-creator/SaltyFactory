@@ -211,6 +211,19 @@ export interface AiModelRuntimeRepositoryContract {
   usageEvents: BaseRepositoryContract;
 }
 
+export interface CommerceAgentOsRepositoryContract {
+  roles: BaseRepositoryContract;
+  recommendations: BaseRepositoryContract;
+  qualityChecks: BaseRepositoryContract;
+  shopManagerBriefs: BaseRepositoryContract;
+  approvalQueueItems: BaseRepositoryContract;
+  ownerDecisionPatterns: BaseRepositoryContract;
+  approvalPredictionRecords: BaseRepositoryContract;
+  ownerApprovalFeedback: BaseRepositoryContract;
+  behavioralConsultations: BaseRepositoryContract;
+  processImprovementFindings: BaseRepositoryContract;
+}
+
 export interface BusinessOsRepositoryContract {
   metricsSnapshots: BaseRepositoryContract;
   costInputs: BaseRepositoryContract;
@@ -300,6 +313,7 @@ export interface RepositoryBundle {
   shared: SharedKernelRepositoryContract;
   aiWorkforce: AiWorkforceRepositoryContract;
   aiModelRuntime: AiModelRuntimeRepositoryContract;
+  commerceAgent: CommerceAgentOsRepositoryContract;
   business: BusinessOsRepositoryContract;
 }
 

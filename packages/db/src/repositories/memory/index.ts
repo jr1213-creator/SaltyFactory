@@ -549,6 +549,33 @@ export class AiModelRuntimeRepository {
   }
 }
 
+export class CommerceAgentOsRepository {
+  readonly roles: BaseRepository;
+  readonly recommendations: BaseRepository;
+  readonly qualityChecks: BaseRepository;
+  readonly shopManagerBriefs: BaseRepository;
+  readonly approvalQueueItems: BaseRepository;
+  readonly ownerDecisionPatterns: BaseRepository;
+  readonly approvalPredictionRecords: BaseRepository;
+  readonly ownerApprovalFeedback: BaseRepository;
+  readonly behavioralConsultations: BaseRepository;
+  readonly processImprovementFindings: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.roles = repo("commerce_agent_roles");
+    this.recommendations = repo("commerce_recommendations");
+    this.qualityChecks = repo("commerce_quality_checks");
+    this.shopManagerBriefs = repo("shop_manager_briefs");
+    this.approvalQueueItems = repo("approval_queue_items");
+    this.ownerDecisionPatterns = repo("owner_decision_patterns");
+    this.approvalPredictionRecords = repo("approval_prediction_records");
+    this.ownerApprovalFeedback = repo("owner_approval_feedback");
+    this.behavioralConsultations = repo("behavioral_consultations");
+    this.processImprovementFindings = repo("process_improvement_findings");
+  }
+}
+
 export class MarketingRepository {
   readonly campaigns: BaseRepository;
   readonly assets: BaseRepository;
@@ -892,6 +919,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     shared: new SharedKernelRepository(store, writer),
     aiWorkforce: new AiWorkforceRepository(store, writer),
     aiModelRuntime: new AiModelRuntimeRepository(store, writer),
+    commerceAgent: new CommerceAgentOsRepository(store, writer),
     business: new BusinessOsRepository(store, writer)
   };
 }

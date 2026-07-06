@@ -832,6 +832,185 @@ export const aiModelUsageEvents = pgTable("ai_model_usage_events", {
   workspaceStatusIdx: index("ai_model_usage_events_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
+export const commerceAgentRoles = pgTable("commerce_agent_roles", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  roleKey: text("role_key").notNull(),
+  displayName: text("display_name").notNull(),
+  purpose: text("purpose").notNull(),
+  allowedTools: jsonb("allowed_tools").$type<string[]>().notNull().default([]),
+  forbiddenActions: jsonb("forbidden_actions").$type<string[]>().notNull().default([]),
+  inputEntityTypes: jsonb("input_entity_types").$type<string[]>().notNull().default([]),
+  outputEntityTypes: jsonb("output_entity_types").$type<string[]>().notNull().default([]),
+  riskLevel: text("risk_level").notNull().default("medium"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  status: text("status").notNull().default("active")
+}, (table) => ({
+  roleUnique: uniqueIndex("commerce_agent_roles_workspace_role_unique").on(table.workspaceId, table.roleKey),
+  workspaceEnabledIdx: index("commerce_agent_roles_workspace_enabled_idx").on(table.workspaceId, table.isEnabled)
+}));
+
+export const commerceRecommendations = pgTable("commerce_recommendations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  roleKey: text("role_key").notNull(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  recommendationType: text("recommendation_type").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  rationale: text("rationale").notNull(),
+  evidenceRefs: jsonb("evidence_refs").$type<unknown[]>().notNull().default([]),
+  severity: text("severity").notNull().default("medium"),
+  confidenceScore: confidence("confidence_score").notNull().default("0.5000"),
+  expectedImpact: text("expected_impact").notNull().default("medium"),
+  ownerActionNeeded: text("owner_action_needed").notNull().default("review"),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceRoleIdx: index("commerce_recommendations_workspace_role_idx").on(table.workspaceId, table.roleKey),
+  workspaceEntityIdx: index("commerce_recommendations_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceReviewIdx: index("commerce_recommendations_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
+}));
+
+export const commerceQualityChecks = pgTable("commerce_quality_checks", {
+  id,
+  ...ownership(),
+  roleKey: text("role_key").notNull(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  checkType: text("check_type").notNull(),
+  verdict: text("verdict").notNull(),
+  score: integer("score"),
+  reasons: jsonb("reasons").$type<unknown[]>().notNull().default([]),
+  fixSuggestions: jsonb("fix_suggestions").$type<unknown[]>().notNull().default([]),
+  evidenceRefs: jsonb("evidence_refs").$type<unknown[]>().notNull().default([])
+}, (table) => ({
+  workspaceRoleIdx: index("commerce_quality_checks_workspace_role_idx").on(table.workspaceId, table.roleKey),
+  workspaceEntityIdx: index("commerce_quality_checks_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceVerdictIdx: index("commerce_quality_checks_workspace_verdict_idx").on(table.workspaceId, table.verdict)
+}));
+
+export const shopManagerBriefs = pgTable("shop_manager_briefs", {
+  id,
+  ...ownership(),
+  briefDate: text("brief_date").notNull(),
+  summary: text("summary").notNull(),
+  topPriorities: jsonb("top_priorities").$type<unknown[]>().notNull().default([]),
+  blockedItems: jsonb("blocked_items").$type<unknown[]>().notNull().default([]),
+  approvalsNeeded: jsonb("approvals_needed").$type<unknown[]>().notNull().default([]),
+  risks: jsonb("risks").$type<unknown[]>().notNull().default([]),
+  recommendedNextActions: jsonb("recommended_next_actions").$type<unknown[]>().notNull().default([]),
+  agentHealth: jsonb("agent_health").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  workspaceDateUnique: uniqueIndex("shop_manager_briefs_workspace_date_unique").on(table.workspaceId, table.briefDate)
+}));
+
+export const approvalQueueItems = pgTable("approval_queue_items", {
+  id,
+  ...ownership(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  requestedAction: text("requested_action").notNull(),
+  priority: integer("priority").notNull().default(50),
+  reason: text("reason").notNull(),
+  riskSummary: jsonb("risk_summary").$type<Record<string, unknown> | null>(),
+  status: text("status").notNull().default("pending"),
+  createdBy: text("created_by").references(() => users.id),
+  decidedBy: text("decided_by").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  notes: text("notes")
+}, (table) => ({
+  workspaceStatusIdx: index("approval_queue_items_workspace_status_idx").on(table.workspaceId, table.status),
+  workspaceEntityIdx: index("approval_queue_items_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId)
+}));
+
+export const ownerDecisionPatterns = pgTable("owner_decision_patterns", {
+  id,
+  ...ownership(),
+  patternType: text("pattern_type").notNull(),
+  summary: text("summary").notNull(),
+  evidenceApprovalIds: jsonb("evidence_approval_ids").$type<string[]>().notNull().default([]),
+  confidenceScore: confidence("confidence_score").notNull().default("0.3000"),
+  tentative: boolean("tentative").notNull().default(true),
+  supersededBy: text("superseded_by"),
+  lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceTypeIdx: index("owner_decision_patterns_workspace_type_idx").on(table.workspaceId, table.patternType),
+  workspaceActiveIdx: index("owner_decision_patterns_workspace_active_idx").on(table.workspaceId, table.supersededBy)
+}));
+
+export const approvalPredictionRecords = pgTable("approval_prediction_records", {
+  id,
+  ...ownership(),
+  approvalItemId: text("approval_item_id").notNull(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  predictedDecision: text("predicted_decision").notNull(),
+  confidenceScore: confidence("confidence_score").notNull().default("0.5000"),
+  confidenceReason: text("confidence_reason").notNull(),
+  actualDecision: text("actual_decision"),
+  predictionCorrect: boolean("prediction_correct"),
+  predictionErrorNotes: text("prediction_error_notes"),
+  decidedAt: timestamp("decided_at", { withTimezone: true })
+}, (table) => ({
+  workspaceItemIdx: index("approval_prediction_records_workspace_item_idx").on(table.workspaceId, table.approvalItemId),
+  workspaceEntityIdx: index("approval_prediction_records_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId)
+}));
+
+export const ownerApprovalFeedback = pgTable("owner_approval_feedback", {
+  id,
+  ...ownership(),
+  approvalItemId: text("approval_item_id").notNull(),
+  ownerDecision: text("owner_decision").notNull(),
+  ownerNotes: text("owner_notes"),
+  editedFields: jsonb("edited_fields").$type<Record<string, unknown> | null>(),
+  rejectionReason: text("rejection_reason"),
+  preferenceSignal: jsonb("preference_signal").$type<Record<string, unknown> | null>()
+}, (table) => ({
+  workspaceItemIdx: index("owner_approval_feedback_workspace_item_idx").on(table.workspaceId, table.approvalItemId),
+  workspaceDecisionIdx: index("owner_approval_feedback_workspace_decision_idx").on(table.workspaceId, table.ownerDecision)
+}));
+
+export const behavioralConsultations = pgTable("behavioral_consultations", {
+  id,
+  ...ownership(),
+  consultingAgentRoleKey: text("consulting_agent_role_key").notNull(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  consultationType: text("consultation_type").notNull(),
+  inputSummary: text("input_summary").notNull(),
+  outputJson: jsonb("output_json").$type<Record<string, unknown>>().notNull().default({}),
+  ethicalRiskFlags: jsonb("ethical_risk_flags").$type<unknown[]>().notNull().default([]),
+  sensitiveAttributeWarnings: jsonb("sensitive_attribute_warnings").$type<unknown[]>().notNull().default([]),
+  confidenceScore: confidence("confidence_score").notNull().default("0.5000"),
+  requiresPolicyReview: boolean("requires_policy_review").notNull().default(true)
+}, (table) => ({
+  workspaceRoleIdx: index("behavioral_consultations_workspace_role_idx").on(table.workspaceId, table.consultingAgentRoleKey),
+  workspaceEntityIdx: index("behavioral_consultations_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId)
+}));
+
+export const processImprovementFindings = pgTable("process_improvement_findings", {
+  id,
+  ...ownership(),
+  findingType: text("finding_type").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  affectedAgents: jsonb("affected_agents").$type<unknown[]>().notNull().default([]),
+  affectedEntities: jsonb("affected_entities").$type<unknown[]>().notNull().default([]),
+  repeatedPattern: boolean("repeated_pattern").notNull().default(false),
+  severity: text("severity").notNull().default("medium"),
+  recommendedProcessChange: text("recommended_process_change").notNull(),
+  recommendedPromptChange: text("recommended_prompt_change"),
+  recommendedToolChange: text("recommended_tool_change"),
+  recommendedSchemaChange: text("recommended_schema_change"),
+  reviewStatus: text("review_status").notNull().default("pending_review")
+}, (table) => ({
+  workspaceTypeIdx: index("process_improvement_findings_workspace_type_idx").on(table.workspaceId, table.findingType),
+  workspaceReviewIdx: index("process_improvement_findings_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
+}));
+
 export const businessMetricsSnapshots = pgTable("business_metrics_snapshots", {
   id,
   ...ownership(),
@@ -3502,6 +3681,16 @@ export const tables = {
   aiEmployeeModelAssignments,
   aiModelEvaluations,
   aiModelUsageEvents,
+  commerceAgentRoles,
+  commerceRecommendations,
+  commerceQualityChecks,
+  shopManagerBriefs,
+  approvalQueueItems,
+  ownerDecisionPatterns,
+  approvalPredictionRecords,
+  ownerApprovalFeedback,
+  behavioralConsultations,
+  processImprovementFindings,
   businessMetricsSnapshots,
   businessCostInputs,
   businessUnitEconomics,

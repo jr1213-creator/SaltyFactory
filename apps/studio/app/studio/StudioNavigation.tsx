@@ -104,6 +104,7 @@ export const STUDIO_TOP_NAV_AREAS: readonly StudioTopNavArea[] = [
         label: "Workforce",
         items: [
           { label: "AI Employees", href: "/studio/ai-employees", description: "Role-based draft assistants and approval queue.", status: "Drafts" },
+          { label: "Shop Manager", href: "/studio/shop-manager", description: "Owner-facing approval intelligence and shop-quality agent layer.", status: "OS" },
           { label: "Hiring Desk", href: "/studio/ai-employees/hiring", description: "Review proposed AI employee roles." },
           { label: "Improvement Desk", href: "/studio/ai-employees/improvements", description: "Review improvement suggestions and repeated blockers." }
         ]
@@ -280,6 +281,7 @@ export const STUDIO_NAV_SECTIONS: readonly StudioNavSection[] = [
     description: "Owner-gated AI workforce, hiring requests, model routing, and improvement suggestions.",
     links: [
       ["AI Employees", "/studio/ai-employees"],
+      ["Shop Manager", "/studio/shop-manager"],
       ["Hiring Desk", "/studio/ai-employees/hiring"],
       ["Improvement Desk", "/studio/ai-employees/improvements"],
       ["Model Registry", "/studio/ai-employees/models"],
@@ -409,6 +411,7 @@ export const STUDIO_COMMAND_CENTER_LINKS: readonly StudioCommandCenterLink[] = [
   { label: "Home", href: "/studio", sectionId: "dashboard", description: "Workspace command summary" },
   { label: "POD", href: "/studio/pod-launch-studio", sectionId: "pod-studio", description: "Product launch pipeline" },
   { label: "AI", href: "/studio/ai-employees", sectionId: "ai-employees", description: "Owner-gated AI workforce" },
+  { label: "Shop Manager", href: "/studio/shop-manager", sectionId: "ai-employees", description: "Approval intelligence and quality control" },
   { label: "Business", href: "/studio/business", sectionId: "business", description: "Decision support and documents" },
   { label: "Customer", href: "/studio/customer-command-center", sectionId: "customer", description: "CRM and capture operations" },
   { label: "Marketing", href: "/studio/marketing-command-center", sectionId: "marketing", description: "Campaign planning and approvals" },

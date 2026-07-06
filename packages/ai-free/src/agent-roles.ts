@@ -1,8 +1,9 @@
 import type { AgentToolDefinition } from "./agent-tools";
-import { marketingLaunchPlannerTools, productListingAssistantTools, trendIntelligenceAgentTools } from "./agent-tools";
+import { marketingLaunchPlannerTools, productListingAssistantTools, shopManagerAgentTools, trendIntelligenceAgentTools } from "./agent-tools";
 import type { ModelInputSensitivity, ModelRiskLevel } from "./model-runtime";
 import { MARKETING_INVALID_JSON } from "./marketing-launch";
 import { OLLAMA_INVALID_JSON } from "./trend-analysis";
+import { COMMERCE_AGENT_INVALID_JSON, commerceAgentRoleCatalog } from "./shop-manager-agent-os";
 
 type AgentOutputRef = {
   refType: string;
@@ -101,10 +102,38 @@ export const marketingLaunchPlannerRoleDefinition: AgentRoleDefinition = {
   invalidJsonErrorCode: MARKETING_INVALID_JSON
 };
 
+export const shopManagerAgentRoleDefinitions: AgentRoleDefinition[] = commerceAgentRoleCatalog.map((entry) => ({
+  roleKey: entry.role_key,
+  taskTypes: ["run_commerce_agent_os_task"],
+  buildSystemPrompt: () => [
+    `You are SaltyFactory's ${entry.display_name}.`,
+    entry.purpose,
+    "Use only the provided allowlisted tools and persisted workspace data.",
+    "You may analyze, score, recommend, draft owner-reviewable outputs, create quality checks, create approval predictions, and persist internal review records.",
+    "You may not auto-approve, publish, spend, send, post, schedule, mutate Shopify, mutate Printify, call Hugging Face, generate images, scrape, use browser automation, or bypass policy review.",
+    "Approval predictions are advisory only and must always say human decision required.",
+    "If you consult Behavioral Psychology / Customer Empathy, policy review must still run afterward before copy or campaign use.",
+    "Always return valid JSON only with: {\"roleKey\": string, \"summary\": string, \"createdIds\": string[], \"warnings\": string[], \"requiresHumanDecision\": true, \"providerMutationAttempted\": false}.",
+    "Do not include hidden reasoning. Do not expose secrets."
+  ].join("\n"),
+  tools: shopManagerAgentTools.filter((tool) => entry.allowed_tools.includes(tool.name)),
+  defaultRiskLevel: (entry.risk_level === "critical" ? "high" : entry.risk_level) as ModelRiskLevel,
+  defaultInputSensitivity: "internal" as ModelInputSensitivity,
+  finalOutputMode: "require_valid_json" as const,
+  requiresSavedOutput: false,
+  defaultOutputType: entry.output_entity_types[0] ?? "commerce_agent_output",
+  resolveDefaultOutputRef: (task, workspaceId) => ({
+    refType: typeof task.launchPlanId === "string" && task.launchPlanId ? "marketing_launch_plan" : typeof task.sourceEntityType === "string" && task.sourceEntityType ? task.sourceEntityType : "workspace",
+    refIdFromTask: typeof task.launchPlanId === "string" && task.launchPlanId ? task.launchPlanId : typeof task.sourceEntityId === "string" && task.sourceEntityId ? task.sourceEntityId : workspaceId
+  }),
+  invalidJsonErrorCode: COMMERCE_AGENT_INVALID_JSON
+}));
+
 const defaultAgentRoleDefinitions: AgentRoleDefinition[] = [
   productListingAssistantRoleDefinition,
   trendIntelligenceAgentRoleDefinition,
-  marketingLaunchPlannerRoleDefinition
+  marketingLaunchPlannerRoleDefinition,
+  ...shopManagerAgentRoleDefinitions
 ];
 
 let agentRoleDefinitionsForTests: AgentRoleDefinition[] | null = null;

@@ -158,6 +158,7 @@ describe("production UI routes", () => {
       "/studio/publish-review",
       "/studio/launch-packet",
       "/studio/ai-employees",
+      "/studio/shop-manager",
       "/studio/ai-employees/hiring",
       "/studio/ai-employees/improvements",
       "/studio/ai-employees/models",

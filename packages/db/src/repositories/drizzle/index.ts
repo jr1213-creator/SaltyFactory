@@ -100,6 +100,16 @@ const tableExportByDbName: Record<string, TableName> = {
   ai_employee_model_assignments: "aiEmployeeModelAssignments",
   ai_model_evaluations: "aiModelEvaluations",
   ai_model_usage_events: "aiModelUsageEvents",
+  commerce_agent_roles: "commerceAgentRoles",
+  commerce_recommendations: "commerceRecommendations",
+  commerce_quality_checks: "commerceQualityChecks",
+  shop_manager_briefs: "shopManagerBriefs",
+  approval_queue_items: "approvalQueueItems",
+  owner_decision_patterns: "ownerDecisionPatterns",
+  approval_prediction_records: "approvalPredictionRecords",
+  owner_approval_feedback: "ownerApprovalFeedback",
+  behavioral_consultations: "behavioralConsultations",
+  process_improvement_findings: "processImprovementFindings",
   business_metrics_snapshots: "businessMetricsSnapshots",
   business_cost_inputs: "businessCostInputs",
   business_unit_economics: "businessUnitEconomics",
@@ -609,6 +619,33 @@ export class DrizzleAiModelRuntimeRepository {
   }
 }
 
+export class DrizzleCommerceAgentOsRepository {
+  readonly roles: DrizzleBaseRepository;
+  readonly recommendations: DrizzleBaseRepository;
+  readonly qualityChecks: DrizzleBaseRepository;
+  readonly shopManagerBriefs: DrizzleBaseRepository;
+  readonly approvalQueueItems: DrizzleBaseRepository;
+  readonly ownerDecisionPatterns: DrizzleBaseRepository;
+  readonly approvalPredictionRecords: DrizzleBaseRepository;
+  readonly ownerApprovalFeedback: DrizzleBaseRepository;
+  readonly behavioralConsultations: DrizzleBaseRepository;
+  readonly processImprovementFindings: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.roles = repo("commerce_agent_roles");
+    this.recommendations = repo("commerce_recommendations");
+    this.qualityChecks = repo("commerce_quality_checks");
+    this.shopManagerBriefs = repo("shop_manager_briefs");
+    this.approvalQueueItems = repo("approval_queue_items");
+    this.ownerDecisionPatterns = repo("owner_decision_patterns");
+    this.approvalPredictionRecords = repo("approval_prediction_records");
+    this.ownerApprovalFeedback = repo("owner_approval_feedback");
+    this.behavioralConsultations = repo("behavioral_consultations");
+    this.processImprovementFindings = repo("process_improvement_findings");
+  }
+}
+
 export class DrizzleMarketingRepository {
   readonly campaigns: DrizzleBaseRepository;
   readonly assets: DrizzleBaseRepository;
@@ -960,6 +997,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     shared: new DrizzleSharedKernelRepository(db, writer),
     aiWorkforce: new DrizzleAiWorkforceRepository(db, writer),
     aiModelRuntime: new DrizzleAiModelRuntimeRepository(db, writer),
+    commerceAgent: new DrizzleCommerceAgentOsRepository(db, writer),
     business: new DrizzleBusinessOsRepository(db, writer)
   };
 }
