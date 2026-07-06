@@ -113,6 +113,15 @@ const tableExportByDbName: Record<string, TableName> = {
   product_readiness_checks: "productReadinessChecks",
   margin_analysis: "marginAnalysis",
   seo_recommendations: "seoRecommendations",
+  storefront_products_cache: "storefrontProductsCache",
+  customer_design_sessions: "customerDesignSessions",
+  customer_design_messages: "customerDesignMessages",
+  customer_design_requirements: "customerDesignRequirements",
+  customer_design_candidates: "customerDesignCandidates",
+  customer_design_approval_events: "customerDesignApprovalEvents",
+  customer_design_publish_jobs: "customerDesignPublishJobs",
+  customer_specific_products: "customerSpecificProducts",
+  concierge_agent_runs: "conciergeAgentRuns",
   business_metrics_snapshots: "businessMetricsSnapshots",
   business_cost_inputs: "businessCostInputs",
   business_unit_economics: "businessUnitEconomics",
@@ -655,6 +664,31 @@ export class DrizzleCommerceAgentOsRepository {
   }
 }
 
+export class DrizzleCustomerDesignRepository {
+  readonly storefrontProductsCache: DrizzleBaseRepository;
+  readonly sessions: DrizzleBaseRepository;
+  readonly messages: DrizzleBaseRepository;
+  readonly requirements: DrizzleBaseRepository;
+  readonly candidates: DrizzleBaseRepository;
+  readonly approvalEvents: DrizzleBaseRepository;
+  readonly publishJobs: DrizzleBaseRepository;
+  readonly customerSpecificProducts: DrizzleBaseRepository;
+  readonly agentRuns: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
+    this.storefrontProductsCache = repo("storefront_products_cache");
+    this.sessions = repo("customer_design_sessions");
+    this.messages = repo("customer_design_messages");
+    this.requirements = repo("customer_design_requirements");
+    this.candidates = repo("customer_design_candidates");
+    this.approvalEvents = repo("customer_design_approval_events");
+    this.publishJobs = repo("customer_design_publish_jobs");
+    this.customerSpecificProducts = repo("customer_specific_products");
+    this.agentRuns = repo("concierge_agent_runs");
+  }
+}
+
 export class DrizzleMarketingRepository {
   readonly campaigns: DrizzleBaseRepository;
   readonly assets: DrizzleBaseRepository;
@@ -1007,6 +1041,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     aiWorkforce: new DrizzleAiWorkforceRepository(db, writer),
     aiModelRuntime: new DrizzleAiModelRuntimeRepository(db, writer),
     commerceAgent: new DrizzleCommerceAgentOsRepository(db, writer),
+    customerDesign: new DrizzleCustomerDesignRepository(db, writer),
     business: new DrizzleBusinessOsRepository(db, writer)
   };
 }

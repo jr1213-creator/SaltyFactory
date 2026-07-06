@@ -228,6 +228,9 @@ importers:
 
   packages/ai-free:
     dependencies:
+      '@saltyfactory/commerce':
+        specifier: workspace:*
+        version: link:../commerce
       '@saltyfactory/config':
         specifier: workspace:*
         version: link:../config

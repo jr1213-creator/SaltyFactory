@@ -1087,6 +1087,164 @@ export const seoRecommendations = pgTable("seo_recommendations", {
   workspaceReviewIdx: index("seo_recommendations_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
 }));
 
+export const storefrontProductsCache = pgTable("storefront_products_cache", {
+  id,
+  ...ownership(),
+  shopifyProductId: text("shopify_product_id").notNull(),
+  handle: text("handle").notNull(),
+  title: text("title").notNull(),
+  descriptionExcerpt: text("description_excerpt"),
+  vendor: text("vendor"),
+  productType: text("product_type"),
+  tags: jsonb("tags").$type<string[]>().notNull().default([]),
+  images: jsonb("images").$type<unknown[]>().notNull().default([]),
+  variants: jsonb("variants").$type<unknown[]>().notNull().default([]),
+  priceMin: money("price_min"),
+  priceMax: money("price_max"),
+  currency: text("currency"),
+  availableForSale: boolean("available_for_sale"),
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceHandleUnique: uniqueIndex("storefront_products_cache_workspace_handle_unique").on(table.workspaceId, table.handle),
+  workspaceProductUnique: uniqueIndex("storefront_products_cache_workspace_shopify_product_unique").on(table.workspaceId, table.shopifyProductId),
+  workspaceAvailableIdx: index("storefront_products_cache_workspace_available_idx").on(table.workspaceId, table.availableForSale)
+}));
+
+export const customerDesignSessions = pgTable("customer_design_sessions", {
+  id,
+  ...ownership(),
+  sessionTokenHash: text("session_token_hash").notNull(),
+  customerId: text("customer_id"),
+  anonymousId: text("anonymous_id"),
+  sourceRoute: text("source_route"),
+  coarseLocation: jsonb("coarse_location").$type<Record<string, unknown> | null>(),
+  status: text("status").notNull().default("active"),
+  customerIntentSummary: text("customer_intent_summary"),
+  expiresAt: timestamp("expires_at", { withTimezone: true })
+}, (table) => ({
+  workspaceTokenIdx: index("customer_design_sessions_workspace_token_idx").on(table.workspaceId, table.sessionTokenHash),
+  workspaceStatusIdx: index("customer_design_sessions_workspace_status_idx").on(table.workspaceId, table.status),
+  workspaceExpiresIdx: index("customer_design_sessions_workspace_expires_idx").on(table.workspaceId, table.expiresAt)
+}));
+
+export const customerDesignMessages = pgTable("customer_design_messages", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  sender: text("sender").notNull(),
+  messageText: text("message_text").notNull(),
+  structuredPayload: jsonb("structured_payload").$type<Record<string, unknown> | null>()
+}, (table) => ({
+  workspaceSessionIdx: index("customer_design_messages_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceSenderIdx: index("customer_design_messages_workspace_sender_idx").on(table.workspaceId, table.sender)
+}));
+
+export const customerDesignRequirements = pgTable("customer_design_requirements", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  productType: text("product_type"),
+  intendedUse: text("intended_use"),
+  recipient: text("recipient"),
+  locationContext: text("location_context"),
+  themeTerms: jsonb("theme_terms").$type<string[]>().notNull().default([]),
+  styleTerms: jsonb("style_terms").$type<string[]>().notNull().default([]),
+  colorTerms: jsonb("color_terms").$type<string[]>().notNull().default([]),
+  phrasePreferences: jsonb("phrase_preferences").$type<string[]>().notNull().default([]),
+  forbiddenTerms: jsonb("forbidden_terms").$type<string[] | null>(),
+  quantityIntent: text("quantity_intent"),
+  deadline: text("deadline"),
+  confidenceScore: confidence("confidence_score").notNull().default("0.5000")
+}, (table) => ({
+  workspaceSessionIdx: index("customer_design_requirements_workspace_session_idx").on(table.workspaceId, table.sessionId)
+}));
+
+export const customerDesignCandidates = pgTable("customer_design_candidates", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  requirementId: text("requirement_id").references(() => customerDesignRequirements.id),
+  candidateIndex: integer("candidate_index").notNull(),
+  title: text("title").notNull(),
+  conceptSummary: text("concept_summary").notNull(),
+  promptText: text("prompt_text"),
+  negativePromptText: text("negative_prompt_text"),
+  designText: text("design_text"),
+  visualMotifs: jsonb("visual_motifs").$type<unknown[]>().notNull().default([]),
+  palette: jsonb("palette").$type<unknown[]>().notNull().default([]),
+  previewAssetId: text("preview_asset_id"),
+  previewImageUrl: text("preview_image_url"),
+  policyReviewId: text("policy_review_id").references(() => policyReviewResults.id),
+  readinessCheckId: text("readiness_check_id").references(() => productReadinessChecks.id),
+  marginAnalysisId: text("margin_analysis_id").references(() => marginAnalysis.id),
+  status: text("status").notNull().default("candidate"),
+  riskFlags: jsonb("risk_flags").$type<unknown[] | null>()
+}, (table) => ({
+  workspaceSessionIdx: index("customer_design_candidates_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceStatusIdx: index("customer_design_candidates_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const customerDesignApprovalEvents = pgTable("customer_design_approval_events", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  candidateId: text("candidate_id").notNull().references(() => customerDesignCandidates.id),
+  eventType: text("event_type").notNull(),
+  customerNote: text("customer_note")
+}, (table) => ({
+  workspaceSessionIdx: index("customer_design_approval_events_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceCandidateIdx: index("customer_design_approval_events_workspace_candidate_idx").on(table.workspaceId, table.candidateId)
+}));
+
+export const customerDesignPublishJobs = pgTable("customer_design_publish_jobs", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  candidateId: text("candidate_id").notNull().references(() => customerDesignCandidates.id),
+  status: text("status").notNull().default("queued"),
+  blockReason: text("block_reason"),
+  shopifyProductId: text("shopify_product_id"),
+  shopifyHandle: text("shopify_handle"),
+  purchaseUrl: text("purchase_url"),
+  productVisibility: text("product_visibility").notNull().default("customer_specific"),
+  safetyChecks: jsonb("safety_checks").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  workspaceSessionIdx: index("customer_design_publish_jobs_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceStatusIdx: index("customer_design_publish_jobs_workspace_status_idx").on(table.workspaceId, table.status)
+}));
+
+export const customerSpecificProducts = pgTable("customer_specific_products", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  candidateId: text("candidate_id").notNull().references(() => customerDesignCandidates.id),
+  publishJobId: text("publish_job_id").notNull().references(() => customerDesignPublishJobs.id),
+  shopifyProductId: text("shopify_product_id").notNull(),
+  shopifyHandle: text("shopify_handle"),
+  purchaseUrl: text("purchase_url"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  promotedToPublic: boolean("promoted_to_public").notNull().default(false),
+  ownerReviewStatus: text("owner_review_status").notNull().default("not_requested")
+}, (table) => ({
+  workspaceSessionIdx: index("customer_specific_products_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceReviewIdx: index("customer_specific_products_workspace_review_idx").on(table.workspaceId, table.ownerReviewStatus)
+}));
+
+export const conciergeAgentRuns = pgTable("concierge_agent_runs", {
+  id,
+  ...ownership(),
+  sessionId: text("session_id").notNull().references(() => customerDesignSessions.id),
+  agentRole: text("agent_role").notNull(),
+  status: text("status").notNull().default("completed"),
+  inputRefs: jsonb("input_refs").$type<unknown[]>().notNull().default([]),
+  outputRefs: jsonb("output_refs").$type<unknown[]>().notNull().default([]),
+  failureCode: text("failure_code")
+}, (table) => ({
+  workspaceSessionIdx: index("concierge_agent_runs_workspace_session_idx").on(table.workspaceId, table.sessionId),
+  workspaceRoleIdx: index("concierge_agent_runs_workspace_role_idx").on(table.workspaceId, table.agentRole)
+}));
+
 export const businessMetricsSnapshots = pgTable("business_metrics_snapshots", {
   id,
   ...ownership(),
@@ -3780,6 +3938,15 @@ export const tables = {
   productReadinessChecks,
   marginAnalysis,
   seoRecommendations,
+  storefrontProductsCache,
+  customerDesignSessions,
+  customerDesignMessages,
+  customerDesignRequirements,
+  customerDesignCandidates,
+  customerDesignApprovalEvents,
+  customerDesignPublishJobs,
+  customerSpecificProducts,
+  conciergeAgentRuns,
   businessMetricsSnapshots,
   businessCostInputs,
   businessUnitEconomics,

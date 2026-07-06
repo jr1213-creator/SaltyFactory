@@ -132,7 +132,7 @@ type PolicyFlag = {
 const policyRules: Array<{ rule_id: string; pattern: RegExp; severity: PolicyFlag["severity"]; category: PolicyFlag["category"]; term: string }> = [
   { rule_id: "protected_ip_brand", pattern: /\b(disney|barbie|taylor swift|nfl|mlb|ncaa|yellowstone|nike|stetson|stanley|buc-?ee'?s?|celebrity)\b/i, severity: "severe", category: "ip", term: "protected brand/ip term" },
   { rule_id: "official_license_claim", pattern: /\b(official|licensed|authentic)\b/i, severity: "high", category: "unsafe_language", term: "official/licensed/authentic" },
-  { rule_id: "copycat_language", pattern: /\b(dupe|inspired by|knockoff|replica|counterfeit|copycat)\b/i, severity: "high", category: "ip", term: "copycat language" },
+  { rule_id: "copycat_language", pattern: /\b(dupe|inspired[- ]by|knockoff|replica|counterfeit|copycat)\b/i, severity: "high", category: "ip", term: "copycat language" },
   { rule_id: "unsupported_superlative", pattern: /\b(guaranteed|best|number one|#1)\b/i, severity: "medium", category: "unsupported_claim", term: "unsupported superlative" },
   { rule_id: "unsupported_material_claim", pattern: /\b(waterproof|handmade|leather|hypoallergenic|eco-friendly|sustainable|non-toxic)\b/i, severity: "medium", category: "unsupported_claim", term: "unsupported material/safety claim" },
   { rule_id: "medical_or_outcome_claim", pattern: /\b(cure|heal|medical|before and after|before\/after)\b/i, severity: "severe", category: "unsupported_claim", term: "medical/outcome claim" },

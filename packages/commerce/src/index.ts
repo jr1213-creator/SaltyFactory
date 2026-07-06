@@ -358,19 +358,154 @@ function resultFromResponse<T>(response: Response, body: any): CommerceResult<T>
 }
 
 export class ShopifyStorefrontProviderDisabled {
-  async getProducts() { return { ok: true as const, data: [] }; }
-  async getProduct() { return { ok: true as const, data: null }; }
-  async getCollections() { return { ok: true as const, data: [] }; }
-  async getCollection() { return { ok: true as const, data: null }; }
+  async getProducts(): Promise<CommerceResult<any[]>> { return { ok: true as const, data: [] }; }
+  async getProduct(_handle?: string): Promise<CommerceResult<any | null>> { return { ok: true as const, data: null }; }
+  async getCollections(): Promise<CommerceResult<any[]>> { return { ok: true as const, data: [] }; }
+  async getCollection(_handle?: string): Promise<CommerceResult<any | null>> { return { ok: true as const, data: null }; }
   async createCart() { return disabled("shopify_storefront_disabled"); }
   async addToCart() { return disabled("shopify_storefront_disabled"); }
   async getCart() { return { ok: true as const, data: null }; }
 }
 
 export class ShopifyStorefrontProviderLive extends ShopifyStorefrontProviderDisabled {
-  constructor(public domain: string, public token: string) {
+  constructor(public domain: string, public token: string, private fetcher: typeof fetch = fetch, private apiVersion = "2024-10") {
     super();
     if (!domain || !token) throw new Error("Shopify Storefront provider requires domain and token");
+  }
+
+  private endpoint() {
+    const cleanDomain = this.domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    return `https://${cleanDomain}/api/${this.apiVersion}/graphql.json`;
+  }
+
+  private async storefrontFetch<T>(query: string, variables: Record<string, unknown> = {}): Promise<CommerceResult<T>> {
+    const response = await this.fetcher(this.endpoint(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Shopify-Storefront-Access-Token": this.token
+      },
+      body: JSON.stringify({ query, variables })
+    });
+    const body = await readJson(response);
+    if (!response.ok || body.errors) return resultFromResponse<T>(response.ok ? new Response(JSON.stringify(body), { status: 400 }) : response, body);
+    return { ok: true, data: body.data as T };
+  }
+
+  private normalizeProduct(node: any) {
+    const variants = Array.isArray(node?.variants?.edges) ? node.variants.edges.map((edge: any) => edge.node).filter(Boolean) : [];
+    const images = Array.isArray(node?.images?.edges) ? node.images.edges.map((edge: any) => edge.node).filter(Boolean) : [];
+    return {
+      id: String(node?.id ?? ""),
+      shopify_product_id: String(node?.id ?? ""),
+      handle: String(node?.handle ?? ""),
+      title: String(node?.title ?? "Product"),
+      description: String(node?.description ?? ""),
+      description_excerpt: String(node?.description ?? "").slice(0, 220),
+      vendor: node?.vendor ?? null,
+      product_type: node?.productType ?? null,
+      tags: Array.isArray(node?.tags) ? node.tags : [],
+      images: images.map((image: any) => ({ url: image.url, altText: image.altText ?? "" })),
+      variants: variants.map((variant: any) => ({
+        id: variant.id,
+        title: variant.title,
+        availableForSale: variant.availableForSale,
+        price: variant.price?.amount ?? null,
+        currency: variant.price?.currencyCode ?? null
+      })),
+      price: node?.priceRange?.minVariantPrice?.amount ? `$${node.priceRange.minVariantPrice.amount}` : null,
+      price_min: node?.priceRange?.minVariantPrice?.amount ?? null,
+      price_max: node?.priceRange?.maxVariantPrice?.amount ?? null,
+      currency: node?.priceRange?.minVariantPrice?.currencyCode ?? null,
+      available_for_sale: Boolean(node?.availableForSale),
+      source_updated_at: node?.updatedAt ?? null
+    };
+  }
+
+  async getProducts() {
+    const query = `query StorefrontProducts($first: Int!) {
+      products(first: $first) {
+        edges {
+          node {
+            id handle title description vendor productType tags availableForSale updatedAt
+            priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+            images(first: 5) { edges { node { url altText } } }
+            variants(first: 20) { edges { node { id title availableForSale price { amount currencyCode } } } }
+          }
+        }
+      }
+    }`;
+    const result = await this.storefrontFetch<{ products?: { edges?: Array<{ node?: unknown }> } }>(query, { first: 48 });
+    if (!result.ok) return result;
+    return { ok: true as const, data: (result.data.products?.edges ?? []).map((edge) => this.normalizeProduct(edge.node)).filter((product) => product.handle) };
+  }
+
+  async getProduct(handle = "") {
+    if (!handle) return { ok: true as const, data: null };
+    const query = `query StorefrontProduct($handle: String!) {
+      product(handle: $handle) {
+        id handle title description vendor productType tags availableForSale updatedAt
+        priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+        images(first: 8) { edges { node { url altText } } }
+        variants(first: 50) { edges { node { id title availableForSale price { amount currencyCode } } } }
+      }
+    }`;
+    const result = await this.storefrontFetch<{ product?: unknown }>(query, { handle });
+    if (!result.ok) return result;
+    return { ok: true as const, data: result.data.product ? this.normalizeProduct(result.data.product) : null };
+  }
+
+  async getCollections() {
+    const query = `query StorefrontCollections($first: Int!) {
+      collections(first: $first) { edges { node { id handle title description updatedAt image { url altText } } } }
+    }`;
+    const result = await this.storefrontFetch<{ collections?: { edges?: Array<{ node?: any }> } }>(query, { first: 48 });
+    if (!result.ok) return result;
+    return {
+      ok: true as const,
+      data: (result.data.collections?.edges ?? []).map((edge) => ({
+        id: String(edge.node?.id ?? ""),
+        handle: String(edge.node?.handle ?? ""),
+        title: String(edge.node?.title ?? "Collection"),
+        description: String(edge.node?.description ?? ""),
+        image: edge.node?.image ? { url: edge.node.image.url, altText: edge.node.image.altText ?? "" } : null,
+        source_updated_at: edge.node?.updatedAt ?? null
+      })).filter((collection) => collection.handle)
+    };
+  }
+
+  async getCollection(handle = "") {
+    if (!handle) return { ok: true as const, data: null };
+    const query = `query StorefrontCollection($handle: String!) {
+      collection(handle: $handle) {
+        id handle title description updatedAt image { url altText }
+        products(first: 48) {
+          edges {
+            node {
+              id handle title description vendor productType tags availableForSale updatedAt
+              priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+              images(first: 5) { edges { node { url altText } } }
+              variants(first: 20) { edges { node { id title availableForSale price { amount currencyCode } } } }
+            }
+          }
+        }
+      }
+    }`;
+    const result = await this.storefrontFetch<{ collection?: any }>(query, { handle });
+    if (!result.ok) return result;
+    const collection = result.data.collection;
+    if (!collection) return { ok: true as const, data: null };
+    return {
+      ok: true as const,
+      data: {
+        id: String(collection.id ?? ""),
+        handle: String(collection.handle ?? ""),
+        title: String(collection.title ?? "Collection"),
+        description: String(collection.description ?? ""),
+        image: collection.image ? { url: collection.image.url, altText: collection.image.altText ?? "" } : null,
+        products: (collection.products?.edges ?? []).map((edge: any) => this.normalizeProduct(edge.node)).filter((product: any) => product.handle)
+      }
+    };
   }
 }
 
@@ -722,7 +857,7 @@ export type CommerceProviderOverrides = {
 };
 
 export const createCommerceProviders = (c: RuntimeConfig, fetcher?: typeof fetch, overrides: CommerceProviderOverrides = {}) => ({
-  storefront: c.providers.shopifyStorefront.enabled ? new ShopifyStorefrontProviderLive(c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_STOREFRONT_TOKEN) : new ShopifyStorefrontProviderDisabled(),
+  storefront: c.providers.shopifyStorefront.enabled ? new ShopifyStorefrontProviderLive(c.SHOPIFY_STORE_DOMAIN, c.SHOPIFY_STOREFRONT_TOKEN, fetcher) : new ShopifyStorefrontProviderDisabled(),
   admin: overrides.admin ?? (c.providers.shopifyAdmin.enabled ? new ShopifyAdminProviderLive(c.SHOPIFY_STORE_DOMAIN, {
     credentialMode: c.SHOPIFY_CLIENT_ID && c.SHOPIFY_CLIENT_SECRET ? "dev_dashboard_client_credentials" : "legacy_admin_token",
     adminToken: c.SHOPIFY_ADMIN_TOKEN,

@@ -227,6 +227,18 @@ export interface CommerceAgentOsRepositoryContract {
   seoRecommendations: BaseRepositoryContract;
 }
 
+export interface CustomerDesignRepositoryContract {
+  storefrontProductsCache: BaseRepositoryContract;
+  sessions: BaseRepositoryContract;
+  messages: BaseRepositoryContract;
+  requirements: BaseRepositoryContract;
+  candidates: BaseRepositoryContract;
+  approvalEvents: BaseRepositoryContract;
+  publishJobs: BaseRepositoryContract;
+  customerSpecificProducts: BaseRepositoryContract;
+  agentRuns: BaseRepositoryContract;
+}
+
 export interface BusinessOsRepositoryContract {
   metricsSnapshots: BaseRepositoryContract;
   costInputs: BaseRepositoryContract;
@@ -317,6 +329,7 @@ export interface RepositoryBundle {
   aiWorkforce: AiWorkforceRepositoryContract;
   aiModelRuntime: AiModelRuntimeRepositoryContract;
   commerceAgent: CommerceAgentOsRepositoryContract;
+  customerDesign: CustomerDesignRepositoryContract;
   business: BusinessOsRepositoryContract;
 }
 

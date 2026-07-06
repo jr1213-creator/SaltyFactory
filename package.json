@@ -42,6 +42,7 @@
     "smoke:marketing-launch-planning": "tsx scripts/smoke-marketing-launch-planning.ts",
     "smoke:shop-manager-agent-os": "tsx scripts/smoke-shop-manager-agent-os.ts",
     "smoke:agent-deterministic-core": "tsx scripts/smoke-agent-deterministic-core.ts",
+    "smoke:customer-design-concierge": "tsx scripts/smoke-customer-design-concierge.ts",
     "smoke:local-folder-image-import": "tsx scripts/smoke-local-folder-image-import.ts"
   },
   "dependencies": {

@@ -582,6 +582,31 @@ export class CommerceAgentOsRepository {
   }
 }
 
+export class CustomerDesignRepository {
+  readonly storefrontProductsCache: BaseRepository;
+  readonly sessions: BaseRepository;
+  readonly messages: BaseRepository;
+  readonly requirements: BaseRepository;
+  readonly candidates: BaseRepository;
+  readonly approvalEvents: BaseRepository;
+  readonly publishJobs: BaseRepository;
+  readonly customerSpecificProducts: BaseRepository;
+  readonly agentRuns: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
+    this.storefrontProductsCache = repo("storefront_products_cache");
+    this.sessions = repo("customer_design_sessions");
+    this.messages = repo("customer_design_messages");
+    this.requirements = repo("customer_design_requirements");
+    this.candidates = repo("customer_design_candidates");
+    this.approvalEvents = repo("customer_design_approval_events");
+    this.publishJobs = repo("customer_design_publish_jobs");
+    this.customerSpecificProducts = repo("customer_specific_products");
+    this.agentRuns = repo("concierge_agent_runs");
+  }
+}
+
 export class MarketingRepository {
   readonly campaigns: BaseRepository;
   readonly assets: BaseRepository;
@@ -926,6 +951,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     aiWorkforce: new AiWorkforceRepository(store, writer),
     aiModelRuntime: new AiModelRuntimeRepository(store, writer),
     commerceAgent: new CommerceAgentOsRepository(store, writer),
+    customerDesign: new CustomerDesignRepository(store, writer),
     business: new BusinessOsRepository(store, writer)
   };
 }
