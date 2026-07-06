@@ -29,7 +29,8 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
         providerUsed: value(transcript.run, "provider_used"),
         modelUsed: value(transcript.run, "model_used"),
         turnCount: Number((value(transcript.run, "metadata") as Record<string, unknown> | undefined)?.turnCount ?? 0),
-        blockingReason: (value(transcript.run, "metadata") as Record<string, unknown> | undefined)?.blockingReason ?? null
+        blockingReason: (value(transcript.run, "metadata") as Record<string, unknown> | undefined)?.blockingReason ?? null,
+        errorCode: (value(transcript.run, "metadata") as Record<string, unknown> | undefined)?.errorCode ?? null
       },
       events: transcript.events.map((event) => ({
         id: event.id,

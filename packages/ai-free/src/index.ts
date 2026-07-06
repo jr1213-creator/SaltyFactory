@@ -964,9 +964,13 @@ export {
 } from "./agent-tools";
 export {
   assertToolIsAllowedForRole,
+  enqueueLocalOllamaAgentRun,
   listAgentTranscript,
   runLocalOllamaAgentTask,
   summarizeTranscriptEvents,
   type AgentTaskResult,
+  type AgentRunJobPayload,
+  type QueueLocalOllamaAgentRunInput,
+  type QueuedAgentRunResult,
   type RunLocalOllamaAgentTaskInput
 } from "./agent-runtime";

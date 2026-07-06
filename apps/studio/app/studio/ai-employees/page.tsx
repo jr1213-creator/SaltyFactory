@@ -37,7 +37,7 @@ export default async function Page() {
     <PageHeader title="AI Employees" description="AI employees run the Salty Cowhide POD workflow as safe drafts. Jennie approves, rejects, edits, or requests changes before anything goes public." />
     <div className="layout-grid layout-grid-3">
       <ProviderStatusCard title="AI Work Queue" status={`${approvalQueue.length} waiting`} tone={approvalQueue.length ? "warning" : "success"} description="Trend reports, product ideas, prompts, assets, mockups, listings, pricing, and launch actions awaiting owner review." />
-      <ProviderStatusCard title="Run mode" status="Owner-triggered" tone="primary" description="No background loops. No public/provider effects. Runs create internal draft outputs only." />
+      <ProviderStatusCard title="Run mode" status="Queued worker" tone="primary" description="Owner-triggered runs enqueue durable worker jobs. No public/provider effects. Runs create internal draft outputs only." />
       <ProviderStatusCard title="Image generation" status="Provider-gated" tone="warning" description="When no image provider is configured, employees create prompt drafts only. No fake images are created." />
     </div>
     <AiEmployeeWorkflowClient />

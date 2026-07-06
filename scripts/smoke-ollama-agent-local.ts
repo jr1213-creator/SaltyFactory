@@ -3,7 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRepositories, type WorkspaceRow } from "@saltyfactory/db";
-import { listAgentTranscript, runLocalOllamaAgentTask, summarizeTranscriptEvents } from "@saltyfactory/ai-free";
+import { enqueueLocalOllamaAgentRun, listAgentTranscript, summarizeTranscriptEvents } from "@saltyfactory/ai-free";
+import { runWorkerOnce } from "../apps/worker/src/index";
 
 const workspaceId = process.env.STUDIO_WORKSPACE_ID || "wks_default";
 const model = process.env.OLLAMA_MODEL || "qwen3:8b";
@@ -264,9 +265,10 @@ export async function main() {
   loadLocalEnv();
   process.env.AI_EMPLOYEES_REAL_AGENT_ENABLED ||= "true";
   process.env.AI_EMPLOYEES_MODEL_PROVIDER ||= "ollama";
+  process.env.AI_EMPLOYEES_AGENT_EXECUTION_MODE ||= "queued";
   await assertOllamaReady();
   const { repos, draft } = await prepareOllamaSmokeDraft();
-  const result = await runLocalOllamaAgentTask({
+  const queued = await enqueueLocalOllamaAgentRun({
     repos,
     workspaceId,
     actorId: "ollama_smoke_owner",
@@ -277,28 +279,60 @@ export async function main() {
       instructions: "Use the tools to draft product listing copy and readiness blockers for human review."
     }
   });
-  const transcript = await listAgentTranscript({ repos, workspaceId, agentRunId: result.agentRunId });
+
+  if (!queued.ok) {
+    throw new Error(JSON.stringify({
+      ok: false,
+      code: queued.errorCode ?? "agent_queue_failed",
+      message: queued.message,
+      agentRunId: queued.agentRunId ?? null
+    }));
+  }
+
+  let result = null as Awaited<ReturnType<typeof listAgentTranscript>> | null;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await runWorkerOnce(undefined, { repos });
+    result = await listAgentTranscript({ repos, workspaceId, agentRunId: queued.agentRunId });
+    const status = String(result?.run?.status ?? "");
+    if (["completed", "blocked", "failed", "incomplete"].includes(status)) break;
+  }
+
+  const transcript = result ?? await listAgentTranscript({ repos, workspaceId, agentRunId: queued.agentRunId });
+  if (!transcript) throw new Error(JSON.stringify({ ok: false, code: "agent_transcript_missing", agentRunId: queued.agentRunId }));
+  const status = String(transcript.run.status ?? "");
+  if (!["completed", "blocked", "failed", "incomplete"].includes(status)) {
+    throw new Error(JSON.stringify({ ok: false, code: "worker_not_running", agentRunId: queued.agentRunId, status }));
+  }
   const summary = summarizeTranscriptEvents(transcript?.events ?? []);
-  if (!result.agentRunId || !transcript?.events.length) throw new Error(JSON.stringify({ ok: false, code: "agent_transcript_missing", agentRunId: result.agentRunId }));
-  if (result.providerUsed !== "ollama") throw new Error(JSON.stringify({ ok: false, code: "provider_not_ollama", providerUsed: result.providerUsed }));
-  if (!result.modelUsed) throw new Error(JSON.stringify({ ok: false, code: "model_missing" }));
-  if (!result.finalOutputId && !result.blockingReason) throw new Error(JSON.stringify({ ok: false, code: "no_final_output_or_blocker", agentRunId: result.agentRunId }));
+  const metadata = (transcript.run.metadata ?? transcript.run["metadata"]) as Record<string, unknown> | undefined;
+  const finalOutputId = typeof metadata?.finalOutputId === "string"
+    ? metadata.finalOutputId
+    : typeof (transcript.run.output_json as Record<string, unknown> | undefined)?.finalOutputId === "string"
+      ? (transcript.run.output_json as Record<string, unknown>).finalOutputId as string
+      : null;
+  const blockingReason = typeof metadata?.blockingReason === "string" ? metadata.blockingReason : null;
+  if (!queued.agentRunId || !transcript.events.length) throw new Error(JSON.stringify({ ok: false, code: "agent_transcript_missing", agentRunId: queued.agentRunId }));
+  if (transcript.run.provider_used !== "ollama" && transcript.run.providerUsed !== "ollama") {
+    throw new Error(JSON.stringify({ ok: false, code: "provider_not_ollama", providerUsed: transcript.run.provider_used ?? transcript.run.providerUsed }));
+  }
+  if (!(transcript.run.model_used ?? transcript.run.modelUsed)) throw new Error(JSON.stringify({ ok: false, code: "model_missing" }));
+  if (!finalOutputId && !blockingReason) throw new Error(JSON.stringify({ ok: false, code: "no_final_output_or_blocker", agentRunId: queued.agentRunId }));
   if (summary.toolCalls.length === 0 && process.env.OLLAMA_AGENT_ALLOW_TEXT_ONLY_SMOKE !== "true") {
-    throw new Error(JSON.stringify({ ok: false, code: "model_tool_calling_unsupported", model, agentRunId: result.agentRunId }));
+    throw new Error(JSON.stringify({ ok: false, code: "model_tool_calling_unsupported", model, agentRunId: queued.agentRunId }));
   }
   const report = {
-    ok: result.ok,
-    status: result.status,
+    ok: status === "completed",
+    status,
     provider: "ollama",
-    model: result.modelUsed,
+    model: transcript.run.model_used ?? transcript.run.modelUsed,
     endpoint: `${baseUrl}/api/chat`,
     workspaceId,
     productDraftId: draft.id,
-    agentRunId: result.agentRunId,
+    agentRunId: queued.agentRunId,
     transcriptEventCount: transcript.events.length,
-    toolCallsExecuted: result.toolCallsExecuted,
-    finalOutputId: result.finalOutputId ?? null,
-    blockingReason: result.blockingReason ?? null
+    toolCallsExecuted: summary.toolCalls,
+    finalOutputId,
+    blockingReason
   };
   const outDir = path.join(process.cwd(), "test-results", "ollama-agent-local-smoke");
   await mkdir(outDir, { recursive: true });

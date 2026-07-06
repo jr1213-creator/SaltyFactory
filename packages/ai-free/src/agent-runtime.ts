@@ -1,7 +1,9 @@
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories, now, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
+import { sanitizeProviderError } from "@saltyfactory/security";
 import {
-  getAgentRoleDefinition
+  getAgentRoleDefinition,
+  type AgentRoleDefinition
 } from "./agent-roles";
 import {
   createModelRuntimeProvider,
@@ -31,6 +33,25 @@ export type RunLocalOllamaAgentTaskInput = {
   maxTurns?: number | undefined;
   repos?: RepositoryBundle | undefined;
   modelProvider?: ModelRuntimeProvider | undefined;
+  agentRunId?: string | undefined;
+  taskQueueId?: string | undefined;
+};
+
+export type QueueLocalOllamaAgentRunInput = Omit<RunLocalOllamaAgentTaskInput, "modelProvider" | "agentRunId" | "taskQueueId">;
+
+export type AgentRunJobPayload = {
+  agentRunId: string;
+  workspaceId: string;
+  actorId?: string | undefined;
+  roleKey: string;
+  taskType: string;
+  taskInput: {
+    productDraftId?: string | undefined;
+    assetId?: string | undefined;
+    mockupId?: string | undefined;
+    instructions?: string | undefined;
+  };
+  maxTurns?: number | undefined;
 };
 
 export type AgentTaskResult = {
@@ -48,17 +69,48 @@ export type AgentTaskResult = {
   requiresHumanReview?: boolean | undefined;
 };
 
+export type QueuedAgentRunResult =
+  | {
+    ok: true;
+    status: "queued";
+    agentRunId: string;
+    taskQueueId: string;
+    providerUsed: "ollama";
+    modelUsed: string;
+    turnCount: 0;
+    toolCallsExecuted: [];
+    payload: AgentRunJobPayload;
+  }
+  | {
+    ok: false;
+    status: "blocked" | "failed";
+    agentRunId?: string | undefined;
+    turnCount: 0;
+    toolCallsExecuted: [];
+    blockingReason?: string | undefined;
+    errorCode?: string | undefined;
+    message: string;
+  };
+
 type OllamaRuntimeSelection =
   | { ok: true; provider: ModelRuntimeProvider; providerRow: WorkspaceRow; modelKey: string }
   | { ok: false; code: string; message: string };
+
+type AgentRoleValidation =
+  | { ok: true; roleDefinition: AgentRoleDefinition }
+  | { ok: false; code: "unknown_agent_role" | "unsupported_agent_task_type"; message: string };
+
+type AgentInputRef = { inputRefType: string; inputRefId: string };
 
 const id = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const value = (row: WorkspaceRow | null | undefined, snake: string, camel = snake.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())) =>
   row ? row[snake] ?? row[camel] : undefined;
 const asRecord = (input: unknown): Record<string, unknown> => input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
 const stringArray = (input: unknown): string[] => Array.isArray(input) ? input.map(String) : [];
+const secretPattern = /Bearer\s+[A-Za-z0-9._~+/=-]{6,}|\bhf_[A-Za-z0-9]{6,}\b|access_token|refresh_token|api[_-]?token|client[_-]?secret|service[_-]?role|authorization/i;
 
 function sanitizeForTranscript(input: unknown): unknown {
+  if (typeof input === "string") return secretPattern.test(input) ? sanitizeProviderError(input) : input;
   if (Array.isArray(input)) return input.map(sanitizeForTranscript);
   if (!input || typeof input !== "object") return input;
   const out: Record<string, unknown> = {};
@@ -75,6 +127,75 @@ function sanitizeForTranscript(input: unknown): unknown {
 function parsePositiveInt(input: unknown, fallback: number) {
   const parsed = Number(input);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function normalizeMaxTurns(input: unknown) {
+  return Math.min(parsePositiveInt(input ?? process.env.OLLAMA_AGENT_MAX_TURNS, 6), 12);
+}
+
+function agentInputRef(taskInput: RunLocalOllamaAgentTaskInput["taskInput"], workspaceId: string): AgentInputRef {
+  if (taskInput.productDraftId) return { inputRefType: "product_draft", inputRefId: taskInput.productDraftId };
+  if (taskInput.assetId) return { inputRefType: "asset", inputRefId: taskInput.assetId };
+  if (taskInput.mockupId) return { inputRefType: "mockup", inputRefId: taskInput.mockupId };
+  return { inputRefType: "workspace", inputRefId: workspaceId };
+}
+
+function buildUserMessage(input: Pick<RunLocalOllamaAgentTaskInput, "taskType" | "taskInput">) {
+  return JSON.stringify({
+    taskType: input.taskType,
+    productDraftId: input.taskInput.productDraftId ?? null,
+    assetId: input.taskInput.assetId ?? null,
+    mockupId: input.taskInput.mockupId ?? null,
+    instructions: input.taskInput.instructions ?? "Draft title, description, SEO metadata, and readiness blockers for human review.",
+    requirement: "Use the available tools before producing the final draft."
+  });
+}
+
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const candidates = [unfenced];
+  const first = unfenced.indexOf("{");
+  const last = unfenced.lastIndexOf("}");
+  if (first >= 0 && last > first) candidates.push(unfenced.slice(first, last + 1));
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      return asRecord(parsed);
+    } catch {
+      // Keep trying likely model output variants.
+    }
+  }
+  return null;
+}
+
+function buildRunMetadata(base: Record<string, unknown>, patch: Record<string, unknown> = {}) {
+  return {
+    ...base,
+    ...patch,
+    realLocalAgent: true,
+    deterministicFallback: false
+  };
+}
+
+function createdDayKey(row: WorkspaceRow) {
+  const stamp = String(value(row, "created_at") ?? value(row, "started_at") ?? value(row, "updated_at") ?? "");
+  return stamp ? new Date(stamp).toISOString().slice(0, 10) : "";
+}
+
+function validateAgentInput(input: Pick<RunLocalOllamaAgentTaskInput, "roleKey" | "taskType">): AgentRoleValidation {
+  const roleDefinition = getAgentRoleDefinition(input.roleKey);
+  if (!roleDefinition) {
+    return { ok: false, code: "unknown_agent_role", message: `Unknown agent role: ${input.roleKey}` };
+  }
+  if (!roleDefinition.taskTypes.includes(input.taskType)) {
+    return {
+      ok: false,
+      code: "unsupported_agent_task_type",
+      message: `Task type ${input.taskType} is not allowed for agent role ${input.roleKey}`
+    };
+  }
+  return { ok: true, roleDefinition };
 }
 
 async function appendTranscriptEvent(input: {
@@ -100,40 +221,17 @@ async function appendTranscriptEvent(input: {
 }
 
 async function updateRun(repos: RepositoryBundle, runId: string, patch: Partial<WorkspaceRow>) {
+  const current = await repos.aiEmployee.runs.getById(runId);
+  const currentMetadata = asRecord(value(current, "metadata"));
+  const nextMetadata = patch.metadata === undefined
+    ? undefined
+    : buildRunMetadata(currentMetadata, asRecord(patch.metadata));
   return repos.aiEmployee.runs.update(runId, {
     ...patch,
+    ...(nextMetadata ? { metadata: nextMetadata } : {}),
     updated_at: now(),
     updatedAt: now()
   } as WorkspaceRow);
-}
-
-function buildUserMessage(input: RunLocalOllamaAgentTaskInput) {
-  return JSON.stringify({
-    taskType: input.taskType,
-    productDraftId: input.taskInput.productDraftId ?? null,
-    assetId: input.taskInput.assetId ?? null,
-    mockupId: input.taskInput.mockupId ?? null,
-    instructions: input.taskInput.instructions ?? "Draft title, description, SEO metadata, and readiness blockers for human review.",
-    requirement: "Use the available tools before producing the final draft."
-  });
-}
-
-function extractJsonObject(text: string): Record<string, unknown> | null {
-  const trimmed = text.trim();
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  const candidates = [unfenced];
-  const first = unfenced.indexOf("{");
-  const last = unfenced.lastIndexOf("}");
-  if (first >= 0 && last > first) candidates.push(unfenced.slice(first, last + 1));
-  for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate);
-      return asRecord(parsed);
-    } catch {
-      // keep trying
-    }
-  }
-  return null;
 }
 
 async function persistFinalOutput(input: {
@@ -226,7 +324,7 @@ function providerFailureStatus(result: ModelTextResult): AgentTaskResult["status
   return "failed";
 }
 
-async function createBlockedRoleValidationRun(input: {
+async function persistBlockedRun(input: {
   repos: RepositoryBundle;
   runId: string;
   workspaceId: string;
@@ -237,34 +335,45 @@ async function createBlockedRoleValidationRun(input: {
   code: "unknown_agent_role" | "unsupported_agent_task_type";
   message: string;
   maxTurns: number;
+  taskQueueId?: string | undefined;
+  existingRun?: boolean | undefined;
 }) {
   const completedAt = now();
-  await input.repos.aiEmployee.createRun({
-    id: input.runId,
+  const inputRef = agentInputRef(input.taskInput, input.workspaceId);
+  const patch: Partial<WorkspaceRow> = {
     workspace_id: input.workspaceId,
+    task_id: input.taskQueueId ?? null,
+    taskId: input.taskQueueId ?? null,
     employee_type: input.roleKey,
     task_type: input.taskType,
-    input_ref_type: input.taskInput.productDraftId ? "product_draft" : input.taskInput.assetId ? "asset" : "workspace",
-    input_ref_id: input.taskInput.productDraftId ?? input.taskInput.assetId ?? input.workspaceId,
+    input_ref_type: inputRef.inputRefType,
+    input_ref_id: inputRef.inputRefId,
     status: "blocked",
-    provider_used: null,
-    model_used: null,
+    provider_used: "ollama",
+    model_used: parseEnv().OLLAMA_MODEL,
     output_json: { taskInput: input.taskInput },
     blocked_reasons: [input.code],
     requires_human_review: true,
-    created_by: input.actorId ?? null,
     updated_by: input.actorId ?? null,
     started_at: completedAt,
     completed_at: completedAt,
     error: input.message,
     metadata: {
-      realLocalAgent: true,
       maxTurns: input.maxTurns,
       turnCount: 0,
       blockingReason: input.code,
-      deterministicFallback: false
+      errorCode: input.code
     }
-  } as WorkspaceRow);
+  };
+  if (input.existingRun) {
+    await updateRun(input.repos, input.runId, patch);
+  } else {
+    await input.repos.aiEmployee.createRun({
+      ...patch,
+      id: input.runId,
+      created_by: input.actorId ?? null
+    } as WorkspaceRow);
+  }
   await appendTranscriptEvent({
     repos: input.repos,
     workspaceId: input.workspaceId,
@@ -280,264 +389,646 @@ async function createBlockedRoleValidationRun(input: {
   });
 }
 
-export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInput): Promise<AgentTaskResult> {
+async function countWorkspaceAgentRunsForDay(input: {
+  repos: RepositoryBundle;
+  workspaceId: string;
+  dayKey?: string | undefined;
+}) {
+  const runs = await input.repos.aiEmployee.runs.listByWorkspace(input.workspaceId);
+  const dayKey = input.dayKey ?? new Date().toISOString().slice(0, 10);
+  return runs.filter((run) => createdDayKey(run) === dayKey).length;
+}
+
+export async function enqueueLocalOllamaAgentRun(input: QueueLocalOllamaAgentRunInput): Promise<QueuedAgentRunResult> {
   const repos = input.repos ?? createRepositories();
-  const maxTurns = Math.min(parsePositiveInt(input.maxTurns ?? process.env.OLLAMA_AGENT_MAX_TURNS, 6), 12);
+  const config = parseEnv();
+  const maxTurns = normalizeMaxTurns(input.maxTurns);
+  const validation = validateAgentInput({ roleKey: input.roleKey, taskType: input.taskType });
+
+  if (!validation.ok) {
+    const runId = id("agent_run");
+    await persistBlockedRun({
+      repos,
+      runId,
+      workspaceId: input.workspaceId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      roleKey: input.roleKey,
+      taskType: input.taskType,
+      taskInput: input.taskInput,
+      code: validation.code,
+      message: validation.message,
+      maxTurns
+    });
+    return {
+      ok: false,
+      status: "blocked",
+      agentRunId: runId,
+      turnCount: 0,
+      toolCallsExecuted: [],
+      blockingReason: validation.code,
+      errorCode: validation.code,
+      message: validation.message
+    };
+  }
+
+  const dailyLimit = parsePositiveInt(config.AI_EMPLOYEES_AGENT_MAX_RUNS_PER_WORKSPACE_PER_DAY, 25);
+  const runsToday = await countWorkspaceAgentRunsForDay({ repos, workspaceId: input.workspaceId });
+  if (runsToday >= dailyLimit) {
+    return {
+      ok: false,
+      status: "blocked",
+      turnCount: 0,
+      toolCallsExecuted: [],
+      blockingReason: "agent_daily_limit_exceeded",
+      errorCode: "agent_daily_limit_exceeded",
+      message: `Daily AI employee run limit reached for workspace ${input.workspaceId}.`
+    };
+  }
+
   const runId = id("agent_run");
-  const roleDefinition = getAgentRoleDefinition(input.roleKey);
-  if (!roleDefinition) {
-    const message = `Unknown agent role: ${input.roleKey}`;
-    await createBlockedRoleValidationRun({
-      repos,
-      runId,
-      workspaceId: input.workspaceId,
-      ...(input.actorId ? { actorId: input.actorId } : {}),
-      roleKey: input.roleKey,
-      taskType: input.taskType,
-      taskInput: input.taskInput,
-      code: "unknown_agent_role",
-      message,
-      maxTurns
-    });
-    return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: "unknown_agent_role", errorCode: "unknown_agent_role" };
-  }
-  if (!roleDefinition.taskTypes.includes(input.taskType)) {
-    const message = `Task type ${input.taskType} is not allowed for agent role ${input.roleKey}`;
-    await createBlockedRoleValidationRun({
-      repos,
-      runId,
-      workspaceId: input.workspaceId,
-      ...(input.actorId ? { actorId: input.actorId } : {}),
-      roleKey: input.roleKey,
-      taskType: input.taskType,
-      taskInput: input.taskInput,
-      code: "unsupported_agent_task_type",
-      message,
-      maxTurns
-    });
-    return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: "unsupported_agent_task_type", errorCode: "unsupported_agent_task_type" };
-  }
-  const startedAt = now();
+  const taskQueueId = id("agent_task");
+  const queuedAt = now();
+  const inputRef = agentInputRef(input.taskInput, input.workspaceId);
+  const payload: AgentRunJobPayload = {
+    agentRunId: runId,
+    workspaceId: input.workspaceId,
+    ...(input.actorId ? { actorId: input.actorId } : {}),
+    roleKey: input.roleKey,
+    taskType: input.taskType,
+    taskInput: input.taskInput,
+    maxTurns
+  };
+
   await repos.aiEmployee.createRun({
     id: runId,
     workspace_id: input.workspaceId,
+    task_id: null,
     employee_type: input.roleKey,
     task_type: input.taskType,
-    input_ref_type: input.taskInput.productDraftId ? "product_draft" : input.taskInput.assetId ? "asset" : "workspace",
-    input_ref_id: input.taskInput.productDraftId ?? input.taskInput.assetId ?? input.workspaceId,
-    status: "running",
+    input_ref_type: inputRef.inputRefType,
+    input_ref_id: inputRef.inputRefId,
+    status: "queued",
     provider_used: "ollama",
-    model_used: null,
+    model_used: config.OLLAMA_MODEL,
     output_json: { taskInput: input.taskInput },
     blocked_reasons: [],
     requires_human_review: true,
     created_by: input.actorId ?? null,
     updated_by: input.actorId ?? null,
-    started_at: startedAt,
     metadata: {
-      realLocalAgent: true,
+      queuedAt,
       maxTurns,
-      turnCount: 0,
-      deterministicFallback: false
+      turnCount: 0
     }
   } as WorkspaceRow);
 
+  try {
+    await repos.aiEmployee.tasks.create({
+      id: taskQueueId,
+      workspace_id: input.workspaceId,
+      employee_type: input.roleKey,
+      task_type: "agent_run",
+      input_ref_type: inputRef.inputRefType,
+      input_ref_id: inputRef.inputRefId,
+      priority: 0,
+      status: "queued",
+      requested_by: input.actorId ?? null,
+      instructions: input.taskInput.instructions ?? null,
+      input_json: payload as unknown as Record<string, unknown>,
+      metadata: {
+        workerQueue: true,
+        workerQueueType: "agent_run",
+        agentRunId: runId,
+        queuedAt
+      }
+    } as WorkspaceRow);
+    await updateRun(repos, runId, {
+      task_id: taskQueueId,
+      taskId: taskQueueId,
+      metadata: { queueTaskId: taskQueueId }
+    });
+  } catch (error) {
+    const queueError = sanitizeProviderError(error);
+    await appendTranscriptEvent({
+      repos,
+      workspaceId: input.workspaceId,
+      runId,
+      turnIndex: 0,
+      eventType: "error",
+      content: {
+        code: "agent_queue_unavailable",
+        message: "Durable agent queue is unavailable."
+      }
+    });
+    await updateRun(repos, runId, {
+      status: "failed",
+      error: "agent_queue_unavailable",
+      completed_at: now(),
+      metadata: {
+        maxTurns,
+        turnCount: 0,
+        blockingReason: "agent_queue_unavailable",
+        errorCode: "agent_queue_unavailable"
+      }
+    });
+    return {
+      ok: false,
+      status: "failed",
+      agentRunId: runId,
+      turnCount: 0,
+      toolCallsExecuted: [],
+      blockingReason: "agent_queue_unavailable",
+      errorCode: "agent_queue_unavailable",
+      message: queueError || "Durable agent queue is unavailable."
+    };
+  }
+
+  return {
+    ok: true,
+    status: "queued",
+    agentRunId: runId,
+    taskQueueId,
+    providerUsed: "ollama",
+    modelUsed: config.OLLAMA_MODEL,
+    turnCount: 0,
+    toolCallsExecuted: [],
+    payload
+  };
+}
+
+export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInput): Promise<AgentTaskResult> {
+  const repos = input.repos ?? createRepositories();
+  const config = parseEnv();
+  const maxTurns = normalizeMaxTurns(input.maxTurns);
+  const runId = input.agentRunId ?? id("agent_run");
+  const validation = validateAgentInput({ roleKey: input.roleKey, taskType: input.taskType });
+  const toolCallsExecuted: string[] = [];
+  let turnCount = 0;
+
+  if (!validation.ok) {
+    await persistBlockedRun({
+      repos,
+      runId,
+      workspaceId: input.workspaceId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      roleKey: input.roleKey,
+      taskType: input.taskType,
+      taskInput: input.taskInput,
+      code: validation.code,
+      message: validation.message,
+      maxTurns,
+      ...(input.taskQueueId ? { taskQueueId: input.taskQueueId } : {}),
+      ...(input.agentRunId ? { existingRun: true } : {})
+    });
+    return {
+      ok: false,
+      status: "blocked",
+      agentRunId: runId,
+      turnCount: 0,
+      toolCallsExecuted,
+      blockingReason: validation.code,
+      errorCode: validation.code
+    };
+  }
+
+  const roleDefinition = validation.roleDefinition;
+  const inputRef = agentInputRef(input.taskInput, input.workspaceId);
+  const startedAt = now();
   const systemPrompt = roleDefinition.buildSystemPrompt({
     roleKey: input.roleKey,
     taskType: input.taskType,
     taskInput: input.taskInput
   });
   const userMessage = buildUserMessage(input);
-  await appendTranscriptEvent({
-    repos,
-    workspaceId: input.workspaceId,
-    runId,
-    turnIndex: 0,
-    eventType: "system_message",
-    role: "system",
-    content: { text: systemPrompt }
-  });
-  await appendTranscriptEvent({
-    repos,
-    workspaceId: input.workspaceId,
-    runId,
-    turnIndex: 0,
-    eventType: "user_message",
-    role: "user",
-    content: { text: userMessage }
-  });
 
-  const runtime = await resolveOllamaRuntime({
-    workspaceId: input.workspaceId,
-    repos,
-    ...(input.modelProvider ? { modelProvider: input.modelProvider } : {})
-  });
-  if (!runtime.ok) {
-    await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: 0, eventType: "blocked", content: { code: runtime.code, message: runtime.message } });
-    await updateRun(repos, runId, {
-      status: "blocked",
-      blocked_reasons: [runtime.code],
-      error: runtime.message,
-      completed_at: now(),
-      metadata: { realLocalAgent: true, maxTurns, turnCount: 0, blockingReason: runtime.code, deterministicFallback: false }
-    });
-    return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: runtime.code, errorCode: runtime.code };
-  }
+  try {
+    if (input.agentRunId) {
+      const existingRun = await repos.aiEmployee.runs.getById(runId, input.workspaceId);
+      if (!existingRun) throw new Error(`agent_run_not_found:${runId}`);
+      await updateRun(repos, runId, {
+        task_id: input.taskQueueId ?? value(existingRun, "task_id") ?? null,
+        taskId: input.taskQueueId ?? value(existingRun, "task_id") ?? null,
+        employee_type: input.roleKey,
+        task_type: input.taskType,
+        input_ref_type: inputRef.inputRefType,
+        input_ref_id: inputRef.inputRefId,
+        status: "running",
+        provider_used: "ollama",
+        model_used: value(existingRun, "model_used") ?? config.OLLAMA_MODEL,
+        output_json: { taskInput: input.taskInput },
+        blocked_reasons: [],
+        requires_human_review: true,
+        updated_by: input.actorId ?? null,
+        started_at: value(existingRun, "started_at") ?? startedAt,
+        completed_at: null,
+        error: null,
+        metadata: {
+          maxTurns,
+          turnCount: 0,
+          blockingReason: null,
+          errorCode: null
+        }
+      });
+    } else {
+      await repos.aiEmployee.createRun({
+        id: runId,
+        workspace_id: input.workspaceId,
+        task_id: input.taskQueueId ?? null,
+        employee_type: input.roleKey,
+        task_type: input.taskType,
+        input_ref_type: inputRef.inputRefType,
+        input_ref_id: inputRef.inputRefId,
+        status: "running",
+        provider_used: "ollama",
+        model_used: null,
+        output_json: { taskInput: input.taskInput },
+        blocked_reasons: [],
+        requires_human_review: true,
+        created_by: input.actorId ?? null,
+        updated_by: input.actorId ?? null,
+        started_at: startedAt,
+        metadata: {
+          maxTurns,
+          turnCount: 0
+        }
+      } as WorkspaceRow);
+    }
 
-  const tools = roleDefinition.tools;
-  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
-  const modelMessages: ModelRuntimeMessage[] = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: userMessage }
-  ];
-  const ctx: AgentToolContext = {
-    workspaceId: input.workspaceId,
-    agentRunId: runId,
-    roleKey: input.roleKey,
-    repos,
-    state: { savedOutputIds: [] },
-    ...(input.actorId ? { actorId: input.actorId } : {})
-  };
-  const toolCallsExecuted: string[] = [];
-
-  for (let turn = 1; turn <= maxTurns; turn++) {
-    const result = await runtime.provider.generateText({
-      prompt: userMessage,
-      messages: modelMessages,
-      tools: toModelRuntimeTools(tools),
-      modelKey: runtime.modelKey,
-      taskType: input.taskType,
-      riskLevel: roleDefinition.defaultRiskLevel,
-      inputSensitivity: roleDefinition.defaultInputSensitivity,
-      timeoutMs: parsePositiveInt(process.env.OLLAMA_AGENT_TIMEOUT_MS, 120000),
-      keepAlive: process.env.OLLAMA_AGENT_KEEP_ALIVE || "5m",
-      think: process.env.OLLAMA_AGENT_THINK === "true"
+    await appendTranscriptEvent({
+      repos,
+      workspaceId: input.workspaceId,
+      runId,
+      turnIndex: 0,
+      eventType: "system_message",
+      role: "system",
+      content: { text: systemPrompt }
     });
     await appendTranscriptEvent({
       repos,
       workspaceId: input.workspaceId,
       runId,
-      turnIndex: turn,
-      eventType: result.ok ? "model_message" : "error",
-      role: "assistant",
-      content: {
-        ok: result.ok,
-        text: result.text ?? "",
-        toolCalls: result.toolCalls?.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })) ?? [],
-        error: result.error ?? null
-      }
+      turnIndex: 0,
+      eventType: "user_message",
+      role: "user",
+      content: { text: userMessage }
     });
 
-    if (!result.ok) {
-      const status = providerFailureStatus(result);
-      const code = result.error?.code ?? result.errorCode ?? "model_runtime_unavailable";
+    const runtime = await resolveOllamaRuntime({
+      workspaceId: input.workspaceId,
+      repos,
+      ...(input.modelProvider ? { modelProvider: input.modelProvider } : {})
+    });
+    if (!runtime.ok) {
+      await appendTranscriptEvent({
+        repos,
+        workspaceId: input.workspaceId,
+        runId,
+        turnIndex: 0,
+        eventType: "blocked",
+        content: { code: runtime.code, message: runtime.message }
+      });
       await updateRun(repos, runId, {
-        status,
-        model_used: result.modelUsed ?? runtime.modelKey,
-        blocked_reasons: status === "blocked" ? [code] : [],
-        error: result.error?.message ?? code,
+        status: "blocked",
+        blocked_reasons: [runtime.code],
+        error: runtime.message,
         completed_at: now(),
-        metadata: { realLocalAgent: true, maxTurns, turnCount: turn, blockingReason: code, deterministicFallback: false }
+        provider_used: "ollama",
+        model_used: config.OLLAMA_MODEL,
+        metadata: {
+          maxTurns,
+          turnCount: 0,
+          blockingReason: runtime.code,
+          errorCode: runtime.code
+        }
       });
-      return { ok: false, status, agentRunId: runId, providerUsed: "ollama", modelUsed: result.modelUsed ?? runtime.modelKey, turnCount: turn, toolCallsExecuted, blockingReason: code, errorCode: code };
+      return {
+        ok: false,
+        status: "blocked",
+        agentRunId: runId,
+        turnCount: 0,
+        toolCallsExecuted,
+        blockingReason: runtime.code,
+        errorCode: runtime.code
+      };
     }
 
-    const toolCalls = result.toolCalls ?? [];
-    if (toolCalls.length > 0) {
-      modelMessages.push({
+    const tools = roleDefinition.tools;
+    const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
+    const modelMessages: ModelRuntimeMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage }
+    ];
+    const ctx: AgentToolContext = {
+      workspaceId: input.workspaceId,
+      agentRunId: runId,
+      roleKey: input.roleKey,
+      repos,
+      state: { savedOutputIds: [] },
+      ...(input.actorId ? { actorId: input.actorId } : {})
+    };
+
+    for (let turn = 1; turn <= maxTurns; turn++) {
+      turnCount = turn;
+      const result = await runtime.provider.generateText({
+        prompt: userMessage,
+        messages: modelMessages,
+        tools: toModelRuntimeTools(tools),
+        modelKey: runtime.modelKey,
+        taskType: input.taskType,
+        riskLevel: roleDefinition.defaultRiskLevel,
+        inputSensitivity: roleDefinition.defaultInputSensitivity,
+        timeoutMs: parsePositiveInt(process.env.OLLAMA_AGENT_TIMEOUT_MS, 120000),
+        keepAlive: process.env.OLLAMA_AGENT_KEEP_ALIVE || "5m",
+        think: process.env.OLLAMA_AGENT_THINK === "true"
+      });
+      await appendTranscriptEvent({
+        repos,
+        workspaceId: input.workspaceId,
+        runId,
+        turnIndex: turn,
+        eventType: result.ok ? "model_message" : "error",
         role: "assistant",
-        content: result.text ?? ""
+        content: {
+          ok: result.ok,
+          text: result.text ?? "",
+          toolCalls: result.toolCalls?.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })) ?? [],
+          error: result.error ?? null
+        }
       });
-      for (const call of toolCalls) {
-        const tool = toolsByName.get(call.name);
-        if (!tool) {
-          const code = "forbidden_tool_requested";
-          await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: turn, eventType: "blocked", toolName: call.name, content: { code, requestedTool: call.name } });
-          await updateRun(repos, runId, {
-            status: "blocked",
-            model_used: result.modelUsed ?? runtime.modelKey,
-            blocked_reasons: [code],
-            error: `Unknown or forbidden tool requested: ${call.name}`,
-            completed_at: now(),
-            metadata: { realLocalAgent: true, maxTurns, turnCount: turn, blockingReason: code, deterministicFallback: false }
-          });
-          return { ok: false, status: "blocked", agentRunId: runId, providerUsed: "ollama", modelUsed: result.modelUsed ?? runtime.modelKey, turnCount: turn, toolCallsExecuted, blockingReason: code, errorCode: code };
+      await updateRun(repos, runId, {
+        provider_used: "ollama",
+        model_used: result.modelUsed ?? runtime.modelKey,
+        metadata: {
+          maxTurns,
+          turnCount: turn
         }
-        const validation = validateToolArguments(tool.parameters, call.arguments);
-        if (!validation.ok) {
-          await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: turn, eventType: "blocked", toolName: tool.name, content: { code: validation.code, message: validation.message } });
-          await updateRun(repos, runId, {
-            status: "blocked",
-            model_used: result.modelUsed ?? runtime.modelKey,
-            blocked_reasons: [validation.code],
-            error: validation.message,
-            completed_at: now(),
-            metadata: { realLocalAgent: true, maxTurns, turnCount: turn, blockingReason: validation.code, deterministicFallback: false }
-          });
-          return { ok: false, status: "blocked", agentRunId: runId, providerUsed: "ollama", modelUsed: result.modelUsed ?? runtime.modelKey, turnCount: turn, toolCallsExecuted, blockingReason: validation.code, errorCode: validation.code };
-        }
-        await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: turn, eventType: "tool_call", toolName: tool.name, content: { name: tool.name, arguments: validation.value } });
-        const toolResult = await tool.execute(ctx, validation.value);
-        toolCallsExecuted.push(tool.name);
-        await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: turn, eventType: "tool_result", toolName: tool.name, content: { ok: toolResult.ok, data: toolResult.data ?? null, error: toolResult.error ?? null } });
-        modelMessages.push({
-          role: "tool",
-          name: tool.name,
-          toolCallId: call.id ?? tool.name,
-          content: JSON.stringify({ tool: tool.name, result: toolResult })
-        });
-      }
-      continue;
-    }
+      });
 
-    const finalText = result.text?.trim() ?? "";
-    if (finalText) {
-      const parsed = extractJsonObject(finalText);
-      const savedOutputId = ctx.state?.savedOutputIds?.[0];
-      const output = savedOutputId
-        ? await repos.aiEmployee.outputs.getById(savedOutputId, input.workspaceId)
-        : await persistFinalOutput({
+      if (!result.ok) {
+        const status = providerFailureStatus(result);
+        const code = result.error?.code ?? result.errorCode ?? "model_runtime_unavailable";
+        await updateRun(repos, runId, {
+          status,
+          model_used: result.modelUsed ?? runtime.modelKey,
+          blocked_reasons: status === "blocked" ? [code] : [],
+          error: result.error?.message ?? code,
+          completed_at: now(),
+          metadata: {
+            maxTurns,
+            turnCount: turn,
+            blockingReason: code,
+            errorCode: code
+          }
+        });
+        return {
+          ok: false,
+          status,
+          agentRunId: runId,
+          providerUsed: "ollama",
+          modelUsed: result.modelUsed ?? runtime.modelKey,
+          turnCount: turn,
+          toolCallsExecuted,
+          blockingReason: code,
+          errorCode: code
+        };
+      }
+
+      const toolCalls = result.toolCalls ?? [];
+      if (toolCalls.length > 0) {
+        modelMessages.push({
+          role: "assistant",
+          content: result.text ?? ""
+        });
+        for (const call of toolCalls) {
+          const tool = toolsByName.get(call.name);
+          if (!tool) {
+            const code = "forbidden_tool_requested";
+            await appendTranscriptEvent({
+              repos,
+              workspaceId: input.workspaceId,
+              runId,
+              turnIndex: turn,
+              eventType: "blocked",
+              toolName: call.name,
+              content: { code, requestedTool: call.name }
+            });
+            await updateRun(repos, runId, {
+              status: "blocked",
+              model_used: result.modelUsed ?? runtime.modelKey,
+              blocked_reasons: [code],
+              error: `Unknown or forbidden tool requested: ${call.name}`,
+              completed_at: now(),
+              metadata: {
+                maxTurns,
+                turnCount: turn,
+                blockingReason: code,
+                errorCode: code
+              }
+            });
+            return {
+              ok: false,
+              status: "blocked",
+              agentRunId: runId,
+              providerUsed: "ollama",
+              modelUsed: result.modelUsed ?? runtime.modelKey,
+              turnCount: turn,
+              toolCallsExecuted,
+              blockingReason: code,
+              errorCode: code
+            };
+          }
+          const validation = validateToolArguments(tool.parameters, call.arguments);
+          if (!validation.ok) {
+            await appendTranscriptEvent({
+              repos,
+              workspaceId: input.workspaceId,
+              runId,
+              turnIndex: turn,
+              eventType: "blocked",
+              toolName: tool.name,
+              content: { code: validation.code, message: validation.message }
+            });
+            await updateRun(repos, runId, {
+              status: "blocked",
+              model_used: result.modelUsed ?? runtime.modelKey,
+              blocked_reasons: [validation.code],
+              error: validation.message,
+              completed_at: now(),
+              metadata: {
+                maxTurns,
+                turnCount: turn,
+                blockingReason: validation.code,
+                errorCode: validation.code
+              }
+            });
+            return {
+              ok: false,
+              status: "blocked",
+              agentRunId: runId,
+              providerUsed: "ollama",
+              modelUsed: result.modelUsed ?? runtime.modelKey,
+              turnCount: turn,
+              toolCallsExecuted,
+              blockingReason: validation.code,
+              errorCode: validation.code
+            };
+          }
+          await appendTranscriptEvent({
+            repos,
+            workspaceId: input.workspaceId,
+            runId,
+            turnIndex: turn,
+            eventType: "tool_call",
+            toolName: tool.name,
+            content: { name: tool.name, arguments: validation.value }
+          });
+          const toolResult = await tool.execute(ctx, validation.value);
+          toolCallsExecuted.push(tool.name);
+          await appendTranscriptEvent({
+            repos,
+            workspaceId: input.workspaceId,
+            runId,
+            turnIndex: turn,
+            eventType: "tool_result",
+            toolName: tool.name,
+            content: { ok: toolResult.ok, data: toolResult.data ?? null, error: toolResult.error ?? null }
+          });
+          modelMessages.push({
+            role: "tool",
+            name: tool.name,
+            toolCallId: call.id ?? tool.name,
+            content: JSON.stringify({ tool: tool.name, result: toolResult })
+          });
+        }
+        continue;
+      }
+
+      const finalText = result.text?.trim() ?? "";
+      if (finalText) {
+        const parsed = extractJsonObject(finalText);
+        const savedOutputId = ctx.state?.savedOutputIds?.[0];
+        const output = savedOutputId
+          ? await repos.aiEmployee.outputs.getById(savedOutputId, input.workspaceId)
+          : await persistFinalOutput({
+            repos,
+            workspaceId: input.workspaceId,
+            runId,
+            ...(input.actorId ? { actorId: input.actorId } : {}),
+            ...(input.taskInput.productDraftId ? { productDraftId: input.taskInput.productDraftId } : {}),
+            finalText,
+            parsed
+          });
+        const finalOutputId = output?.id ?? savedOutputId ?? null;
+        await appendTranscriptEvent({
           repos,
           workspaceId: input.workspaceId,
           runId,
-          ...(input.actorId ? { actorId: input.actorId } : {}),
-          ...(input.taskInput.productDraftId ? { productDraftId: input.taskInput.productDraftId } : {}),
-          finalText,
-          parsed
+          turnIndex: turn,
+          eventType: "final",
+          role: "assistant",
+          content: { text: finalText, parsedJson: Boolean(parsed), finalOutputId }
         });
-      await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: turn, eventType: "final", role: "assistant", content: { text: finalText, parsedJson: Boolean(parsed), finalOutputId: output?.id ?? savedOutputId ?? null } });
-      await updateRun(repos, runId, {
-        status: "completed",
-        provider_used: "ollama",
-        model_used: result.modelUsed ?? runtime.modelKey,
-        output_json: { finalOutputId: output?.id ?? savedOutputId ?? null, toolCallsExecuted, finalOutputNotJson: !parsed },
-        completed_at: now(),
-        metadata: { realLocalAgent: true, maxTurns, turnCount: turn, finalOutputId: output?.id ?? savedOutputId ?? null, deterministicFallback: false }
-      });
-      return {
-        ok: true,
-        status: "completed",
-        agentRunId: runId,
-        providerUsed: "ollama",
-        modelUsed: result.modelUsed ?? runtime.modelKey,
-        turnCount: turn,
-        toolCallsExecuted,
-        finalText,
-        ...(output?.id ?? savedOutputId ? { finalOutputId: output?.id ?? savedOutputId } : {}),
-        requiresHumanReview: true
-      };
+        await updateRun(repos, runId, {
+          status: "completed",
+          provider_used: "ollama",
+          model_used: result.modelUsed ?? runtime.modelKey,
+          output_json: { finalOutputId, toolCallsExecuted, finalOutputNotJson: !parsed },
+          completed_at: now(),
+          metadata: {
+            maxTurns,
+            turnCount: turn,
+            finalOutputId,
+            blockingReason: null,
+            errorCode: null
+          }
+        });
+        return {
+          ok: true,
+          status: "completed",
+          agentRunId: runId,
+          providerUsed: "ollama",
+          modelUsed: result.modelUsed ?? runtime.modelKey,
+          turnCount: turn,
+          toolCallsExecuted,
+          finalText,
+          ...(finalOutputId ? { finalOutputId } : {}),
+          requiresHumanReview: true
+        };
+      }
     }
-  }
 
-  await appendTranscriptEvent({ repos, workspaceId: input.workspaceId, runId, turnIndex: maxTurns, eventType: "blocked", content: { code: "max_turns_exceeded", maxTurns } });
-  await updateRun(repos, runId, {
-    status: "incomplete",
-    blocked_reasons: ["max_turns_exceeded"],
-    error: "The local model did not produce a final answer within the configured turn limit.",
-    completed_at: now(),
-    metadata: { realLocalAgent: true, maxTurns, turnCount: maxTurns, blockingReason: "max_turns_exceeded", deterministicFallback: false }
-  });
-  return { ok: false, status: "incomplete", agentRunId: runId, providerUsed: "ollama", modelUsed: runtime.modelKey, turnCount: maxTurns, toolCallsExecuted, blockingReason: "max_turns_exceeded", errorCode: "max_turns_exceeded" };
+    await appendTranscriptEvent({
+      repos,
+      workspaceId: input.workspaceId,
+      runId,
+      turnIndex: maxTurns,
+      eventType: "blocked",
+      content: { code: "max_turns_exceeded", maxTurns }
+    });
+    await updateRun(repos, runId, {
+      status: "incomplete",
+      blocked_reasons: ["max_turns_exceeded"],
+      error: "The local model did not produce a final answer within the configured turn limit.",
+      completed_at: now(),
+      metadata: {
+        maxTurns,
+        turnCount: maxTurns,
+        blockingReason: "max_turns_exceeded",
+        errorCode: "max_turns_exceeded"
+      }
+    });
+    return {
+      ok: false,
+      status: "incomplete",
+      agentRunId: runId,
+      providerUsed: "ollama",
+      modelUsed: config.OLLAMA_MODEL,
+      turnCount: maxTurns,
+      toolCallsExecuted,
+      blockingReason: "max_turns_exceeded",
+      errorCode: "max_turns_exceeded"
+    };
+  } catch (error) {
+    const message = sanitizeProviderError(error);
+    const errorCode = "agent_execution_failed";
+    try {
+      await appendTranscriptEvent({
+        repos,
+        workspaceId: input.workspaceId,
+        runId,
+        turnIndex: turnCount,
+        eventType: "error",
+        content: { code: errorCode, message }
+      });
+      await updateRun(repos, runId, {
+        status: "failed",
+        provider_used: "ollama",
+        model_used: config.OLLAMA_MODEL,
+        blocked_reasons: [],
+        error: message,
+        completed_at: now(),
+        metadata: {
+          maxTurns,
+          turnCount,
+          blockingReason: errorCode,
+          errorCode
+        }
+      });
+    } catch {
+      // Preserve the original failure path if persistence is also broken.
+    }
+    return {
+      ok: false,
+      status: "failed",
+      agentRunId: runId,
+      providerUsed: "ollama",
+      modelUsed: config.OLLAMA_MODEL,
+      turnCount,
+      toolCallsExecuted,
+      blockingReason: errorCode,
+      errorCode
+    };
+  }
 }
 
 export async function listAgentTranscript(input: { workspaceId: string; agentRunId: string; repos?: RepositoryBundle }) {
