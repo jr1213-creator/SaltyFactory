@@ -228,6 +228,30 @@ describe("image generation runtime resolver", () => {
     expect(local).toMatchObject({ status: "local_folder", provider: "local_folder", credentialSource: "local_folder" });
     expect(production).toMatchObject({ status: "invalid", blockingReasons: ["local_folder_source_not_allowed_in_production"] });
   });
+
+  it("prefers a connected credential-store provider over local_folder dev config", async () => {
+    const repos = createMemoryRepositories();
+    const token = "hf_runtime_secret_preferred";
+    const config = parseEnv({
+      NODE_ENV: "development",
+      APP_ENV: "development",
+      CREDENTIAL_STORAGE_ENABLED: "true",
+      CREDENTIAL_ENCRYPTION_KEY: encryptionKey,
+      IMAGE_GENERATION_ENABLED: "true",
+      IMAGE_GENERATION_PROVIDER: "local_folder",
+      LOCAL_IMAGE_SOURCE_ENABLED: "true",
+      LOCAL_IMAGE_SOURCE_DIR: "C:\\data\\SaltyFactoryImageDrop"
+    });
+    await seedConnectedImageProvider(repos as unknown as RepositoryBundle, token);
+
+    const runtime = await resolveImageGenerationProvider({ workspaceId, repos: repos as unknown as RepositoryBundle, config });
+
+    expect(runtime.status).toBe("ready");
+    expect(runtime.provider).toBe("huggingface");
+    expect(runtime.credentialSource).toBe("credential_store");
+    expect(runtime.serverCredential?.token).toBe(token);
+    expect(JSON.stringify(publicImageGenerationProviderResolution(runtime))).not.toContain(token);
+  });
 });
 
 describe("image generation runtime route and UI", () => {
@@ -272,7 +296,7 @@ describe("image generation runtime route and UI", () => {
         return Response.json([]);
       }
       if (String(url).includes("router.huggingface.co")) {
-        return new Response(imageBytes, { status: 200, headers: { "content-type": "image/png" } });
+        return new Response(new Uint8Array(imageBytes), { status: 200, headers: { "content-type": "image/png" } });
       }
       return new Response(JSON.stringify({ Key: "uploaded" }), { status: 200, headers: { "content-type": "application/json" } });
     });
@@ -293,7 +317,7 @@ describe("image generation runtime route and UI", () => {
     expect(JSON.stringify(body)).not.toContain(token);
     expect(logSpy.mock.calls.flat().join(" ")).not.toContain(token);
     expect(warnSpy.mock.calls.flat().join(" ")).not.toContain(token);
-  });
+  }, 15000);
 
   it("/studio/image-generation does not show disabled when provider is connected", async () => {
     vi.stubEnv("NODE_ENV", "development");

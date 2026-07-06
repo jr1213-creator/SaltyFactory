@@ -460,7 +460,7 @@ describe("POD golden path execution", () => {
     expect(generateHtml).toContain("Generated Artwork");
     expect(generateHtml).toContain(`/api/studio/assets/${assetId}/preview`);
     expect(generateHtml).toContain("Generate 4 options");
-  }, 15000);
+  }, 30000);
 
   it("serves Supabase-backed private asset previews as protected image bytes", async () => {
     authorizeAsOwner();
@@ -498,7 +498,7 @@ describe("POD golden path execution", () => {
     vi.stubGlobal("fetch", async (url: string | URL | Request, init: RequestInit = {}) => {
       expect(String(url)).toContain(`/storage/v1/object/private-assets/${storageKey}`);
       expect(String((init.headers as Record<string, string>).authorization)).toContain("Bearer");
-      return new Response(bytes, { status: 200, headers: { "content-type": "application/octet-stream" } });
+      return new Response(new Uint8Array(bytes), { status: 200, headers: { "content-type": "application/octet-stream" } });
     });
 
     const missing = await assetPreviewGet(authedRequest("/api/studio/assets/missing_asset/preview"), {

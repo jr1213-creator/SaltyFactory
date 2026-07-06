@@ -36,8 +36,8 @@ function safeSegment(value: string) {
 function bufferFromGenerationResult(result: any) {
   const bytes = result?.data?.bytes ?? result?.data?.buffer;
   if (bytes instanceof ArrayBuffer) return Buffer.from(bytes);
-  if (ArrayBuffer.isView(bytes)) return Buffer.from(bytes.buffer);
-  if (Buffer.isBuffer(bytes)) return bytes;
+  if (Buffer.isBuffer(bytes)) return Buffer.from(bytes);
+  if (ArrayBuffer.isView(bytes)) return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return null;
 }
 

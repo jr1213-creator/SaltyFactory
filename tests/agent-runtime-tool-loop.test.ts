@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ProviderCheck, ModelRuntimeProvider, ModelStructuredInput, ModelStructuredResult, ModelTextInput, ModelTextResult } from "@saltyfactory/ai-free";
-import { listAgentTranscript, runLocalOllamaAgentTask } from "@saltyfactory/ai-free";
+import type { AgentRoleDefinition, AgentToolDefinition, ProviderCheck, ModelRuntimeProvider, ModelStructuredInput, ModelStructuredResult, ModelTextInput, ModelTextResult } from "@saltyfactory/ai-free";
+import { listAgentTranscript, runLocalOllamaAgentTask, setAgentRoleDefinitionsForTests } from "@saltyfactory/ai-free";
 import { createMemoryRepositories, createRepositoryStore, type WorkspaceRow } from "../packages/db/src/repositories/memory";
 
 const workspaceId = "wks_default";
@@ -54,6 +54,7 @@ async function seedProductDraft(repos: ReturnType<typeof seedRepos>) {
 }
 
 afterEach(() => {
+  setAgentRoleDefinitionsForTests(null);
   vi.unstubAllEnvs();
 });
 
@@ -104,6 +105,8 @@ describe("local Ollama agent runtime tool loop", () => {
     expect(transcript?.events.map((event) => event.event_type)).toEqual(expect.arrayContaining(["system_message", "user_message", "model_message", "tool_call", "tool_result", "final"]));
     expect(await repos.aiEmployee.outputs.listByWorkspace(workspaceId)).toHaveLength(1);
     expect(JSON.stringify(transcript)).not.toMatch(/deterministic_rules|Bearer\s+[A-Za-z0-9._-]+/);
+    expect(provider.calls[0]?.riskLevel).toBe("low");
+    expect(provider.calls[0]?.inputSensitivity).toBe("internal");
   });
 
   it("blocks unknown tool requests before execution", async () => {
@@ -178,5 +181,111 @@ describe("local Ollama agent runtime tool loop", () => {
     });
     expect(result.status).toBe("incomplete");
     expect(result.errorCode).toBe("max_turns_exceeded");
+  });
+
+  it("reads system prompt, tools, risk level, and input sensitivity from the role registry", async () => {
+    vi.stubEnv("AI_EMPLOYEES_REAL_AGENT_ENABLED", "true");
+    const repos = seedRepos();
+    const testTool: AgentToolDefinition = {
+      name: "test_registry_summary",
+      description: "Returns a safe registry test payload.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          productDraftId: { type: "string", minLength: 1 }
+        },
+        required: ["productDraftId"]
+      },
+      riskLevel: "read_only",
+      allowedRoles: ["test_registry_role"],
+      forbidden: false,
+      execute: async (_ctx, args) => ({ ok: true, data: { echoedProductDraftId: String((args as Record<string, unknown>).productDraftId ?? "") } })
+    };
+    const testRole: AgentRoleDefinition = {
+      roleKey: "test_registry_role",
+      taskTypes: ["test_registry_task"],
+      buildSystemPrompt: () => "REGISTRY TEST SYSTEM PROMPT",
+      tools: [testTool],
+      defaultRiskLevel: "medium",
+      defaultInputSensitivity: "sensitive"
+    };
+    setAgentRoleDefinitionsForTests([testRole]);
+    const provider = new ScriptedProvider([
+      {
+        ok: true,
+        providerUsed: "ollama",
+        modelUsed: "qwen3:8b",
+        text: "",
+        toolCalls: [{ id: "call_registry", name: "test_registry_summary", arguments: { productDraftId: "draft_test" } }]
+      },
+      {
+        ok: true,
+        providerUsed: "ollama",
+        modelUsed: "qwen3:8b",
+        text: JSON.stringify({
+          title: "Registry test listing",
+          shortDescription: "Short draft",
+          longDescription: "Long draft",
+          seoTitle: "SEO title",
+          seoDescription: "SEO description",
+          tags: ["registry"],
+          readinessSummary: "Ready for human review.",
+          blockingReasons: [],
+          humanReviewNotes: ["Registry-driven run."]
+        })
+      }
+    ]);
+    const result = await runLocalOllamaAgentTask({
+      repos,
+      modelProvider: provider,
+      workspaceId,
+      actorId,
+      roleKey: "test_registry_role",
+      taskType: "test_registry_task",
+      taskInput: { productDraftId: "draft_test" }
+    });
+    expect(result.status).toBe("completed");
+    expect(result.toolCallsExecuted).toEqual(["test_registry_summary"]);
+    expect(provider.calls[0]?.messages?.[0]?.content).toBe("REGISTRY TEST SYSTEM PROMPT");
+    expect(provider.calls[0]?.tools?.map((tool) => tool.function.name)).toEqual(["test_registry_summary"]);
+    expect(provider.calls[0]?.riskLevel).toBe("medium");
+    expect(provider.calls[0]?.inputSensitivity).toBe("sensitive");
+  });
+
+  it("blocks unknown agent roles before model execution", async () => {
+    vi.stubEnv("AI_EMPLOYEES_REAL_AGENT_ENABLED", "true");
+    const repos = seedRepos();
+    const provider = new ScriptedProvider([]);
+    const result = await runLocalOllamaAgentTask({
+      repos,
+      modelProvider: provider,
+      workspaceId,
+      actorId,
+      roleKey: "unknown_role",
+      taskType: "draft_product_listing",
+      taskInput: { productDraftId: "draft_1" }
+    });
+    expect(result.status).toBe("blocked");
+    expect(result.errorCode).toBe("unknown_agent_role");
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it("blocks unsupported task types before model execution", async () => {
+    vi.stubEnv("AI_EMPLOYEES_REAL_AGENT_ENABLED", "true");
+    const repos = seedRepos();
+    const provider = new ScriptedProvider([]);
+    const result = await runLocalOllamaAgentTask({
+      repos,
+      modelProvider: provider,
+      workspaceId,
+      actorId,
+      roleKey: "product_listing_assistant",
+      taskType: "unsupported_task_type",
+      taskInput: { productDraftId: "draft_1" }
+    });
+    expect(result.status).toBe("blocked");
+    expect(result.errorCode).toBe("unsupported_agent_task_type");
+    expect(provider.calls).toHaveLength(0);
   });
 });

@@ -1,6 +1,9 @@
 import { parseEnv } from "@saltyfactory/config";
 import { createRepositories, now, type RepositoryBundle, type WorkspaceRow } from "@saltyfactory/db";
 import {
+  getAgentRoleDefinition
+} from "./agent-roles";
+import {
   createModelRuntimeProvider,
   ensureDefaultModelRuntimeRecords,
   type ModelRuntimeMessage,
@@ -8,18 +11,17 @@ import {
   type ModelTextResult
 } from "./model-runtime";
 import {
-  getAgentToolsForRole,
-  toModelRuntimeTools,
-  validateToolArguments,
   type AgentToolContext,
-  type AgentToolDefinition
+  type AgentToolDefinition,
+  toModelRuntimeTools,
+  validateToolArguments
 } from "./agent-tools";
 
 export type RunLocalOllamaAgentTaskInput = {
   workspaceId: string;
   actorId?: string | undefined;
-  roleKey: "product_listing_assistant";
-  taskType: "draft_product_listing" | "summarize_readiness_blockers";
+  roleKey: string;
+  taskType: string;
   taskInput: {
     productDraftId?: string | undefined;
     assetId?: string | undefined;
@@ -103,18 +105,6 @@ async function updateRun(repos: RepositoryBundle, runId: string, patch: Partial<
     updated_at: now(),
     updatedAt: now()
   } as WorkspaceRow);
-}
-
-function buildSystemPrompt() {
-  return [
-    "You are SaltyFactory's Product Listing Assistant.",
-    "You draft listing copy for human review using only provided tools and persisted product data.",
-    "You may summarize blockers and propose next human actions.",
-    "You may not publish, call providers, override QA, or claim a product is ready unless tool data says it is ready.",
-    "If data is missing, say what is missing.",
-    "Always produce JSON final output with: {\"title\": string, \"shortDescription\": string, \"longDescription\": string, \"seoTitle\": string, \"seoDescription\": string, \"tags\": string[], \"readinessSummary\": string, \"blockingReasons\": string[], \"humanReviewNotes\": string[]}.",
-    "Do not include hidden reasoning. Do not expose secrets."
-  ].join("\n");
 }
 
 function buildUserMessage(input: RunLocalOllamaAgentTaskInput) {
@@ -236,10 +226,97 @@ function providerFailureStatus(result: ModelTextResult): AgentTaskResult["status
   return "failed";
 }
 
+async function createBlockedRoleValidationRun(input: {
+  repos: RepositoryBundle;
+  runId: string;
+  workspaceId: string;
+  actorId?: string | undefined;
+  roleKey: string;
+  taskType: string;
+  taskInput: RunLocalOllamaAgentTaskInput["taskInput"];
+  code: "unknown_agent_role" | "unsupported_agent_task_type";
+  message: string;
+  maxTurns: number;
+}) {
+  const completedAt = now();
+  await input.repos.aiEmployee.createRun({
+    id: input.runId,
+    workspace_id: input.workspaceId,
+    employee_type: input.roleKey,
+    task_type: input.taskType,
+    input_ref_type: input.taskInput.productDraftId ? "product_draft" : input.taskInput.assetId ? "asset" : "workspace",
+    input_ref_id: input.taskInput.productDraftId ?? input.taskInput.assetId ?? input.workspaceId,
+    status: "blocked",
+    provider_used: null,
+    model_used: null,
+    output_json: { taskInput: input.taskInput },
+    blocked_reasons: [input.code],
+    requires_human_review: true,
+    created_by: input.actorId ?? null,
+    updated_by: input.actorId ?? null,
+    started_at: completedAt,
+    completed_at: completedAt,
+    error: input.message,
+    metadata: {
+      realLocalAgent: true,
+      maxTurns: input.maxTurns,
+      turnCount: 0,
+      blockingReason: input.code,
+      deterministicFallback: false
+    }
+  } as WorkspaceRow);
+  await appendTranscriptEvent({
+    repos: input.repos,
+    workspaceId: input.workspaceId,
+    runId: input.runId,
+    turnIndex: 0,
+    eventType: "blocked",
+    content: {
+      code: input.code,
+      message: input.message,
+      roleKey: input.roleKey,
+      taskType: input.taskType
+    }
+  });
+}
+
 export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInput): Promise<AgentTaskResult> {
   const repos = input.repos ?? createRepositories();
   const maxTurns = Math.min(parsePositiveInt(input.maxTurns ?? process.env.OLLAMA_AGENT_MAX_TURNS, 6), 12);
   const runId = id("agent_run");
+  const roleDefinition = getAgentRoleDefinition(input.roleKey);
+  if (!roleDefinition) {
+    const message = `Unknown agent role: ${input.roleKey}`;
+    await createBlockedRoleValidationRun({
+      repos,
+      runId,
+      workspaceId: input.workspaceId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      roleKey: input.roleKey,
+      taskType: input.taskType,
+      taskInput: input.taskInput,
+      code: "unknown_agent_role",
+      message,
+      maxTurns
+    });
+    return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: "unknown_agent_role", errorCode: "unknown_agent_role" };
+  }
+  if (!roleDefinition.taskTypes.includes(input.taskType)) {
+    const message = `Task type ${input.taskType} is not allowed for agent role ${input.roleKey}`;
+    await createBlockedRoleValidationRun({
+      repos,
+      runId,
+      workspaceId: input.workspaceId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      roleKey: input.roleKey,
+      taskType: input.taskType,
+      taskInput: input.taskInput,
+      code: "unsupported_agent_task_type",
+      message,
+      maxTurns
+    });
+    return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: "unsupported_agent_task_type", errorCode: "unsupported_agent_task_type" };
+  }
   const startedAt = now();
   await repos.aiEmployee.createRun({
     id: runId,
@@ -265,7 +342,11 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
     }
   } as WorkspaceRow);
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = roleDefinition.buildSystemPrompt({
+    roleKey: input.roleKey,
+    taskType: input.taskType,
+    taskInput: input.taskInput
+  });
   const userMessage = buildUserMessage(input);
   await appendTranscriptEvent({
     repos,
@@ -303,7 +384,7 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
     return { ok: false, status: "blocked", agentRunId: runId, turnCount: 0, toolCallsExecuted: [], blockingReason: runtime.code, errorCode: runtime.code };
   }
 
-  const tools = getAgentToolsForRole(input.roleKey);
+  const tools = roleDefinition.tools;
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
   const modelMessages: ModelRuntimeMessage[] = [
     { role: "system", content: systemPrompt },
@@ -326,8 +407,8 @@ export async function runLocalOllamaAgentTask(input: RunLocalOllamaAgentTaskInpu
       tools: toModelRuntimeTools(tools),
       modelKey: runtime.modelKey,
       taskType: input.taskType,
-      riskLevel: "low",
-      inputSensitivity: "internal",
+      riskLevel: roleDefinition.defaultRiskLevel,
+      inputSensitivity: roleDefinition.defaultInputSensitivity,
       timeoutMs: parsePositiveInt(process.env.OLLAMA_AGENT_TIMEOUT_MS, 120000),
       keepAlive: process.env.OLLAMA_AGENT_KEEP_ALIVE || "5m",
       think: process.env.OLLAMA_AGENT_THINK === "true"

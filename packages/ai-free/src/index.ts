@@ -780,10 +780,10 @@ export async function resolveImageGenerationProvider(input: {
   repos?: RepositoryBundle | undefined;
   config: RuntimeConfig;
 }): Promise<ImageGenerationProviderResolution> {
-  const localFolder = resolveLocalFolderImageProvider(input.config);
-  if (localFolder) return localFolder;
   const credentialStore = await resolveCredentialStoreImageProvider(input);
   if (credentialStore) return credentialStore;
+  const localFolder = resolveLocalFolderImageProvider(input.config);
+  if (localFolder) return localFolder;
   const localDemo = resolveLocalDemoImageProvider(input.config);
   if (localDemo) return localDemo;
   const envProvider = resolveEnvImageProvider(input.config);
@@ -944,6 +944,13 @@ export {
   type ModelTextResult,
   type ProviderCheck
 } from "./model-runtime";
+export {
+  getAgentRoleDefinition,
+  listAgentRoleDefinitions,
+  productListingAssistantRoleDefinition,
+  setAgentRoleDefinitionsForTests,
+  type AgentRoleDefinition
+} from "./agent-roles";
 export {
   forbiddenAgentToolNamePatterns,
   getAgentToolsForRole,

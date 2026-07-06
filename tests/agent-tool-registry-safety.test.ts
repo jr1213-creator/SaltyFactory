@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forbiddenAiActions, neverAutonomousTaskTypes, productListingAssistantTools, registryHasForbiddenToolNames } from "@saltyfactory/ai-free";
+import { forbiddenAiActions, listAgentRoleDefinitions, neverAutonomousTaskTypes, productListingAssistantTools, registryHasForbiddenToolNames } from "@saltyfactory/ai-free";
 
 describe("agent tool registry safety", () => {
   it("exposes only allowlisted product listing assistant tools", () => {
@@ -23,6 +23,15 @@ describe("agent tool registry safety", () => {
     const names = new Set(productListingAssistantTools.map((tool) => tool.name));
     for (const forbidden of [...forbiddenAiActions, ...neverAutonomousTaskTypes]) {
       expect(names.has(forbidden)).toBe(false);
+    }
+  });
+
+  it("keeps every registered role limited to safe allowlisted tools", () => {
+    for (const role of listAgentRoleDefinitions()) {
+      expect(role.tools.length).toBeGreaterThan(0);
+      expect(registryHasForbiddenToolNames(role.tools)).toEqual([]);
+      const names = role.tools.map((tool) => tool.name).join(" ");
+      expect(names).not.toMatch(/publish_live|publish_product|go_live|shopify_publish|printify_create|printify_upload|send_email|delete|spend|credential|provider_sync|qa_override|shell|filesystem|sql|http_fetch/i);
     }
   });
 });

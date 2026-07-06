@@ -191,7 +191,7 @@ describe("live image/mockup smoke harness", () => {
   it("verifies image preview responses by content type and bytes", async () => {
     const png = await sharp({ create: { width: 8, height: 8, channels: 4, background: "#ef675b" } }).png().toBuffer();
 
-    const proof = await verifyImagePreviewResponse(new Response(png, { status: 200, headers: { "content-type": "image/png" } }), "asset");
+    const proof = await verifyImagePreviewResponse(new Response(new Uint8Array(png), { status: 200, headers: { "content-type": "image/png" } }), "asset");
 
     expect(proof.byteLength).toBeGreaterThan(0);
     await expect(verifyImagePreviewResponse(Response.json({ ok: false }, { status: 404 }), "asset")).rejects.toThrow(/asset_preview_failed/);
