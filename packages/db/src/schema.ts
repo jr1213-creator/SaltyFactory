@@ -1011,6 +1011,82 @@ export const processImprovementFindings = pgTable("process_improvement_findings"
   workspaceReviewIdx: index("process_improvement_findings_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
 }));
 
+export const productReadinessChecks = pgTable("product_readiness_checks", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  readinessScore: integer("readiness_score").notNull(),
+  verdict: text("verdict").notNull(),
+  blockingIssues: jsonb("blocking_issues").$type<unknown[]>().notNull().default([]),
+  warnings: jsonb("warnings").$type<unknown[]>().notNull().default([]),
+  checklist: jsonb("checklist").$type<Record<string, unknown>>().notNull().default({}),
+  checklistVersion: text("checklist_version").notNull().default("product_readiness_v1"),
+  evidenceRefs: jsonb("evidence_refs").$type<unknown[]>().notNull().default([]),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  llmExplanation: text("llm_explanation"),
+  ownerActionNeeded: text("owner_action_needed").notNull().default("review")
+}, (table) => ({
+  workspaceEntityIdx: index("product_readiness_checks_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceVerdictIdx: index("product_readiness_checks_workspace_verdict_idx").on(table.workspaceId, table.verdict)
+}));
+
+export const marginAnalysis = pgTable("margin_analysis", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  price: money("price"),
+  costBreakdown: jsonb("cost_breakdown").$type<Record<string, unknown>>().notNull().default({}),
+  marginDollars: money("margin_dollars"),
+  marginPct: numeric("margin_pct", { precision: 8, scale: 4 }),
+  breakevenCpa: money("breakeven_cpa"),
+  floorBreach: boolean("floor_breach"),
+  missingCostData: boolean("missing_cost_data").notNull().default(true),
+  paidReadiness: text("paid_readiness").notNull().default("unknown"),
+  safeOffers: jsonb("safe_offers").$type<unknown[]>().notNull().default([]),
+  unsafeOfferWarnings: jsonb("unsafe_offer_warnings").$type<unknown[]>().notNull().default([]),
+  recommendationText: text("recommendation_text").notNull().default("Margin cannot be fully determined until required costs are present."),
+  reconciliationStatus: text("reconciliation_status").notNull().default("not_applicable"),
+  evidenceRefs: jsonb("evidence_refs").$type<unknown[]>().notNull().default([]),
+  formulaVersion: text("formula_version").notNull().default("margin_economics_v1"),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceEntityIdx: index("margin_analysis_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspacePaidReadinessIdx: index("margin_analysis_workspace_paid_readiness_idx").on(table.workspaceId, table.paidReadiness)
+}));
+
+export const seoRecommendations = pgTable("seo_recommendations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  sourceEntityType: text("source_entity_type").notNull(),
+  sourceEntityId: text("source_entity_id").notNull(),
+  titleDraft: text("title_draft").notNull(),
+  metaDescriptionDraft: text("meta_description_draft").notNull(),
+  h1Suggestion: text("h1_suggestion").notNull(),
+  h2Suggestions: jsonb("h2_suggestions").$type<unknown[]>().notNull().default([]),
+  faqItems: jsonb("faq_items").$type<unknown[]>().notNull().default([]),
+  aiReadableSummary: text("ai_readable_summary").notNull(),
+  comparisonBullets: jsonb("comparison_bullets").$type<unknown[]>().notNull().default([]),
+  schemaRecommendations: jsonb("schema_recommendations").$type<unknown[]>().notNull().default([]),
+  imageAltTextSuggestions: jsonb("image_alt_text_suggestions").$type<unknown[]>().notNull().default([]),
+  pdpClarityFixes: jsonb("pdp_clarity_fixes").$type<unknown[]>().notNull().default([]),
+  internalLinkSuggestions: jsonb("internal_link_suggestions").$type<unknown[]>().notNull().default([]),
+  complianceChecklist: jsonb("compliance_checklist").$type<Record<string, unknown>>().notNull().default({}),
+  keywordDataSource: text("keyword_data_source").notNull().default("directional"),
+  policyReviewId: text("policy_review_id").references(() => policyReviewResults.id),
+  evidenceRefs: jsonb("evidence_refs").$type<unknown[]>().notNull().default([]),
+  recommendationVersion: text("recommendation_version").notNull().default("seo_geo_pdp_v1"),
+  reviewStatus: text("review_status").notNull().default("pending_review"),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceEntityIdx: index("seo_recommendations_workspace_entity_idx").on(table.workspaceId, table.sourceEntityType, table.sourceEntityId),
+  workspaceReviewIdx: index("seo_recommendations_workspace_review_idx").on(table.workspaceId, table.reviewStatus)
+}));
+
 export const businessMetricsSnapshots = pgTable("business_metrics_snapshots", {
   id,
   ...ownership(),
@@ -1776,7 +1852,17 @@ export const policyReviewResults = pgTable("policy_review_results", {
   evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull().default({}),
   fixSuggestions: jsonb("fix_suggestions").$type<string[]>().notNull().default([]),
   ownerOverride: jsonb("owner_override").$type<Record<string, unknown> | null>(),
-  blocked: boolean("blocked").notNull().default(false)
+  blocked: boolean("blocked").notNull().default(false),
+  sourceTextHash: text("source_text_hash"),
+  rulesetVersion: text("ruleset_version").notNull().default("policy_claims_ip_v1"),
+  flaggedTerms: jsonb("flagged_terms").$type<unknown[]>().notNull().default([]),
+  unsupportedClaims: jsonb("unsupported_claims").$type<unknown[]>().notNull().default([]),
+  personalAttributeFlags: jsonb("personal_attribute_flags").$type<unknown[]>().notNull().default([]),
+  ipFlags: jsonb("ip_flags").$type<unknown[]>().notNull().default([]),
+  riskLevel: text("risk_level").notNull().default("none"),
+  llmContextNote: text("llm_context_note"),
+  suggestedRewrite: text("suggested_rewrite"),
+  rewriteRecheckStatus: text("rewrite_recheck_status").notNull().default("not_needed")
 }, (table) => ({
   workspaceTargetIdx: index("policy_review_results_workspace_target_idx").on(table.workspaceId, table.targetType, table.targetId),
   workspaceVerdictIdx: index("policy_review_results_workspace_verdict_idx").on(table.workspaceId, table.verdict)
@@ -3691,6 +3777,9 @@ export const tables = {
   ownerApprovalFeedback,
   behavioralConsultations,
   processImprovementFindings,
+  productReadinessChecks,
+  marginAnalysis,
+  seoRecommendations,
   businessMetricsSnapshots,
   businessCostInputs,
   businessUnitEconomics,

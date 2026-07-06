@@ -560,6 +560,9 @@ export class CommerceAgentOsRepository {
   readonly ownerApprovalFeedback: BaseRepository;
   readonly behavioralConsultations: BaseRepository;
   readonly processImprovementFindings: BaseRepository;
+  readonly productReadinessChecks: BaseRepository;
+  readonly marginAnalysis: BaseRepository;
+  readonly seoRecommendations: BaseRepository;
 
   constructor(store?: RepositoryStore, audit?: AuditWriter) {
     const repo = (tableName: string) => new BaseRepository(tableName, store, audit);
@@ -573,6 +576,9 @@ export class CommerceAgentOsRepository {
     this.ownerApprovalFeedback = repo("owner_approval_feedback");
     this.behavioralConsultations = repo("behavioral_consultations");
     this.processImprovementFindings = repo("process_improvement_findings");
+    this.productReadinessChecks = repo("product_readiness_checks");
+    this.marginAnalysis = repo("margin_analysis");
+    this.seoRecommendations = repo("seo_recommendations");
   }
 }
 

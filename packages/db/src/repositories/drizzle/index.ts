@@ -110,6 +110,9 @@ const tableExportByDbName: Record<string, TableName> = {
   owner_approval_feedback: "ownerApprovalFeedback",
   behavioral_consultations: "behavioralConsultations",
   process_improvement_findings: "processImprovementFindings",
+  product_readiness_checks: "productReadinessChecks",
+  margin_analysis: "marginAnalysis",
+  seo_recommendations: "seoRecommendations",
   business_metrics_snapshots: "businessMetricsSnapshots",
   business_cost_inputs: "businessCostInputs",
   business_unit_economics: "businessUnitEconomics",
@@ -630,6 +633,9 @@ export class DrizzleCommerceAgentOsRepository {
   readonly ownerApprovalFeedback: DrizzleBaseRepository;
   readonly behavioralConsultations: DrizzleBaseRepository;
   readonly processImprovementFindings: DrizzleBaseRepository;
+  readonly productReadinessChecks: DrizzleBaseRepository;
+  readonly marginAnalysis: DrizzleBaseRepository;
+  readonly seoRecommendations: DrizzleBaseRepository;
 
   constructor(db?: DbClient, audit?: AuditWriter) {
     const repo = (tableName: string) => new DrizzleBaseRepository(tableName, db, audit);
@@ -643,6 +649,9 @@ export class DrizzleCommerceAgentOsRepository {
     this.ownerApprovalFeedback = repo("owner_approval_feedback");
     this.behavioralConsultations = repo("behavioral_consultations");
     this.processImprovementFindings = repo("process_improvement_findings");
+    this.productReadinessChecks = repo("product_readiness_checks");
+    this.marginAnalysis = repo("margin_analysis");
+    this.seoRecommendations = repo("seo_recommendations");
   }
 }
 

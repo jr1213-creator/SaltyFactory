@@ -1099,3 +1099,22 @@ export {
   type CommerceAgentRoleCatalogEntry,
   type CommerceAgentRunInput
 } from "./shop-manager-agent-os";
+export {
+  AGENT_CORE_SOURCE_NOT_FOUND,
+  AGENT_CORE_SOURCE_REQUIRED,
+  MARGIN_FORMULA_VERSION,
+  POLICY_RULESET_VERSION,
+  PRODUCT_READINESS_CHECKLIST_VERSION,
+  SEO_GEO_PDP_RECOMMENDATION_VERSION,
+  calculateMarginEconomics,
+  compileDeterministicCoreBundle,
+  createSeoGeoPdpRecommendation,
+  generateSeoGeoPdpDraft,
+  recheckPolicyRewrite,
+  resolveDeterministicSourceEntity,
+  runDeterministicPolicyRules,
+  runDeterministicReadinessCheck,
+  runUnifiedPolicyIpCheck,
+  validateSeoGeoPdpDraft,
+  type DeterministicCoreInput
+} from "./agent-deterministic-core";

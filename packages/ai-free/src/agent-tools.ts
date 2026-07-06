@@ -75,6 +75,15 @@ import {
   saveCommerceRecommendation,
   updateOwnerDecisionPatterns
 } from "./shop-manager-agent-os";
+import {
+  calculateMarginEconomics,
+  compileDeterministicCoreBundle,
+  generateSeoGeoPdpDraft,
+  recheckPolicyRewrite,
+  runDeterministicReadinessCheck,
+  runUnifiedPolicyIpCheck,
+  validateSeoGeoPdpDraft
+} from "./agent-deterministic-core";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -1157,6 +1166,7 @@ const commerceToolSchema = objectSchema({
   assetId: { type: "string", description: "Optional asset ID." },
   mockupId: { type: "string", description: "Optional mockup ID." },
   content: { type: "string", description: "Optional owner-reviewable draft copy or content to check." },
+  rewrite: { type: "string", description: "Optional suggested rewrite to recheck against deterministic policy rules." },
   audienceContext: { type: "string", description: "Optional audience context for behavioral consultation." },
   consultationType: { type: "string", description: "Optional consultation type." },
   ownerDecision: { type: "string", description: "Optional owner decision value." },
@@ -1234,11 +1244,17 @@ export const shopManagerAgentTools: AgentToolDefinition[] = [
   commerceTool("readMockupData", "Read existing mockup data. This does not create Printify mockups or mutate providers.", async (ctx, args) => readMockupData({ ...commerceToolInput(ctx, args), mockupId: text(args.mockupId) })),
   commerceTool("calculateProductMargin", "Read margin data or margin hypotheses. This does not change prices or discounts.", async (ctx, args) =>
     calculateProductMargin({ repos: ctx.repos, workspaceId: ctx.workspaceId, sourceEntityType: text(args.sourceEntityType) || marketingOptions(ctx).sourceEntityType, sourceEntityId: text(args.sourceEntityId) || marketingOptions(ctx).sourceEntityId, launchPlanId: text(args.launchPlanId) || marketingOptions(ctx).launchPlanId })),
+  commerceTool("calculateMarginEconomics", "Compute deterministic margin economics, break-even CPA, floor breach, and paid readiness without changing prices.", async (ctx, args) => calculateMarginEconomics(commerceToolInput(ctx, args))),
   commerceTool("runProductReadinessCheck", "Persist a product readiness quality check and recommendation.", async (ctx, args) => runProductReadinessCheck(commerceToolInput(ctx, args))),
+  commerceTool("runDeterministicReadinessCheck", "Persist deterministic launch-readiness scoring with blockers, warnings, checklist, and evidence references.", async (ctx, args) => runDeterministicReadinessCheck(commerceToolInput(ctx, args))),
   commerceTool("runCreativeQaCheck", "Persist a creative QA/print-risk quality check from existing asset and mockup data.", async (ctx, args) => runCreativeQaCheck(commerceToolInput(ctx, args))),
   commerceTool("runIpTrademarkCheck", "Run rule-based IP, trademark, claims, and copycat checks before any LLM explanation.", async (ctx, args) => runIpTrademarkCheck(commerceToolInput(ctx, args))),
+  commerceTool("runUnifiedPolicyIpCheck", "Run the canonical deterministic policy, claims, and IP checker and persist a policy review row.", async (ctx, args) => runUnifiedPolicyIpCheck(commerceToolInput(ctx, args))),
+  commerceTool("recheckPolicyRewrite", "Re-run deterministic policy rules on a suggested rewrite before treating it as safer.", async (ctx, args) => recheckPolicyRewrite({ ...commerceToolInput(ctx, args), rewrite: text(args.rewrite) || text(args.content) })),
   commerceTool("draftCatalogMerchandisingRecommendation", "Persist collection, bundle, cross-sell, and merchandising recommendations without Shopify mutation.", async (ctx, args) => draftCatalogMerchandisingRecommendation(commerceToolInput(ctx, args))),
   commerceTool("draftSeoGeoPdpRecommendation", "Persist SEO/GEO/PDP recommendations without Shopify mutation or unsupported claims.", async (ctx, args) => draftSeoGeoPdpRecommendation(commerceToolInput(ctx, args))),
+  commerceTool("generateSeoGeoPdpDraft", "Generate deterministic SEO/GEO/PDP draft fields grounded in product facts without claiming search volume.", async (ctx, args) => generateSeoGeoPdpDraft(commerceToolInput(ctx, args))),
+  commerceTool("validateSeoGeoPdpDraft", "Validate SEO/GEO/PDP draft fields deterministically and run policy review on generated copy.", async (ctx, args) => validateSeoGeoPdpDraft(commerceToolInput(ctx, args))),
   commerceTool("draftOrganicLaunchPlan", "Draft no-spend organic launch outputs for owner review.", async (ctx, args) => draftCommerceOrganicLaunchPlan(commerceToolInput(ctx, args))),
   commerceTool("draftSocialContent", "Draft social content for owner manual posting review only.", async (ctx, args) => draftCommerceSocialContent(commerceToolInput(ctx, args))),
   commerceTool("draftPinterestOrganicPlan", "Draft Pinterest organic outputs for owner manual publishing review only.", async (ctx, args) => draftCommercePinterestOrganicPlan(commerceToolInput(ctx, args))),
@@ -1273,7 +1289,8 @@ export const shopManagerAgentTools: AgentToolDefinition[] = [
         if (!ctx.state.savedOutputIds.includes(saved.id)) ctx.state.savedOutputIds.push(saved.id);
       }
       return saved;
-    })
+    }),
+  commerceTool("compileDeterministicCoreBundle", "Read the latest deterministic readiness, margin, policy, and SEO/PDP outputs for a source entity.", async (ctx, args) => compileDeterministicCoreBundle(commerceToolInput(ctx, args)))
 ];
 
 export const forbiddenAgentToolNamePatterns = [

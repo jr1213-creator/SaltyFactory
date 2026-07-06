@@ -222,6 +222,9 @@ export interface CommerceAgentOsRepositoryContract {
   ownerApprovalFeedback: BaseRepositoryContract;
   behavioralConsultations: BaseRepositoryContract;
   processImprovementFindings: BaseRepositoryContract;
+  productReadinessChecks: BaseRepositoryContract;
+  marginAnalysis: BaseRepositoryContract;
+  seoRecommendations: BaseRepositoryContract;
 }
 
 export interface BusinessOsRepositoryContract {

@@ -120,6 +120,13 @@
       "when": 1783350285374,
       "tag": "0016_chilly_alex_power",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783359007366,
+      "tag": "0017_same_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

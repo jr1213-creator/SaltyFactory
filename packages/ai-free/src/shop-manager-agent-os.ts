@@ -20,6 +20,19 @@ import {
   readTrendEvidenceForProduct,
   runPolicyReview as runMarketingPolicyReview
 } from "./marketing-launch";
+import {
+  AGENT_CORE_SOURCE_NOT_FOUND,
+  AGENT_CORE_SOURCE_REQUIRED,
+  calculateMarginEconomics,
+  compileDeterministicCoreBundle,
+  createSeoGeoPdpRecommendation,
+  generateSeoGeoPdpDraft,
+  recheckPolicyRewrite,
+  runDeterministicPolicyRules,
+  runDeterministicReadinessCheck,
+  runUnifiedPolicyIpCheck,
+  validateSeoGeoPdpDraft
+} from "./agent-deterministic-core";
 
 export const COMMERCE_AGENT_INVALID_JSON = "commerce_agent_invalid_json";
 export const COMMERCE_AGENT_INVALID_BODY = "commerce_agent_invalid_body";
@@ -102,11 +115,17 @@ const allToolNames = [
   "readAssetQaData",
   "readMockupData",
   "calculateProductMargin",
+  "calculateMarginEconomics",
   "runProductReadinessCheck",
+  "runDeterministicReadinessCheck",
   "runCreativeQaCheck",
   "runIpTrademarkCheck",
+  "runUnifiedPolicyIpCheck",
+  "recheckPolicyRewrite",
   "draftCatalogMerchandisingRecommendation",
   "draftSeoGeoPdpRecommendation",
+  "generateSeoGeoPdpDraft",
+  "validateSeoGeoPdpDraft",
   "draftOrganicLaunchPlan",
   "draftSocialContent",
   "draftPinterestOrganicPlan",
@@ -128,7 +147,12 @@ const allToolNames = [
   "createQualityCheck",
   "createProcessImprovementFinding",
   "saveCommerceRecommendation",
-  "saveCommerceOutputForReview"
+  "saveCommerceOutputForReview",
+  "compileDeterministicCoreBundle",
+  "saveProductReadinessCheck",
+  "saveMarginAnalysis",
+  "savePolicyReview",
+  "saveSeoRecommendation"
 ];
 
 const readTools = ["readApprovedProductOrConcept", "readTrendEvidenceForProduct", "readMarketingLaunchPlan", "readProductReadinessData"];
@@ -157,12 +181,12 @@ function role(
 }
 
 export const commerceAgentRoleCatalog: CommerceAgentRoleCatalogEntry[] = [
-  role("product_readiness_launch_gate", "Product Readiness / Launch Gate Agent", "Evaluate whether a product, concept, or listing is ready to move forward.", ["calculateProductMargin", "runProductReadinessCheck"], ["commerce_quality_check", "commerce_recommendation"], "high"),
-  role("margin_offer_economics", "Margin & Offer Economics Agent", "Evaluate profitability, offer safety, break-even CPA, and organic-only versus paid-test readiness.", ["calculateProductMargin", "calculateBudgetRecommendation"], ["commerce_recommendation"], "high"),
+  role("product_readiness_launch_gate", "Product Readiness / Launch Gate Agent", "Evaluate whether a product, concept, or listing is ready to move forward.", ["calculateProductMargin", "calculateMarginEconomics", "runProductReadinessCheck", "runDeterministicReadinessCheck", "runUnifiedPolicyIpCheck"], ["product_readiness_check", "commerce_quality_check", "commerce_recommendation"], "high"),
+  role("margin_offer_economics", "Margin & Offer Economics Agent", "Evaluate profitability, offer safety, break-even CPA, and organic-only versus paid-test readiness.", ["calculateMarginEconomics", "calculateProductMargin", "calculateBudgetRecommendation"], ["margin_analysis", "commerce_recommendation"], "high"),
   role("creative_qa_print_risk", "Creative QA / Print Risk Agent", "Evaluate existing assets and mockups for print and commercial usability without editing or generating images.", ["readAssetQaData", "readMockupData", "runCreativeQaCheck"], ["commerce_quality_check"], "high"),
-  role("ip_trademark_copycat_risk", "IP / Trademark / Copycat Risk Agent", "Hard gate IP, trademark, protected brand, song lyric, official/licensed, inspired-by, dupe, and copycat risks.", ["runIpTrademarkCheck", "runPolicyReview"], ["commerce_quality_check"], "critical"),
+  role("ip_trademark_copycat_risk", "IP / Trademark / Copycat Risk Agent", "Hard gate IP, trademark, protected brand, song lyric, official/licensed, inspired-by, dupe, and copycat risks.", ["runIpTrademarkCheck", "runUnifiedPolicyIpCheck", "runPolicyReview", "recheckPolicyRewrite"], ["commerce_quality_check", "policy_review_result"], "critical"),
   role("catalog_merchandising", "Catalog Merchandising Agent", "Suggest collection placement, bundles, cross-sells, seasonal fit, and product-family grouping without mutating Shopify.", ["draftCatalogMerchandisingRecommendation"], ["commerce_recommendation"]),
-  role("seo_geo_pdp_optimization", "SEO / GEO / PDP Optimization Agent", "Draft SEO, GEO, answer-ready, structured-data, and PDP conversion recommendations without unsupported claims or Shopify mutation.", ["draftSeoGeoPdpRecommendation", "runPolicyReview"], ["commerce_recommendation", "organic_content_draft"], "high"),
+  role("seo_geo_pdp_optimization", "SEO / GEO / PDP Optimization Agent", "Draft SEO, GEO, answer-ready, structured-data, and PDP conversion recommendations without unsupported claims or Shopify mutation.", ["draftSeoGeoPdpRecommendation", "generateSeoGeoPdpDraft", "validateSeoGeoPdpDraft", "runUnifiedPolicyIpCheck", "runPolicyReview"], ["seo_recommendation", "commerce_recommendation", "organic_content_draft"], "high"),
   role("customer_voice_review_mining", "Customer Voice / Review Mining Agent", "Extract buyer language, objections, requests, confusion points, and FAQ ideas from owned customer data when available.", ["saveCommerceRecommendation"], ["commerce_recommendation"]),
   role("returns_support_insight", "Returns / Support Insight Agent", "Identify repeated support, return, refund, shipping, and product-confusion patterns without messaging customers or issuing refunds.", ["saveCommerceRecommendation"], ["commerce_recommendation"]),
   role("supplier_fulfillment_reliability", "Supplier / Fulfillment Reliability Agent", "Evaluate provider and product suitability from available cost, production, shipping, quality, variant, mockup, and brand-fit data.", ["saveCommerceRecommendation", "createQualityCheck"], ["commerce_recommendation", "commerce_quality_check"], "high"),
@@ -177,7 +201,7 @@ export const commerceAgentRoleCatalog: CommerceAgentRoleCatalogEntry[] = [
   role("outreach_collaboration", "Outreach / Collaboration Agent", "Draft boutique, gift-guide, influencer, event, and partnership outreach templates without sending messages.", ["draftOutreachDrafts", "runPolicyReview"], ["organic_content_draft"], "high"),
   role("no_spend_growth", "No-Spend Growth Agent", "Ensure no-spend strategy and PDP improvement are considered before paid escalation.", ["draftOrganicLaunchPlan", "saveCommerceRecommendation"], ["commerce_recommendation", "organic_content_draft"], "high"),
   role("behavioral_psychology_customer_empathy", "Behavioral Psychology / Customer Empathy Agent", "Consult on ethical customer motivation, objections, trust, clarity, friction, and framing without diagnosis or exploitation.", ["consultBehavioralPsychology", "runPolicyReview"], ["behavioral_consultation"], "high"),
-  role("policy_claims_ip_risk_checker", "Policy / Claims / IP Risk Checker", "Rule-first hard gate for unsafe claims, personal-attribute targeting, protected IP, fake proof, fake urgency, and platform-prohibited content.", ["runPolicyReview", "runIpTrademarkCheck", "createQualityCheck"], ["commerce_quality_check", "policy_review_result"], "critical"),
+  role("policy_claims_ip_risk_checker", "Policy / Claims / IP Risk Checker", "Rule-first hard gate for unsafe claims, personal-attribute targeting, protected IP, fake proof, fake urgency, and platform-prohibited content.", ["runPolicyReview", "runIpTrademarkCheck", "runUnifiedPolicyIpCheck", "recheckPolicyRewrite", "createQualityCheck"], ["commerce_quality_check", "policy_review_result"], "critical"),
   role("budget_pacing_analyst", "Budget & Pacing Analyst", "Recommendation-only budget and paid-readiness guidance that never spends or changes budgets.", ["calculateBudgetRecommendation", "saveCommerceRecommendation"], ["commerce_recommendation", "budget_recommendation"], "high"),
   role("campaign_build_sheet", "Media Buyer / Campaign Build Sheet Agent", "Create manual campaign build sheets and draft campaign plans only; no ad-platform writes.", ["draftAudienceHypotheses", "draftAdAngles", "draftAdCopyVariants", "draftCampaignBuildSheet", "runPolicyReview"], ["campaign_draft", "media_plan_draft", "commerce_recommendation"], "high"),
   role("owner_daily_brief", "Owner Daily Brief Agent", "Summarize changes, approvals, blockers, risk, progress, and next actions in shop manager brief records.", ["prioritizeApprovalQueue", "createShopManagerBrief"], ["shop_manager_brief"]),
@@ -434,35 +458,31 @@ export async function readMarketingLaunchPlan(input: CommerceAgentRunInput) {
 }
 
 export async function runProductReadinessCheck(input: CommerceAgentRunInput) {
-  const readiness = await readMarketingProductReadinessData({
-    repos: input.repos,
-    workspaceId: input.workspaceId,
-    actorId: input.actorId,
-    sourceEntityType: input.sourceEntityType,
-    sourceEntityId: input.sourceEntityId,
-    launchPlanId: input.launchPlanId
-  });
-  const blockers = asStringArray(readiness.blockers);
-  const warnings = asStringArray(readiness.warnings);
-  const recommendation = blockers.length ? "block" : warnings.length ? "fix_first" : readiness.marketabilityScore >= 80 ? "proceed" : "watch_longer";
+  const readiness = await runDeterministicReadinessCheck(input);
+  const row = readiness.readinessCheck;
+  const blockers = asStringArray(value(row, "blocking_issues", "blockingIssues"));
+  const warnings = asStringArray(value(row, "warnings"));
+  const readinessScore = Number(value(row, "readiness_score", "readinessScore") ?? 0);
+  const verdict = text(value(row, "verdict"), "needs_fixes");
+  const recommendation = verdict === "ready" ? "proceed" : verdict === "blocked" ? "block" : verdict === "watch_longer" ? "watch_longer" : "fix_first";
   const qualityCheck = await createQualityCheck({
     ...input,
     roleKey: "product_readiness_launch_gate",
     checkType: "product_readiness_launch_gate",
-    verdict: blockers.length ? "blocked" : warnings.length ? "warning" : "pass",
-    score: readiness.marketabilityScore,
+    verdict: verdict === "blocked" ? "blocked" : warnings.length ? "warning" : "pass",
+    score: readinessScore,
     reasons: [...blockers, ...warnings, `recommendation:${recommendation}`],
     fixSuggestions: blockers.length ? blockers.map((entry) => `Fix ${entry.replace(/_/g, " ")} before launch.`) : warnings.map((entry) => `Review ${entry.replace(/_/g, " ")} before paid escalation.`),
-    evidenceRefs: [{ type: "product_marketing_readiness", id: readiness.id }]
+    evidenceRefs: [{ type: "product_readiness_check", id: row.id }]
   });
   const rec = await saveCommerceRecommendation({
     ...input,
     roleKey: "product_readiness_launch_gate",
     recommendationType: "product_readiness",
     title: "Product readiness launch gate",
-    summary: `Readiness score ${readiness.marketabilityScore}; recommendation is ${recommendation}.`,
+    summary: `Readiness score ${readinessScore}; recommendation is ${recommendation}.`,
     rationale: blockers.length ? `Blocked by ${blockers.join(", ")}.` : warnings.length ? `Warnings require owner review: ${warnings.join(", ")}.` : "Core readiness signals are sufficient for owner-reviewed next steps.",
-    evidenceRefs: [{ type: "commerce_quality_check", id: qualityCheck.id }, { type: "product_marketing_readiness", id: readiness.id }],
+    evidenceRefs: [{ type: "commerce_quality_check", id: qualityCheck.id }, { type: "product_readiness_check", id: row.id }],
     severity: blockers.length ? "critical" : warnings.length ? "medium" : "low",
     confidenceScore: 0.74,
     expectedImpact: blockers.length ? "avoid unsafe launch movement" : "focus owner review",
@@ -473,37 +493,40 @@ export async function runProductReadinessCheck(input: CommerceAgentRunInput) {
 }
 
 export async function runMarginOfferEconomics(input: CommerceAgentRunInput) {
-  const margin = await calculateMarketingProductMargin({
-    repos: input.repos,
-    workspaceId: input.workspaceId,
-    sourceEntityType: input.sourceEntityType,
-    sourceEntityId: input.sourceEntityId,
-    launchPlanId: input.launchPlanId
-  });
-  const estimatedMargin = numeric((margin as Record<string, unknown>).estimatedMargin);
-  const paidReady = estimatedMargin != null ? estimatedMargin >= 0.45 : false;
+  const margin = await calculateMarginEconomics(input);
+  const row = margin.marginAnalysis;
+  const marginPct = numeric(value(row, "margin_pct", "marginPct"));
+  const marginDollars = numeric(value(row, "margin_dollars", "marginDollars"));
+  const paidReadiness = text(value(row, "paid_readiness", "paidReadiness"), "unknown");
+  const missingCostData = truthy(value(row, "missing_cost_data", "missingCostData"));
+  const floorBreach = value(row, "floor_breach", "floorBreach") === true;
   const output = {
-    estimated_margin: estimatedMargin,
-    break_even_cpa: estimatedMargin != null ? Math.max(0, estimatedMargin * 18).toFixed(2) : null,
-    safe_offers: ["bundle-before-discount", "owner-time-only organic launch"],
-    unsafe_offer_warnings: estimatedMargin == null ? ["margin_data_missing"] : estimatedMargin < 0.35 ? ["paid_test_not_safe_until_margin_improves"] : [],
+    estimated_margin: marginPct,
+    margin_dollars: marginDollars,
+    break_even_cpa: value(row, "breakeven_cpa", "breakevenCpa"),
+    safe_offers: asArray(value(row, "safe_offers", "safeOffers")),
+    unsafe_offer_warnings: asArray(value(row, "unsafe_offer_warnings", "unsafeOfferWarnings")),
     bundle_recommendations: ["Test giftable two-item bundle only after cost and shipping assumptions are confirmed."],
-    paid_readiness: paidReady ? "ready_for_small_manual_paid_test" : "not_ready_for_paid_spend",
-    organic_only_recommendation: paidReady ? null : "Use organic-only proof collection before paid escalation."
+    paid_readiness: paidReadiness,
+    missing_cost_data: missingCostData,
+    floor_breach: floorBreach,
+    organic_only_recommendation: paidReadiness === "ready" ? null : "Use organic-only proof collection before paid escalation.",
+    reconciliation_status: value(row, "reconciliation_status", "reconciliationStatus")
   };
   const rec = await saveCommerceRecommendation({
     ...input,
     roleKey: "margin_offer_economics",
     recommendationType: "margin_offer_economics",
     title: "Margin and offer economics",
-    summary: output.organic_only_recommendation ?? "Margin supports a small owner-reviewed paid test.",
+    summary: text(value(row, "recommendation_text", "recommendationText"), output.organic_only_recommendation ?? "Margin supports a small owner-reviewed paid test."),
     rationale: "Offer guidance is advisory only and does not change prices, discounts, or budgets.",
-    severity: paidReady ? "medium" : "high",
-    confidenceScore: estimatedMargin == null ? 0.48 : 0.72,
-    ownerActionNeeded: paidReady ? "review_paid_test" : "collect_margin_data",
-    metadata: { output, priceMutation: false, discountMutation: false }
+    severity: missingCostData || floorBreach ? "high" : "medium",
+    confidenceScore: missingCostData ? 0.48 : 0.78,
+    ownerActionNeeded: paidReadiness === "ready" ? "review_paid_test" : missingCostData ? "collect_margin_data" : "fix_margin",
+    evidenceRefs: [{ type: "margin_analysis", id: row.id }],
+    metadata: { output, marginAnalysis: row, priceMutation: false, discountMutation: false }
   });
-  return { output, recommendation: rec };
+  return { output, marginAnalysis: row, deterministic: margin.deterministic, recommendation: rec };
 }
 
 export async function runCreativeQaCheck(input: CommerceAgentRunInput) {
@@ -548,15 +571,30 @@ export function runRuleBasedPolicyClaimsIpCheck(content: string) {
       flags.push({ code: "protected_ip_term", fix: "Remove protected IP terms unless license proof exists." });
     }
   }
-  const severity = flags.some((flag) => ["protected_ip_term", "sensitive_personal_attribute", "official_licensed_authentic_claim", "inspired_by_or_dupe"].includes(flag.code))
+  const checked = runDeterministicPolicyRules({ text: content, location: "commerce_policy_content" });
+  const compatibilityMap: Record<string, { code: string; fix: string }> = {
+    protected_ip_brand: { code: "protected_ip_term", fix: "Remove protected brand, team, celebrity, or franchise references unless license proof exists." },
+    official_license_claim: { code: "official_licensed_authentic_claim", fix: "Remove official/licensed/authentic claims unless source records prove authorization." },
+    copycat_language: { code: "inspired_by_or_dupe", fix: "Use original product positioning and do not imply affiliation or imitation." },
+    unsupported_material_claim: { code: "false_material_claim", fix: "Remove material, handmade, or waterproof claims unless product data proves them." },
+    direct_personal_attribute_copy: { code: "sensitive_personal_attribute", fix: "Avoid direct personal-attribute ad copy; frame around style, occasion, or interests instead." },
+    manipulative_urgency: { code: "fake_urgency", fix: "Remove scarcity or urgency unless inventory/system evidence proves it." },
+    fake_social_proof: { code: "fake_social_proof", fix: "Remove unverified review, bestseller, or testimonial language." },
+    shame_fear_insecurity: { code: "shame_fear_manipulation", fix: "Remove shame, fear, insecurity, and manipulative framing." }
+  };
+  for (const code of checked.policy_codes) {
+    const mapped = compatibilityMap[code];
+    if (mapped && !flags.some((flag) => flag.code === mapped.code)) flags.push(mapped);
+  }
+  const severity = flags.some((flag) => ["protected_ip_term", "sensitive_personal_attribute", "official_licensed_authentic_claim", "inspired_by_or_dupe"].includes(flag.code)) || checked.risk_level === "severe"
     ? "critical"
-    : flags.length ? "high" : "low";
+    : flags.length || checked.blocked ? "high" : "low";
   return {
-    verdict: flags.length ? "blocked" : "pass",
-    blocked: flags.length > 0,
+    verdict: flags.length || checked.blocked ? "blocked" : "pass",
+    blocked: flags.length > 0 || checked.blocked,
     severity,
-    policyCodes: flags.map((flag) => flag.code),
-    fixSuggestions: flags.map((flag) => flag.fix)
+    policyCodes: [...new Set(flags.map((flag) => flag.code))],
+    fixSuggestions: [...new Set(flags.map((flag) => flag.fix))]
   };
 }
 
@@ -718,6 +756,24 @@ export async function runBehavioralConsultationWithPolicyReview(input: CommerceA
 }
 
 export async function runIpTrademarkCheck(input: CommerceAgentRunInput) {
+  try {
+    const unified = await runUnifiedPolicyIpCheck(input);
+    const reasons = asStringArray(value(unified.policyReview, "policy_codes", "policyCodes"));
+    const blocked = truthy(value(unified.policyReview, "blocked"));
+    const check = await createQualityCheck({
+      ...input,
+      roleKey: input.roleKey || "ip_trademark_copycat_risk",
+      checkType: "policy_claims_ip_risk",
+      verdict: blocked ? "blocked" : reasons.length ? "warning" : "pass",
+      score: blocked ? 15 : reasons.length ? 62 : 92,
+      reasons: reasons.length ? reasons : ["no_rule_based_policy_or_ip_flags"],
+      fixSuggestions: asArray(value(unified.policyReview, "fix_suggestions", "fixSuggestions")),
+      evidenceRefs: [{ type: "policy_review", id: unified.policyReview.id }, { type: "policy_ruleset", version: value(unified.policyReview, "ruleset_version", "rulesetVersion") }]
+    });
+    return { policy: unified.result, policyReview: unified.policyReview, qualityCheck: check };
+  } catch (error) {
+    if (!(error instanceof Error) || ![AGENT_CORE_SOURCE_REQUIRED, AGENT_CORE_SOURCE_NOT_FOUND].includes(error.message)) throw error;
+  }
   let sourceText = input.content ?? "";
   try {
     const entity = await readApprovedProductOrConcept({
@@ -788,29 +844,35 @@ export async function draftCatalogMerchandisingRecommendation(input: CommerceAge
 }
 
 export async function draftSeoGeoPdpRecommendation(input: CommerceAgentRunInput) {
-  const entity = await readApprovedProductOrConcept({ repos: input.repos, workspaceId: input.workspaceId, sourceEntityType: input.sourceEntityType, sourceEntityId: input.sourceEntityId, launchPlanId: input.launchPlanId });
+  const seo = await createSeoGeoPdpRecommendation(input);
   if (input.launchPlanId) await draftMarketingSeoPdpRecommendations({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, launchPlanId: input.launchPlanId });
+  const row = seo.seoRecommendation;
+  const faqItems = asArray(value(row, "faq_items", "faqItems"));
+  const faqQuestions = faqItems.map((item) => text(asRecord(item).question)).filter(Boolean);
   const output = {
-    seo_title: compact(`${entity.title} | Salty Cowhide Co.`, 70),
-    meta_description: compact(entity.description, 150),
-    h1: entity.title,
-    h2_suggestions: ["Why it fits the coastal western style", "Gift-ready details to review"],
-    keyword_targeting: entity.phrases.slice(0, 8),
-    image_alt_text: `${entity.title} product image, owner-approved before public use`,
-    internal_link_suggestions: ["/collections", "/drops"],
-    ai_readable_product_summary: compact(`${entity.title}: ${entity.description}`, 260),
-    answer_ready_product_facts: ["Owner-reviewed copy required", `Category: ${entity.productCategory}`, `Customer context: ${entity.customerSegment}`],
-    faq_block: ["Who is this for?", "What style does it match?", "What details need owner review?"],
-    comparison_bullets: ["Original Salty Cowhide positioning", "No unsupported claims", "No provider mutation"],
-    schema_recommendations: ["Product", "FAQPage where approved facts exist", "BreadcrumbList"],
-    pdp_improvements: ["Clarify above-fold product type", "Use substantiated material/size facts only", "Keep CTA owner-reviewed"]
+    seo_title: value(row, "title_draft", "titleDraft"),
+    meta_description: value(row, "meta_description_draft", "metaDescriptionDraft"),
+    h1: value(row, "h1_suggestion", "h1Suggestion"),
+    h2_suggestions: value(row, "h2_suggestions", "h2Suggestions"),
+    keyword_targeting: [],
+    keyword_data_source: value(row, "keyword_data_source", "keywordDataSource"),
+    image_alt_text: value(row, "image_alt_text_suggestions", "imageAltTextSuggestions"),
+    internal_link_suggestions: value(row, "internal_link_suggestions", "internalLinkSuggestions"),
+    ai_readable_product_summary: value(row, "ai_readable_summary", "aiReadableSummary"),
+    answer_ready_product_facts: ["Owner-reviewed copy required", "Keyword data source is directional unless GSC/GA4 data is connected"],
+    faq_block: faqQuestions.length ? faqQuestions : ["Who is this for?", "What details need owner review?"],
+    comparison_bullets: [...new Set([...asArray(value(row, "comparison_bullets", "comparisonBullets")).map(String), "No unsupported claims"])],
+    schema_recommendations: [...new Set([...asArray(value(row, "schema_recommendations", "schemaRecommendations")).map(String), "Product"])],
+    pdp_improvements: [...new Set([...asArray(value(row, "pdp_clarity_fixes", "pdpClarityFixes")).map(String), "Clarify above-fold product type"])],
+    compliance_checklist: value(row, "compliance_checklist", "complianceChecklist"),
+    policy_review_id: value(row, "policy_review_id", "policyReviewId")
   };
   return draftGenericRecommendation(input, {
     roleKey: "seo_geo_pdp_optimization",
     recommendationType: "seo_geo_pdp",
     title: "SEO / GEO / PDP optimization",
     summary: "Drafted search, answer-engine, and PDP clarity improvements without Shopify mutation.",
-    rationale: "Recommendations are grounded in approved entity copy and avoid unsupported material, shipping, or delivery claims.",
+    rationale: "Deterministic validation enforces title/meta length, directional keyword labeling, schema completeness checks, and policy review before persistence.",
     output,
     severity: "medium"
   });
@@ -900,7 +962,7 @@ export async function consultBehavioralPsychology(input: CommerceAgentRunInput) 
   const directAttribute = /are you\b/i.test(copy) && /(woman|women|mom|40\+|over 40|texas|anxious|depressed|disabled|broke)/i.test(copy);
   const warnings = [
     ...policy.policyCodes.filter((code) => code === "sensitive_personal_attribute" || code === "shame_fear_manipulation"),
-    ...(directAttribute ? ["direct_personal_attribute_copy"] : [])
+    ...(directAttribute ? ["direct_personal_attribute_copy", "sensitive_personal_attribute"] : [])
   ];
   const output: BehavioralConsultationOutput = {
     consultation_type: text(input.consultationType, "audience_pdp_ad_framing"),
@@ -940,23 +1002,32 @@ export async function consultBehavioralPsychology(input: CommerceAgentRunInput) 
 export async function runPolicyReview(input: CommerceAgentRunInput) {
   const launchPlanId = text(input.launchPlanId);
   const directContent = text(input.content);
-  const directReview = directContent
-    ? await persistCommercePolicyReviewResult({
-      ...input,
-      roleKey: "policy_claims_ip_risk_checker",
-      targetType: text(input.sourceEntityType, launchPlanId ? "marketing_launch_plan_content" : "commerce_policy_content"),
-      targetId: `${text(input.sourceEntityId, launchPlanId || "workspace")}:${hash(directContent)}`,
-      reviewedContent: directContent,
-      policy: mergePolicyResults([runRuleBasedPolicyClaimsIpCheck(directContent)]),
-      evidence: {
-        policySource: "direct_commerce_policy_content",
-        launchPlanId: launchPlanId || null,
-        sourceEntityType: input.sourceEntityType ?? null,
-        sourceEntityId: input.sourceEntityId ?? null
-      }
-    })
-    : null;
-  const directQuality = directContent ? await runIpTrademarkCheck({ ...input, roleKey: "policy_claims_ip_risk_checker" }) : null;
+  let directReview: WorkspaceRow | null = null;
+  let directQuality: unknown = null;
+  try {
+    const unified = await runUnifiedPolicyIpCheck({ ...input, roleKey: "policy_claims_ip_risk_checker" });
+    directReview = unified.policyReview;
+    directQuality = await runIpTrademarkCheck({ ...input, roleKey: "policy_claims_ip_risk_checker" });
+  } catch (error) {
+    if (!(error instanceof Error) || ![AGENT_CORE_SOURCE_REQUIRED, AGENT_CORE_SOURCE_NOT_FOUND].includes(error.message)) throw error;
+    directReview = directContent
+      ? await persistCommercePolicyReviewResult({
+        ...input,
+        roleKey: "policy_claims_ip_risk_checker",
+        targetType: text(input.sourceEntityType, launchPlanId ? "marketing_launch_plan_content" : "commerce_policy_content"),
+        targetId: `${text(input.sourceEntityId, launchPlanId || "workspace")}:${hash(directContent)}`,
+        reviewedContent: directContent,
+        policy: mergePolicyResults([runRuleBasedPolicyClaimsIpCheck(directContent)]),
+        evidence: {
+          policySource: "direct_commerce_policy_content",
+          launchPlanId: launchPlanId || null,
+          sourceEntityType: input.sourceEntityType ?? null,
+          sourceEntityId: input.sourceEntityId ?? null
+        }
+      })
+      : null;
+    directQuality = directContent ? await runIpTrademarkCheck({ ...input, roleKey: "policy_claims_ip_risk_checker" }) : null;
+  }
   const marketingReview = launchPlanId
     ? await runMarketingPolicyReview({ repos: input.repos, workspaceId: input.workspaceId, actorId: input.actorId, launchPlanId })
     : null;
