@@ -174,7 +174,11 @@ const tableExportByDbName: Record<string, TableName> = {
   vertical_packs: "verticalPacks",
   campaigns: "campaigns",
   campaign_channels: "campaignChannels",
-  utm_links: "utmLinks"
+  utm_links: "utmLinks",
+  trend_watch_profiles: "trendWatchProfiles",
+  trend_signal_runs: "trendSignalRuns",
+  source_citations: "sourceCitations",
+  rejected_signals: "rejectedSignals"
 };
 
 const camelToSnake = (value: string) => value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -374,6 +378,52 @@ export class DrizzleSiteAuditRepository extends DrizzleBaseRepository {
     const workspaceId = workspaceOf(row);
     for (const finding of findings) await this.findings.create({ ...finding, audit_run_id: created.id, auditRunId: created.id, workspace_id: workspaceId, workspaceId });
     return created;
+  }
+}
+
+export class DrizzleTrendIntelligenceRepository {
+  readonly profiles: DrizzleBaseRepository;
+  readonly sources: DrizzleBaseRepository;
+  readonly runs: DrizzleBaseRepository;
+  readonly citations: DrizzleBaseRepository;
+  readonly rejectedSignals: DrizzleBaseRepository;
+  private readonly trendSignals: DrizzleBaseRepository;
+
+  constructor(db?: DbClient, audit?: AuditWriter) {
+    this.profiles = new DrizzleBaseRepository("trend_watch_profiles", db, audit);
+    this.sources = new DrizzleBaseRepository("trend_sources", db, audit);
+    this.runs = new DrizzleBaseRepository("trend_signal_runs", db, audit);
+    this.citations = new DrizzleBaseRepository("source_citations", db, audit);
+    this.rejectedSignals = new DrizzleBaseRepository("rejected_signals", db, audit);
+    this.trendSignals = new DrizzleBaseRepository("trend_signals", db, audit);
+  }
+
+  async getSourceByKey(workspaceId: string, sourceKey: string) {
+    return (await this.sources.listByWorkspace(workspaceId)).find((row) =>
+      row.source_key === sourceKey || row.sourceKey === sourceKey || row.type === sourceKey
+    ) ?? null;
+  }
+
+  async listSourcesByKeys(workspaceId: string, sourceKeys: string[]) {
+    const keySet = new Set(sourceKeys);
+    return (await this.sources.listByWorkspace(workspaceId)).filter((row) =>
+      keySet.has(String(row.source_key ?? row.sourceKey ?? row.type ?? ""))
+    );
+  }
+
+  async listRunsByProfile(workspaceId: string, profileId: string) {
+    return (await this.runs.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listSignalsByRun(workspaceId: string, runId: string) {
+    return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.run_id === runId || row.runId === runId);
+  }
+
+  async listCitationsForEntity(workspaceId: string, entityType: string, entityId: string) {
+    return (await this.citations.listByWorkspace(workspaceId)).filter((row) =>
+      (row.entity_type === entityType || row.entityType === entityType) &&
+      (row.entity_id === entityId || row.entityId === entityId)
+    );
   }
 }
 
@@ -752,6 +802,7 @@ export function createDrizzleRepositories(db: DbClient = getDb()): RepositoryBun
     margin: new DrizzlePriceMarginCheckRepository(db, writer),
     publish: new DrizzlePublishReviewRepository(db, writer),
     siteAudit: new DrizzleSiteAuditRepository(db, writer),
+    trendIntelligence: new DrizzleTrendIntelligenceRepository(db, writer),
     integration: new DrizzleIntegrationRepository(db, writer),
     workspaceMetric: new DrizzleWorkspaceMetricRepository(db, writer),
     businessProfileV1: new DrizzleBusinessProfileV1Repository(db, writer),

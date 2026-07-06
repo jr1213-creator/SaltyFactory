@@ -99,7 +99,7 @@ for (const file of files.filter((file) => file.replace(/\\/g, "/").includes("app
 }
 
 const trendIngest = text(join(root, "apps/studio/app/api/studio/trend-sources/[id]/ingest/route.ts"));
-if (!trendIngest.includes("safeFetchText")) failures.push("trend source ingestion must use SSRF-safe fetcher");
+if (!trendIngest.includes("createManualTrendSourceBlockedResponse")) failures.push("manual trend source ingestion must fail closed through the restricted-source guardrail");
 
 const aiText = text(join(root, "packages/ai-free/src/employees.ts"));
 for (const forbidden of ["publish", "provider_sync", "ad_spend", "send_email", "send_sms", "auto_reply_review"]) {

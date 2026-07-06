@@ -3,7 +3,7 @@ import { getTableColumns } from "drizzle-orm";
 import { tables } from "@saltyfactory/db";
 
 export const requiredTableExports = [
-  "trendSources", "trendSignals", "trendClusters", "trendClusterSignals", "phraseCandidates", "riskReviews", "designBriefs", "generationJobs", "designAssets", "printFileQa", "mockupTemplates", "mockupAssets", "productDrafts", "productVariants", "productBatches", "productBatchItems", "priceMarginChecks", "publishReviews", "shopifyProductRefs", "printifyProductRefs", "fulfillmentEvents", "auditEvents",
+  "trendWatchProfiles", "trendSources", "trendSignalRuns", "trendSignals", "sourceCitations", "rejectedSignals", "trendClusters", "trendClusterSignals", "phraseCandidates", "riskReviews", "designBriefs", "generationJobs", "designAssets", "printFileQa", "mockupTemplates", "mockupAssets", "productDrafts", "productVariants", "productBatches", "productBatchItems", "priceMarginChecks", "publishReviews", "shopifyProductRefs", "printifyProductRefs", "fulfillmentEvents", "auditEvents",
   "users", "organizations", "organizationMembers", "workspaces", "workspaceBrandProfiles", "workspaceProviderConnections", "workspaceFeatureFlags", "workspaceSubscriptionStatus", "workspaceUsageEvents", "workspaceAuditEvents", "aiEmployees", "aiEmployeeTasks", "aiEmployeeRuns", "aiEmployeeOutputs", "aiEmployeePermissions", "aiEmployeeAuditEvents", "brandProfiles", "productCollectionPlans", "dropCalendars", "marketingAssets", "marketingCampaigns", "supportMacros", "customerSupportDrafts", "workspaceMetrics", "storefrontThemeSettings", "storefrontPages", "connectedStores", "providerConnectionStatus", "plans", "subscriptions", "billingEvents", "featureLimits"
 ];
 

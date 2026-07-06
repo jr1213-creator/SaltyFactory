@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { getTableColumns } from "drizzle-orm";
-import { aiEmployeeRuns, aiEmployeeTranscriptEvents, printifyProductRefs, productBatchItems, productBatches, productDrafts, publishReviews, shopifyProductRefs, trendSignals, workspaceProviderConnections } from "@saltyfactory/db";
+import { aiEmployeeRuns, aiEmployeeTranscriptEvents, printifyProductRefs, productBatchItems, productBatches, productDrafts, publishReviews, rejectedSignals, shopifyProductRefs, sourceCitations, trendSignalRuns, trendSignals, trendSources, trendWatchProfiles, workspaceProviderConnections } from "@saltyfactory/db";
 
 const columnKeys = (table: Parameters<typeof getTableColumns>[0]) => Object.keys(getTableColumns(table));
 
 describe("db schema key columns", () => {
   it("trend_signals includes production columns from architecture", () => {
-    expect(columnKeys(trendSignals)).toEqual(expect.arrayContaining(["workspaceId", "sourceId", "sourceUrl", "capturedAt", "keyword", "relatedTerms", "category", "region", "season", "confidence", "allowedUse", "status", "clusterId", "notes", "createdAt", "updatedAt"]));
+    expect(columnKeys(trendSignals)).toEqual(expect.arrayContaining(["workspaceId", "sourceId", "profileId", "runId", "sourceKey", "signalType", "rawValue", "normalizedKeyword", "normalizedTitle", "normalizedTags", "normalizedMotifTags", "metricValue", "metricType", "priceValue", "priceCurrency", "observedAt", "citationUrl", "sourceUrl", "capturedAt", "keyword", "relatedTerms", "category", "region", "season", "confidence", "allowedUse", "status", "clusterId", "riskFlags", "notes", "createdAt", "updatedAt"]));
+  });
+
+  it("trend intelligence tables include profile, source, run, citation, and rejection columns", () => {
+    expect(columnKeys(trendWatchProfiles)).toEqual(expect.arrayContaining(["workspaceId", "nicheName", "targetCustomer", "productCategories", "keywords", "seedPhrases", "excludedTerms", "visualMotifs", "brandPalette", "allowedSources", "sourceWeights", "freshnessWindowDays", "minSignalThreshold", "isActive"]));
+    expect(columnKeys(trendSources)).toEqual(expect.arrayContaining(["workspaceId", "sourceKey", "displayName", "accessMode", "capabilities", "authStatus", "approvalStatus", "riskLevel", "commercialUseAllowed", "requiresCredential", "requiresApproval", "isEnabled", "isTrusted", "allowedUseNotes", "lastSuccessfulFetchAt"]));
+    expect(columnKeys(trendSignalRuns)).toEqual(expect.arrayContaining(["workspaceId", "profileId", "sourceId", "sourceKey", "status", "failureCode", "startedAt", "completedAt", "rawSignalCount", "normalizedSignalCount", "citationCount"]));
+    expect(columnKeys(sourceCitations)).toEqual(expect.arrayContaining(["workspaceId", "entityType", "entityId", "sourceId", "sourceKey", "citationUrl", "capturedAt", "rawSnapshot"]));
+    expect(columnKeys(rejectedSignals)).toEqual(expect.arrayContaining(["workspaceId", "signalId", "rejectedBy", "reason", "rejectedAt"]));
   });
 
   it("product_drafts includes full production draft columns", () => {

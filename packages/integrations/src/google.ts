@@ -424,6 +424,10 @@ async function getUsableTokens(input: { repos: RepositoryBundle; workspaceId: st
   return refreshedBundle;
 }
 
+export async function getUsableGoogleConnectionBundle(input: { repos: RepositoryBundle; workspaceId: string; actorId: string; config: RuntimeConfig; fetcher?: GoogleFetch | undefined }) {
+  return getUsableTokens(input);
+}
+
 function googleStateFromConnection(connection: WorkspaceRow | null | undefined, status: GoogleIntegrationStatus): GoogleIntegrationState {
   const config = connectionConfig(connection);
   return {

@@ -1174,12 +1174,59 @@ export const setupAssistanceRequests = pgTable("setup_assistance_requests", {
   workspaceProviderIdx: index("setup_assistance_requests_workspace_provider_idx").on(table.workspaceId, table.relatedProvider)
 }));
 
+export const trendWatchProfiles = pgTable("trend_watch_profiles", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  nicheName: text("niche_name").notNull(),
+  targetCustomer: text("target_customer").notNull(),
+  productCategories: jsonb("product_categories").$type<string[]>().notNull().default([]),
+  keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
+  seedPhrases: jsonb("seed_phrases").$type<string[]>().notNull().default([]),
+  hashtags: jsonb("hashtags").$type<string[]>().notNull().default([]),
+  excludedTerms: jsonb("excluded_terms").$type<string[]>().notNull().default([]),
+  visualMotifs: jsonb("visual_motifs").$type<string[]>().notNull().default([]),
+  brandPalette: jsonb("brand_palette").$type<string[]>().notNull().default([]),
+  seasonalityWindows: jsonb("seasonality_windows").$type<Record<string, unknown>>(),
+  geographicFocus: jsonb("geographic_focus").$type<string[]>().notNull().default([]),
+  priceRangeMin: money("price_range_min"),
+  priceRangeMax: money("price_range_max"),
+  productTypes: jsonb("product_types").$type<string[]>().notNull().default([]),
+  allowedSources: jsonb("allowed_sources").$type<string[]>().notNull().default([]),
+  sourceWeights: jsonb("source_weights").$type<Record<string, number>>().notNull().default({}),
+  scoreWeights: jsonb("score_weights").$type<Record<string, number>>(),
+  freshnessWindowDays: integer("freshness_window_days").notNull().default(30),
+  minSignalThreshold: integer("min_signal_threshold").notNull().default(1),
+  riskFilters: jsonb("risk_filters").$type<string[]>().notNull().default([]),
+  watchlistStores: jsonb("watchlist_stores").$type<Record<string, unknown>>(),
+  marketplaceFocus: jsonb("marketplace_focus").$type<string[]>().notNull().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes")
+}, (table) => ({
+  workspaceNicheIdx: index("trend_watch_profiles_workspace_niche_idx").on(table.workspaceId, table.nicheName),
+  workspaceActiveIdx: index("trend_watch_profiles_workspace_active_idx").on(table.workspaceId, table.isActive)
+}));
+
 export const trendSources = pgTable("trend_sources", {
   id,
   ...ownership(),
   ...optionalActors(),
   name: text("name").notNull(),
   type: text("type").notNull(),
+  sourceKey: text("source_key").notNull().default(""),
+  displayName: text("display_name"),
+  accessMode: text("access_mode").notNull().default("manual_observation"),
+  capabilities: jsonb("capabilities").$type<string[]>().notNull().default([]),
+  authStatus: text("auth_status").notNull().default("not_configured"),
+  approvalStatus: text("approval_status").notNull().default("not_required"),
+  riskLevel: text("risk_level").notNull().default("medium"),
+  commercialUseAllowed: boolean("commercial_use_allowed").notNull().default(false),
+  requiresCredential: boolean("requires_credential").notNull().default(false),
+  requiresApproval: boolean("requires_approval").notNull().default(false),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  isTrusted: boolean("is_trusted").notNull().default(false),
+  allowedUseNotes: text("allowed_use_notes"),
+  lastSuccessfulFetchAt: timestamp("last_successful_fetch_at", { withTimezone: true }),
   allowedUse: text("allowed_use").notNull(),
   requiresManualImport: boolean("requires_manual_import").notNull().default(true),
   status: text("status").notNull().default("active"),
@@ -1187,7 +1234,29 @@ export const trendSources = pgTable("trend_sources", {
   sourcePolicyUrl: text("source_policy_url"),
   notes: text("notes")
 }, (table) => ({
-  workspaceTypeIdx: index("trend_sources_workspace_type_idx").on(table.workspaceId, table.type)
+  workspaceTypeIdx: index("trend_sources_workspace_type_idx").on(table.workspaceId, table.type),
+  workspaceSourceKeyIdx: index("trend_sources_workspace_source_key_idx").on(table.workspaceId, table.sourceKey)
+}));
+
+export const trendSignalRuns = pgTable("trend_signal_runs", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  profileId: text("profile_id").notNull().references(() => trendWatchProfiles.id),
+  sourceId: text("source_id").notNull().references(() => trendSources.id),
+  sourceKey: text("source_key").notNull(),
+  status: text("status").notNull().default("queued"),
+  failureCode: text("failure_code"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  rawSignalCount: integer("raw_signal_count").notNull().default(0),
+  normalizedSignalCount: integer("normalized_signal_count").notNull().default(0),
+  citationCount: integer("citation_count").notNull().default(0),
+  notes: text("notes")
+}, (table) => ({
+  workspaceProfileIdx: index("trend_signal_runs_workspace_profile_idx").on(table.workspaceId, table.profileId),
+  workspaceSourceIdx: index("trend_signal_runs_workspace_source_idx").on(table.workspaceId, table.sourceKey),
+  workspaceStatusIdx: index("trend_signal_runs_workspace_status_idx").on(table.workspaceId, table.status)
 }));
 
 export const trendClusters = pgTable("trend_clusters", {
@@ -1216,6 +1285,22 @@ export const trendSignals = pgTable("trend_signals", {
   ...ownership(),
   ...optionalActors(),
   sourceId: text("source_id").notNull().references(() => trendSources.id),
+  profileId: text("profile_id").references(() => trendWatchProfiles.id),
+  runId: text("run_id").references(() => trendSignalRuns.id),
+  sourceKey: text("source_key").notNull().default(""),
+  signalType: text("signal_type").notNull().default("other"),
+  externalIdentifier: text("external_identifier"),
+  rawValue: jsonb("raw_value").$type<Record<string, unknown>>().notNull().default({}),
+  normalizedKeyword: text("normalized_keyword"),
+  normalizedTitle: text("normalized_title"),
+  normalizedTags: jsonb("normalized_tags").$type<string[]>().notNull().default([]),
+  normalizedMotifTags: jsonb("normalized_motif_tags").$type<string[]>().notNull().default([]),
+  metricValue: numeric("metric_value", { precision: 18, scale: 4 }),
+  metricType: text("metric_type"),
+  priceValue: money("price_value"),
+  priceCurrency: text("price_currency"),
+  observedAt: timestamp("observed_at", { withTimezone: true }),
+  citationUrl: text("citation_url"),
   sourceUrl: text("source_url"),
   capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
   keyword: text("keyword").notNull(),
@@ -1227,10 +1312,14 @@ export const trendSignals = pgTable("trend_signals", {
   allowedUse: text("allowed_use").notNull(),
   status: text("status").notNull().default("new"),
   clusterId: text("cluster_id").references(() => trendClusters.id),
+  riskFlags: jsonb("risk_flags").$type<string[]>().notNull().default([]),
   notes: text("notes")
 }, (table) => ({
   workspaceStatusIdx: index("trend_signals_workspace_status_idx").on(table.workspaceId, table.status),
   sourceIdx: index("trend_signals_source_idx").on(table.sourceId),
+  sourceKeyIdx: index("trend_signals_source_key_idx").on(table.workspaceId, table.sourceKey),
+  profileIdx: index("trend_signals_profile_idx").on(table.workspaceId, table.profileId),
+  runIdx: index("trend_signals_run_idx").on(table.workspaceId, table.runId),
   clusterIdx: index("trend_signals_cluster_idx").on(table.clusterId),
   keywordIdx: index("trend_signals_keyword_idx").on(table.keyword)
 }));
@@ -1246,6 +1335,35 @@ export const trendClusterSignals = pgTable("trend_cluster_signals", {
 }, (table) => ({
   clusterSignalUnique: uniqueIndex("trend_cluster_signals_unique").on(table.clusterId, table.signalId),
   workspaceIdx: index("trend_cluster_signals_workspace_idx").on(table.workspaceId)
+}));
+
+export const sourceCitations = pgTable("source_citations", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  sourceId: text("source_id").references(() => trendSources.id),
+  sourceKey: text("source_key").notNull(),
+  citationUrl: text("citation_url"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown>>().notNull().default({})
+}, (table) => ({
+  workspaceEntityIdx: index("source_citations_workspace_entity_idx").on(table.workspaceId, table.entityType, table.entityId),
+  workspaceSourceIdx: index("source_citations_workspace_source_idx").on(table.workspaceId, table.sourceKey)
+}));
+
+export const rejectedSignals = pgTable("rejected_signals", {
+  id,
+  ...ownership(),
+  ...optionalActors(),
+  signalId: text("signal_id").notNull().references(() => trendSignals.id),
+  rejectedBy: text("rejected_by"),
+  reason: text("reason").notNull(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  workspaceSignalIdx: index("rejected_signals_workspace_signal_idx").on(table.workspaceId, table.signalId),
+  workspaceRejectedAtIdx: index("rejected_signals_workspace_rejected_at_idx").on(table.workspaceId, table.rejectedAt)
 }));
 
 export const phraseCandidates = pgTable("phrase_candidates", {
@@ -3041,6 +3159,7 @@ export const tables = {
   providerConnectionStatus,
   encryptedCredentials,
   integrationSyncRuns,
+  trendWatchProfiles,
   siteAuditRuns,
   siteAuditFindings,
   plans,
@@ -3048,7 +3167,10 @@ export const tables = {
   billingEvents,
   featureLimits,
   trendSources,
+  trendSignalRuns,
   trendSignals,
+  sourceCitations,
+  rejectedSignals,
   trendClusters,
   trendClusterSignals,
   phraseCandidates,

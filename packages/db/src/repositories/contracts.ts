@@ -57,6 +57,19 @@ export interface SiteAuditRepositoryContract extends BaseRepositoryContract {
   createRun(row: WorkspaceRow, findings?: WorkspaceRow[], audit?: WorkspaceRow): Promise<WorkspaceRow>;
 }
 
+export interface TrendIntelligenceRepositoryContract {
+  profiles: BaseRepositoryContract;
+  sources: BaseRepositoryContract;
+  runs: BaseRepositoryContract;
+  citations: BaseRepositoryContract;
+  rejectedSignals: BaseRepositoryContract;
+  getSourceByKey(workspaceId: string, sourceKey: string): Promise<WorkspaceRow | null>;
+  listSourcesByKeys(workspaceId: string, sourceKeys: string[]): Promise<WorkspaceRow[]>;
+  listRunsByProfile(workspaceId: string, profileId: string): Promise<WorkspaceRow[]>;
+  listSignalsByRun(workspaceId: string, runId: string): Promise<WorkspaceRow[]>;
+  listCitationsForEntity(workspaceId: string, entityType: string, entityId: string): Promise<WorkspaceRow[]>;
+}
+
 export interface CrmRepositoryContract {
   customers: BaseRepositoryContract;
   companies: BaseRepositoryContract;
@@ -215,6 +228,7 @@ export interface RepositoryBundle {
   margin: BaseRepositoryContract & { listBlocked(workspaceId: string): Promise<WorkspaceRow[]> };
   publish: PublishReviewRepositoryContract;
   siteAudit: SiteAuditRepositoryContract;
+  trendIntelligence: TrendIntelligenceRepositoryContract;
   integration: IntegrationRepositoryContract;
   workspaceMetric: BaseRepositoryContract;
   businessProfileV1: BaseRepositoryContract;

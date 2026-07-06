@@ -315,6 +315,52 @@ export class SiteAuditRepository extends BaseRepository {
   }
 }
 
+export class TrendIntelligenceRepository {
+  readonly profiles: BaseRepository;
+  readonly sources: BaseRepository;
+  readonly runs: BaseRepository;
+  readonly citations: BaseRepository;
+  readonly rejectedSignals: BaseRepository;
+  private readonly trendSignals: BaseRepository;
+
+  constructor(store?: RepositoryStore, audit?: AuditWriter) {
+    this.profiles = new BaseRepository("trend_watch_profiles", store, audit);
+    this.sources = new BaseRepository("trend_sources", store, audit);
+    this.runs = new BaseRepository("trend_signal_runs", store, audit);
+    this.citations = new BaseRepository("source_citations", store, audit);
+    this.rejectedSignals = new BaseRepository("rejected_signals", store, audit);
+    this.trendSignals = new BaseRepository("trend_signals", store, audit);
+  }
+
+  async getSourceByKey(workspaceId: string, sourceKey: string) {
+    return (await this.sources.listByWorkspace(workspaceId)).find((row) =>
+      row.source_key === sourceKey || row.sourceKey === sourceKey || row.type === sourceKey
+    ) ?? null;
+  }
+
+  async listSourcesByKeys(workspaceId: string, sourceKeys: string[]) {
+    const keySet = new Set(sourceKeys);
+    return (await this.sources.listByWorkspace(workspaceId)).filter((row) =>
+      keySet.has(String(row.source_key ?? row.sourceKey ?? row.type ?? ""))
+    );
+  }
+
+  async listRunsByProfile(workspaceId: string, profileId: string) {
+    return (await this.runs.listByWorkspace(workspaceId)).filter((row) => row.profile_id === profileId || row.profileId === profileId);
+  }
+
+  async listSignalsByRun(workspaceId: string, runId: string) {
+    return (await this.trendSignals.listByWorkspace(workspaceId)).filter((row) => row.run_id === runId || row.runId === runId);
+  }
+
+  async listCitationsForEntity(workspaceId: string, entityType: string, entityId: string) {
+    return (await this.citations.listByWorkspace(workspaceId)).filter((row) =>
+      (row.entity_type === entityType || row.entityType === entityType) &&
+      (row.entity_id === entityId || row.entityId === entityId)
+    );
+  }
+}
+
 export class IntegrationRepository extends BaseRepository {
   readonly credentials: BaseRepository;
   readonly syncRuns: BaseRepository;
@@ -709,6 +755,7 @@ export function createMemoryRepositories(store = createRepositoryStore()) {
     margin: new PriceMarginCheckRepository(store, writer),
     publish: new PublishReviewRepository(store, writer),
     siteAudit: new SiteAuditRepository(store, writer),
+    trendIntelligence: new TrendIntelligenceRepository(store, writer),
     integration: new IntegrationRepository(store, writer),
     workspaceMetric: new WorkspaceMetricRepository(store, writer),
     businessProfileV1: new BusinessProfileV1Repository(store, writer),

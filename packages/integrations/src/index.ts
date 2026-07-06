@@ -223,3 +223,4 @@ export function createIntegrationProviders(config: RuntimeConfig) {
 }
 
 export * from "./google";
+export * from "./trend-intelligence";
